@@ -17,6 +17,13 @@ const userSchema = new mongoose.Schema({
   trialStart: { type: Date, default: null },
   trialEnd: { type: Date, default: null },
   currentPeriodEnd: { type: Date, default: null },
+
+  // The unguessable id that appears in their OBS / LIVE Studio link.
+  // Stays the same for the life of the account so they paste it once.
+  overlayToken: { type: String, unique: true, sparse: true, index: true },
+
+  // Which single overlay a "single" plan customer picked.
+  overlayChoice: { type: String, default: 'board' },
 });
 
 const reviewSchema = new mongoose.Schema({

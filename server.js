@@ -1,5 +1,8 @@
 require('dotenv').config();
 const path = require('path');
+const fs = require('fs');
+const http = require('http');
+const crypto = require('crypto');
 const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
@@ -7,6 +10,7 @@ const jwt = require('jsonwebtoken');
 const Stripe = require('stripe');
 
 const { User, Review } = require('./models');
+const relay = require('./relay');
 
 const {
   PORT = 8080,
@@ -249,6 +253,104 @@ app.post('/api/checkout', auth, async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------
+// Overlays: the permanent links, and the pages themselves.
+// ---------------------------------------------------------------------
+const GAME_FILES = { board: 'board.html', auction: 'auction.html', money: 'money.html' };
+const GAME_NAMES = { board: 'Elimination board', auction: 'Live auction', money: 'Money game' };
+
+/* Made once and never changed, so a link pasted into OBS keeps working
+   for the life of the account. */
+async function ensureOverlayToken(user) {
+  if (user.overlayToken) return user.overlayToken;
+  user.overlayToken = crypto.randomBytes(8).toString('hex');
+  await user.save();
+  return user.overlayToken;
+}
+
+app.get('/api/links', auth, async (req, res) => {
+  const user = req.user;
+  const games = relay.allowedGames(user);
+  if (!games.length) {
+    return res.json({ active: false, games: [], links: [], panel: null });
+  }
+  const token = await ensureOverlayToken(user);
+  res.json({
+    active: true,
+    plan: user.plan,
+    games,
+    choice: user.overlayChoice,
+    links: games.map(g => ({
+      game: g,
+      name: GAME_NAMES[g],
+      url: `${PUBLIC_URL}/o/${token}/${g}`,
+    })),
+  });
+});
+
+/* Someone on the single-overlay plan swapping which one they use. */
+app.post('/api/choose-overlay', auth, async (req, res) => {
+  const game = String(req.body.game || '');
+  if (!relay.GAMES.includes(game)) return res.status(400).json({ error: 'unknown overlay' });
+  if (req.user.plan !== 'single') {
+    return res.status(400).json({ error: 'your plan already includes every overlay' });
+  }
+  req.user.overlayChoice = game;
+  await req.user.save();
+  res.json({ ok: true, choice: game });
+});
+
+/* The page OBS / LIVE Studio actually loads. This is the whole reason
+   the relay routes through us: if the subscription has lapsed, this
+   returns a notice instead of the overlay, and there is nothing on the
+   customer's machine that can serve it instead. */
+app.get('/o/:token/:game', async (req, res) => {
+  const { token, game } = req.params;
+  if (!relay.GAMES.includes(game)) return res.status(404).send(notice('That overlay does not exist.'));
+
+  const user = await User.findOne({ overlayToken: token });
+  if (!user) return res.status(404).send(notice('This overlay link is not recognised.'));
+
+  if (!relay.entitled(user)) {
+    return res.status(402).send(notice(
+      'This subscription is not active.',
+      'Start it again at ' + PUBLIC_URL + ' and this link will start working immediately — it never changes.'
+    ));
+  }
+  if (!relay.allowedGames(user).includes(game)) {
+    return res.status(403).send(notice(
+      'Your plan does not include this overlay.',
+      'The single-overlay plan covers one game at a time. Switch which one, or move to the all-three plan, on the website.'
+    ));
+  }
+
+  const file = path.join(__dirname, 'overlays', GAME_FILES[game]);
+  if (!fs.existsSync(file)) {
+    return res.status(500).send(notice('That overlay has not been uploaded to the server yet.'));
+  }
+
+  /* The overlay works out its own WebSocket address from location.origin,
+     which would point at the bare domain with no idea whose board to show.
+     Handing it an explicit address keeps that file otherwise untouched. */
+  const wsBase = PUBLIC_URL.replace(/^http/, 'ws');
+  const inject = `<script>window.__OVERLAY_WS=${JSON.stringify(`${wsBase}/view?t=${token}&g=${game}`)};</script>`;
+  let html = fs.readFileSync(file, 'utf8');
+  html = html.includes('</head>')
+    ? html.replace('</head>', inject + '</head>')
+    : inject + html;
+
+  res.set('Cache-Control', 'no-store');
+  res.send(html);
+});
+
+function notice(title, detail) {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Donut Overlays</title>
+  <style>body{margin:0;height:100vh;display:grid;place-items:center;background:#060912;color:#eaf1ff;
+  font:16px/1.6 system-ui,sans-serif;text-align:center;padding:2rem}
+  .box{max-width:34rem}h1{font-size:1.4rem;margin:0 0 .6rem}p{color:#93a6c4;margin:0}</style></head>
+  <body><div class="box"><h1>${esc(title)}</h1>${detail ? `<p>${esc(detail)}</p>` : ''}</div></body></html>`;
+}
+
 // ---- billing portal ----
 // Stripe's own hosted page. Customers change card, switch plan or cancel
 // there, and the resulting subscription.updated / .deleted webhook keeps
@@ -314,20 +416,55 @@ function fmtDate(d) {
 
 app.get('/admin', requireAdmin, async (req, res) => {
   const users = await User.find({}).sort({ createdAt: -1 }).lean();
+
+  const count = s => users.filter(u => u.status === s).length;
+  const trialing = count('trialing');
+  const active = count('active');
+  const canceled = count('canceled');
+  const problem = count('past_due') + count('unpaid');
+  const noPlan = users.filter(u => !u.status || u.status === 'none').length;
+
+  // What the active subscriptions are worth per month, at list price.
+  // Trials are not counted — nobody has paid for those yet.
+  const PRICE = { single: 8, all: 12 };
+  const mrr = users
+    .filter(u => u.status === 'active')
+    .reduce((sum, u) => sum + (PRICE[u.plan] || 0), 0);
+  const trialValue = users
+    .filter(u => u.status === 'trialing')
+    .reduce((sum, u) => sum + (PRICE[u.plan] || 0), 0);
+
+  const tile = (label, value, cls, sub) => `
+    <div class="tile ${cls || ''}">
+      <div class="tile-n">${value}</div>
+      <div class="tile-l">${label}</div>
+      ${sub ? `<div class="tile-s">${sub}</div>` : ''}
+    </div>`;
+
   const rows = users.map(u => `
     <tr>
       <td>${esc(u.email)}</td>
-      <td><span class="pill ${esc(u.status)}">${esc(u.status)}</span></td>
+      <td><span class="pill ${esc(u.status)}">${esc(u.status || 'none')}</span></td>
       <td>${esc(u.plan || '—')}</td>
+      <td>${fmtDate(u.trialStart)}</td>
       <td>${fmtDate(u.trialEnd)}</td>
       <td>${fmtDate(u.currentPeriodEnd)}</td>
       <td>${fmtDate(u.createdAt)}</td>
     </tr>`).join('');
+
   res.send(adminLayout('Users & trials', `
-    <p class="muted">${users.length} account(s) total. Trial and renewal dates come straight from Stripe.</p>
+    <div class="tiles">
+      ${tile('On free trial', trialing, 'gold', trialValue ? '$' + trialValue + '/mo if they all convert' : '')}
+      ${tile('Paying now', active, 'green', '$' + mrr + '/mo')}
+      ${tile('Cancelled', canceled, 'red')}
+      ${tile('Payment problems', problem, problem ? 'red' : '')}
+      ${tile('Signed up, no plan', noPlan)}
+      ${tile('Accounts total', users.length)}
+    </div>
+    <p class="muted">Every date below comes straight from Stripe, not from our own guesswork.</p>
     <table>
-      <thead><tr><th>Email</th><th>Status</th><th>Plan</th><th>Trial ends</th><th>Renews / ended</th><th>Signed up</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="6" class="muted">No accounts yet.</td></tr>'}</tbody>
+      <thead><tr><th>Email</th><th>Status</th><th>Plan</th><th>Trial started</th><th>Trial ends</th><th>Renews / ended</th><th>Signed up</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="7" class="muted">No accounts yet.</td></tr>'}</tbody>
     </table>
   `));
 });
@@ -378,6 +515,14 @@ function adminLayout(title, body) {
     .pill.trialing{background:#3a3311;color:#ffc93c}
     .pill.active{background:#0f3320;color:#5be89a}
     .pill.canceled,.pill.past_due,.pill.unpaid{background:#3a1414;color:#ff8f8f}
+    .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(9.5rem,1fr));gap:.8rem;margin:1.2rem 0 1.6rem}
+    .tile{background:#111a2b;border:1px solid #22304a;border-radius:.6rem;padding:.9rem 1rem}
+    .tile-n{font-size:2rem;font-weight:800;line-height:1.1}
+    .tile-l{font-size:.78rem;color:#93a6c4;text-transform:uppercase;letter-spacing:.05em;margin-top:.15rem}
+    .tile-s{font-size:.75rem;color:#6d7f9c;margin-top:.35rem}
+    .tile.gold .tile-n{color:#ffc93c}
+    .tile.green .tile-n{color:#5be89a}
+    .tile.red .tile-n{color:#ff8f8f}
     nav{margin-bottom:1rem}
     nav a{margin-right:1.2rem;font-weight:700}
     button{background:#182437;color:#eaf1ff;border:1px solid #22304a;border-radius:.4rem;padding:.35rem .6rem;cursor:pointer}
@@ -398,6 +543,8 @@ async function main() {
   } else {
     console.warn('[startup] no MONGODB_URI set — accounts/reviews will fail until it is.');
   }
-  app.listen(PORT, () => console.log(`[startup] listening on :${PORT}`));
+  const server = http.createServer(app);
+  relay.setup(server, { jwtSecret: JWT_SECRET });
+  server.listen(PORT, () => console.log(`[startup] listening on :${PORT}`));
 }
 main();
