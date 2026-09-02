@@ -453,13 +453,13 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 <section>
   <div class="wrap">
     <div class="sec-head">
-      <h2>Links for <em>wherever you stream</em></h2>
-      <p>An example of what you get after signing up. Your real addresses are tied to your account, so nobody else can point at your board.</p>
+      <h2 id="setupTitle">Links for <em>wherever you stream</em></h2>
+      <p id="setupBlurb">An example of what you get after signing up. Your real addresses are tied to your account, so nobody else can point at your board.</p>
     </div>
-    <div class="links">
-      <div class="linkrow"><div class="plat">Control panel</div><code id="l1">donutoverlays.com/panel/board</code><button data-copy="l1">Copy</button></div>
-      <div class="linkrow"><div class="plat">TikTok LIVE Studio</div><code id="l2">donutoverlays.com/o/7f3a91c4/display</code><button data-copy="l2">Copy</button></div>
-      <div class="linkrow"><div class="plat">OBS · Streamlabs</div><code id="l3">donutoverlays.com/o/7f3a91c4/display</code><button data-copy="l3">Copy</button></div>
+    <div class="links" id="setupBox">
+      <div class="linkrow"><div class="plat">TikTok LIVE Studio</div><code id="l2">donutoverlays.com/o/7f3a91c4/board</code><button data-copy="l2">Copy</button></div>
+      <div class="linkrow"><div class="plat">OBS · Streamlabs</div><code id="l3">donutoverlays.com/o/7f3a91c4/board</code><button data-copy="l3">Copy</button></div>
+      <div class="linkrow"><div class="plat">Control panel</div><code id="l1">localhost:8090</code><button data-copy="l1">Copy</button></div>
     </div>
   </div>
 </section>
@@ -862,6 +862,7 @@ async function refreshMe(){
     if(!r.ok) return; // expired token etc — leave the email showing
     const data = await r.json();
     setCta(data.status);
+    paintSetup();   // turn the example links into their real ones
     const el = document.getElementById('acctState');
     if(!el) return;
     el.className = 'state';
@@ -1071,6 +1072,59 @@ document.getElementById('reviewGo').onclick = async () => {
 
 paintAccount(); paintGate(); paintReviewForm(); loadReviews();
 
+/* ---------------- setup: the real links, once they're paying ----------------
+   Until someone subscribes this section shows an example, because that is
+   all it can honestly show. The moment they do, it turns into the actual
+   thing they need: the download, then their own permanent addresses. */
+async function paintSetup(){
+  const box = document.getElementById('setupBox');
+  if(!box || !me) return;
+  let data;
+  try {
+    const r = await fetch(API + '/api/links', { headers: authHeader() });
+    if(!r.ok) return;
+    data = await r.json();
+  } catch(e){ return; }
+  if(!data.active) return;   // signed in but no plan — the example stands
+
+  document.getElementById('setupTitle').innerHTML = 'Your overlays, <em>ready to go</em>';
+  document.getElementById('setupBlurb').textContent =
+    'Step 1 downloads the app that reads your Minecraft chat. Step 2 is the address you paste into your streaming software — it never changes, so you only ever do it once.';
+
+  const rows = [];
+  rows.push(`
+    <div class="linkrow">
+      <div class="plat">1 · Download</div>
+      <code>donut-overlays-launcher.zip</code>
+      <a class="btn btn-gold" style="padding:.55rem .9rem;font-size:.85rem" href="${data.download}">Download</a>
+    </div>`);
+
+  data.links.forEach((l, i) => {
+    rows.push(`
+      <div class="linkrow">
+        <div class="plat">${i === 0 ? '2 · Paste into OBS' : '&nbsp;'}</div>
+        <code id="ln${i}">${l.url}</code>
+        <button data-copy="ln${i}">Copy</button>
+      </div>`);
+  });
+
+  rows.push(`
+    <div class="linkrow">
+      <div class="plat">3 · Your controls</div>
+      <code id="lnPanel">http://localhost:8090/</code>
+      <button data-copy="lnPanel">Copy</button>
+    </div>`);
+
+  box.innerHTML = rows.join('');
+  box.insertAdjacentHTML('beforeend',
+    `<p style="color:var(--muted);font-size:.88rem;margin-top:1rem">
+       Unzip it anywhere, run <b>START-DONUT-OVERLAYS.bat</b>, and sign in with this
+       same email and password. Leave that window open while you stream.
+       ${data.plan === 'single' ? 'Your plan covers one overlay at a time — switch which one from your account.' : ''}
+     </p>`);
+  bindCopy();
+}
+
 /* pull the real Discord invite from the server config so it can be
    changed later without touching this file */
 fetch(API + '/api/config').then(r => r.json()).then(cfg => {
@@ -1078,13 +1132,22 @@ fetch(API + '/api/config').then(r => r.json()).then(cfg => {
 }).catch(() => {});
 
 /* ---------------- copy buttons ---------------- */
-document.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => {
-  const text = document.getElementById(b.dataset.copy).textContent;
-  navigator.clipboard.writeText('https://' + text).then(() => {
-    const old = b.textContent; b.textContent = 'Copied';
-    setTimeout(() => b.textContent = old, 1400);
-  }).catch(() => {});
-});
+/* Re-bindable, because the setup rows get replaced with the real links
+   once someone subscribes. The example rows have no scheme on them; the
+   real ones already do, so only add one where it is missing. */
+function bindCopy(){
+  document.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => {
+    const el = document.getElementById(b.dataset.copy);
+    if(!el) return;
+    let text = el.textContent.trim();
+    if(!/^https?:\/\//i.test(text)) text = 'https://' + text;
+    navigator.clipboard.writeText(text).then(() => {
+      const old = b.textContent; b.textContent = 'Copied';
+      setTimeout(() => b.textContent = old, 1400);
+    }).catch(() => {});
+  });
+}
+bindCopy();
 document.querySelectorAll('[data-links]').forEach(b => b.onclick = () =>
   document.querySelector('.links').scrollIntoView({behavior:'smooth', block:'center'}));
 

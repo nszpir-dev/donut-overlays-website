@@ -289,7 +289,29 @@ app.get('/api/links', auth, async (req, res) => {
       name: GAME_NAMES[g],
       url: `${PUBLIC_URL}/o/${token}/${g}?role=display&bg=transparent`,
     })),
+    download: `${PUBLIC_URL}/download/${token}/donut-overlays-launcher.zip`,
+    panel: 'http://localhost:8090/',
   });
+});
+
+/* The launcher download. Gated on the same token as the overlay links so
+   a plain <a href> works — a browser download cannot carry an auth header,
+   and a subscription that has lapsed should not still be handing out the
+   software. */
+app.get('/download/:token/donut-overlays-launcher.zip', async (req, res) => {
+  const user = await User.findOne({ overlayToken: req.params.token });
+  if (!user) return res.status(404).send(notice('That download link is not recognised.'));
+  if (!relay.entitled(user)) {
+    return res.status(402).send(notice(
+      'This subscription is not active.',
+      'Start it again at ' + PUBLIC_URL + ' and the download will work straight away.'
+    ));
+  }
+  const file = path.join(__dirname, 'launcher', 'donut-overlays-launcher.zip');
+  if (!fs.existsSync(file)) {
+    return res.status(500).send(notice('The launcher has not been uploaded to the server yet.'));
+  }
+  res.download(file, 'donut-overlays-launcher.zip');
 });
 
 /* Someone on the single-overlay plan swapping which one they use. */
