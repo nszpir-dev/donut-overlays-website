@@ -258,6 +258,10 @@ app.post('/api/checkout', auth, async (req, res) => {
 // ---------------------------------------------------------------------
 const GAME_FILES = { board: 'board.html', auction: 'auction.html', money: 'money.html' };
 const GAME_NAMES = { board: 'Elimination board', auction: 'Live auction', money: 'Money game' };
+/* Each game's relay listens on its own port, so the control panel address
+   differs per game. Showing one fixed port sent anyone running the auction
+   or money game to a dead page. */
+const GAME_PORTS = { board: 8090, auction: 8091, money: 8092 };
 
 /* Made once and never changed, so a link pasted into OBS keeps working
    for the life of the account. */
@@ -288,9 +292,9 @@ app.get('/api/links', auth, async (req, res) => {
       game: g,
       name: GAME_NAMES[g],
       url: `${PUBLIC_URL}/o/${token}/${g}?role=display&bg=transparent`,
+      panel: `http://localhost:${GAME_PORTS[g]}/`,
     })),
     download: `${PUBLIC_URL}/download/${token}/donut-overlays-launcher.zip`,
-    panel: 'http://localhost:8090/',
   });
 });
 

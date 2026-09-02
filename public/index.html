@@ -1110,28 +1110,30 @@ async function paintSetup(){
   /* Each row says which game it is. Naming a platform here was wrong:
      one link works everywhere, and what a streamer actually needs to
      know is which of their overlays they are copying. */
+  /* Each game gets its own control panel address, because each relay
+     listens on its own port. One shared address was simply wrong for
+     two of the three games. */
   data.links.forEach((l, i) => {
     rows.push(`
       <div class="linkrow">
         <div class="plat" style="padding-left:1.2rem;font-weight:700;color:var(--teal)">${l.name}</div>
-        <code id="ln${i}">${l.url}</code>
+        <div style="flex:1;min-width:0">
+          <code id="ln${i}" style="display:block">${l.url}</code>
+          <div style="font-size:.8rem;color:var(--muted);margin-top:.3rem">
+            Your controls while it runs: <b style="color:#a9c6ee">${l.panel}</b>
+          </div>
+        </div>
         <button data-copy="ln${i}">Copy</button>
       </div>`);
   });
 
-  rows.push(`
-    <div class="linkrow">
-      <div class="plat">3 · Your controls</div>
-      <code id="lnPanel">http://localhost:8090/</code>
-      <button data-copy="lnPanel">Copy</button>
-    </div>`);
-
   box.innerHTML = rows.join('');
   box.insertAdjacentHTML('beforeend',
     `<p style="color:var(--muted);font-size:.88rem;margin-top:1rem">
-       Unzip it anywhere, run <b>START-DONUT-OVERLAYS.bat</b>, and sign in with this
-       same email and password. Leave that window open while you stream.
-       ${data.plan === 'single' ? 'Your plan covers one overlay at a time — switch which one from your account.' : ''}
+       Unzip it anywhere, run <b>START-DONUT-OVERLAYS.bat</b>, sign in, and pick which
+       overlay you're running. Leave that window open while you stream — it also prints
+       your link and control panel address each time.
+       ${data.plan === 'single' ? ' Your plan covers one overlay at a time — switch which one from your account.' : ''}
      </p>`);
   bindCopy();
 }
