@@ -280,10 +280,14 @@ app.get('/api/links', auth, async (req, res) => {
     plan: user.plan,
     games,
     choice: user.overlayChoice,
+    /* role=display strips the operator controls, bg=transparent drops the
+       background so it sits over gameplay. Both are flags the overlay
+       already understands — the local version got them from its /display
+       path, which the token in ours pushes out of the way. */
     links: games.map(g => ({
       game: g,
       name: GAME_NAMES[g],
-      url: `${PUBLIC_URL}/o/${token}/${g}`,
+      url: `${PUBLIC_URL}/o/${token}/${g}?role=display&bg=transparent`,
     })),
   });
 });
