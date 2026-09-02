@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Money Game — winner takes the pot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@500;600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --gold:#ffd75e;
+  --gold-dim:#1f7a45;
+  --plum:#0c1f16;
+  --plum-2:#07150f;
+  --cream:#eafff2;
+  --red:#ff4242;
+  font-size:18px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;width:100%;overflow:hidden}
+body{
+  background:#06120c;
+  font-family:'Oswald',system-ui,sans-serif;
+  color:var(--cream);-webkit-font-smoothing:antialiased;
+}
+body.transparent{background:transparent}
+body.chroma{background:#00b140}
+
+#stage{
+  position:fixed;top:0;right:0;bottom:0;left:0;
+  display:flex;flex-direction:column;
+  padding:.9rem;gap:0;justify-content:flex-start;
+}
+/* the actual card — solid so it reads over gameplay */
+#board{
+  width:100%;max-width:var(--cardw,19rem);margin:0 auto;   /* a block, not a banner */
+  display:flex;flex-direction:column;gap:.5rem;
+  background:linear-gradient(180deg,#0f2b1d,#071710);
+  border:.16rem solid var(--gold-dim);
+  border-radius:.6rem;
+  padding:.85rem .9rem 1rem;
+  box-shadow:0 .5rem 1.6rem rgba(0,0,0,.75), inset 0 .08rem 0 rgba(255,255,255,.06);
+  max-height:100%;overflow:hidden;
+}
+body.clearbg #board{background:rgba(7,23,16,.55);border-color:rgba(31,122,69,.5)}
+
+/* ---------- top line ---------- */
+#topline{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:.78rem;font-weight:700;letter-spacing:.26em;text-transform:uppercase;
+  color:#8fd9ae;border-bottom:.1rem solid #1f7a45;padding-bottom:.35rem;
+}
+#topline .ttl{color:#eafff2}
+#lotVouch{font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:.06em;color:var(--gold)}
+
+/* ---------- the pot is the hero ---------- */
+#potLabel{
+  font-size:.76rem;font-weight:700;letter-spacing:.3em;text-transform:uppercase;
+  color:#8fd9ae;text-align:center;margin-top:.3rem;
+}
+#potAmount{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:5.4rem;line-height:.85;text-align:center;letter-spacing:.02em;color:var(--gold);
+  text-shadow:0 .12rem .4rem rgba(0,0,0,.85),0 0 2.4rem rgba(255,215,94,.4);
+}
+
+/* ---------- leader, with the clock wrapped round their head ---------- */
+#leadRow{
+  position:relative;display:flex;align-items:center;gap:.75rem;
+  background:linear-gradient(180deg,rgba(18,51,34,.9),rgba(7,23,16,.9));
+  border:.1rem solid #1f7a45;border-radius:.45rem;padding:.6rem .7rem;margin-top:.4rem;
+}
+#leadRow.empty{opacity:.75}
+#leadRow.won{border-color:var(--gold);box-shadow:0 0 1.6rem rgba(255,215,94,.35)}
+#ringWrap{
+  position:relative;flex:none;width:5rem;height:5rem;border-radius:50%;padding:.28rem;
+  background:conic-gradient(#3ddc84 calc(var(--p,100) * 1%), #14301f 0);
+  transition:background .25s linear;
+}
+#ringWrap.low{background:conic-gradient(#ff6b6b calc(var(--p,100) * 1%), #14301f 0)}
+#face{
+  width:100%;height:100%;border-radius:50%;
+  background:#0a1f15 center/cover no-repeat;image-rendering:pixelated;
+  border:.1rem solid #0a1f15;
+}
+#timeBadge{
+  position:absolute;bottom:-.35rem;left:50%;transform:translateX(-50%);
+  font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:.06em;
+  background:#07150f;border:.1rem solid #1f7a45;border-radius:1rem;
+  padding:0 .5rem;color:#eafff2;white-space:nowrap;
+}
+#leadInfo{min-width:0;flex:1}
+#leadLabel{font-size:.68rem;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#8fd9ae}
+#who{
+  font-family:'Bebas Neue',sans-serif;font-size:2.4rem;line-height:1;color:#fff;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  text-shadow:0 .08rem .2rem rgba(0,0,0,.8);
+}
+#amount{font-size:.95rem;font-weight:700;color:#bff3d5}
+#winning{
+  font-family:'Bebas Neue',sans-serif;font-size:2.2rem;line-height:1;letter-spacing:.03em;
+  color:#3ddc84;margin-top:.1rem;
+  text-shadow:0 .08rem .25rem rgba(0,0,0,.85),0 0 1.4rem rgba(61,220,132,.4);
+}
+#leadRow.empty #amount,#leadRow.empty #winning{display:none}
+#stamp{
+  position:absolute;top:.4rem;right:.5rem;
+  font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:.1em;
+  color:var(--gold);border:.18rem solid var(--gold);padding:0 .5rem;border-radius:.2rem;
+  transform:rotate(-10deg);
+}
+
+/* ---------- the rest of the money ---------- */
+#ladder{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:.2rem;margin-top:.35rem}
+#ladderHead{font-size:.72rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#8fd9ae}
+.rb{
+  display:flex;align-items:center;gap:.5rem;
+  background:rgba(18,51,34,.8);border-left:.15rem solid #1f7a45;border-radius:.25rem;
+  padding:.24rem .5rem;font-size:1rem;font-weight:700;color:#d8f7e6;
+}
+.rb img{width:1.4rem;height:1.4rem;image-rendering:pixelated;border-radius:.2rem}
+.rb .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rb .a{font-family:'Bebas Neue',sans-serif;font-size:1.25rem;color:var(--gold)}
+
+#cta{
+  text-align:center;font-size:1.05rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:#06120c;background:linear-gradient(180deg,#7dffb8,#2bbd6c);
+  padding:.42rem;border-radius:.3rem;margin-top:.35rem;
+  box-shadow:0 .25rem .7rem rgba(0,0,0,.45);
+}
+#cta.quiet{background:#123322;color:#bff3d5;border:.1rem solid #1f7a45}
+.hidden{display:none !important}
+#brand{
+  position:fixed;bottom:.3rem;left:0;right:0;text-align:center;
+  font-size:.7rem;font-weight:700;letter-spacing:.18em;color:#79b295;text-transform:uppercase;
+  pointer-events:none;
+}
+
+/* ---------- compact: pot, leader, clock. nothing else ---------- */
+body.compact #ladder,
+body.compact #cta,
+body.compact #brand{display:none}
+body.compact #board{padding:.55rem .65rem .7rem;gap:.25rem}
+body.compact #topline{font-size:.7rem;padding-bottom:.25rem}
+body.compact #potLabel{font-size:.68rem;margin-top:.2rem}
+body.compact #potAmount{font-size:5rem}
+body.compact #leadRow{padding:.45rem .5rem;gap:.6rem}
+body.compact #ringWrap{width:4.2rem;height:4.2rem}
+body.compact #who{font-size:2rem}
+body.compact #winning{font-size:2rem}
+body.compact #amount{font-size:.9rem}
+
+/* ---------- operator panel (light on purpose) ---------- */
+#op{
+  position:fixed;top:0;right:0;bottom:0;width:min(26rem,420px);max-width:100%;
+  background:#eef3fa;border-left:3px solid #33475f;
+  transform:translateX(101%);transition:transform .22s ease;
+  z-index:50;display:flex;flex-direction:column;font-size:.82rem;color:#0b1526;
+}
+#op.open{transform:none}
+#opTab{
+  position:fixed;top:.6rem;right:.6rem;z-index:51;
+  background:#fff;color:#0b1526;border:3px solid #17a34a;border-radius:.5rem;
+  padding:.6rem 1rem;font:900 .9rem Nunito,sans-serif;cursor:pointer;letter-spacing:.04em;
+  box-shadow:0 .2rem .7rem rgba(0,0,0,.55);
+}
+#opClose{
+  width:100%;background:#ffe3e3;color:#8a1111;border:2px solid #d33;border-radius:.4rem;
+  padding:.6rem;font:900 .85rem Nunito,sans-serif;cursor:pointer;margin-bottom:.8rem;
+}
+#op .body{padding:.9rem 1rem 3rem;overflow-y:auto}
+#op h3{font-size:.8rem;font-weight:900;color:#0b1526;margin:1.1rem 0 .15rem;
+  padding-left:.5rem;border-left:.28rem solid #17a34a}
+#op h3:first-of-type{margin-top:0}
+#op .hint{font-size:.72rem;color:#42546e;margin:0 0 .45rem;line-height:1.35}
+#op label{display:block;font-size:.7rem;font-weight:800;color:#33475f;margin-bottom:.15rem}
+#op input,#op select{
+  width:100%;-webkit-appearance:none;appearance:none;
+  background:#fff;color:#0b1526;caret-color:#0b1526;
+  border:2px solid #7b93b8;border-radius:.4rem;padding:.5rem .55rem;
+  font:800 .85rem Nunito,sans-serif;
+}
+#op input::placeholder{color:#5b6880;font-weight:700}
+#op input:focus,#op select:focus{outline:3px solid #17a34a}
+.row{display:flex;gap:.45rem;margin-bottom:.45rem}
+.row>*{flex:1}
+button.act{
+  background:#dce7f6;color:#0b1526;border:2px solid #5b7699;border-radius:.4rem;
+  padding:.55rem .5rem;font:900 .82rem Nunito,sans-serif;cursor:pointer;
+}
+button.act.pri{background:#cfeeda;border-color:#17a34a}
+button.act.warn{background:#ffdada;border-color:#d33}
+button.act.gold{background:#ffedbf;border-color:#c8930d}
+button.act:active{transform:scale(.97)}
+#suggest{
+  position:relative;background:#fff;border:2px solid #7b93b8;border-top:none;
+  border-radius:0 0 .4rem .4rem;max-height:11rem;overflow-y:auto;margin:-.45rem 0 .45rem;
+}
+#suggest div{padding:.45rem .55rem;font-weight:800;cursor:pointer;border-bottom:1px solid #e3eaf4}
+#suggest div:hover,#suggest div.sel{background:#cfeeda}
+#log,#refunds,#lateList,#tally{
+  background:#fff;border:2px solid #7b93b8;border-radius:.4rem;padding:.45rem .5rem;
+  font:800 .75rem/1.6 Nunito,sans-serif;color:#26374d;max-height:11rem;overflow-y:auto;
+}
+#refunds{color:#8a1111;margin-bottom:.45rem}
+#lateList{color:#0b6b34;margin-bottom:.45rem}
+#tally{font-size:.95rem;line-height:1.8;margin-bottom:.45rem}
+#payout{
+  background:#cfeeda;border:2px solid #17a34a;border-radius:.4rem;
+  padding:.6rem .7rem;margin-bottom:.45rem;color:#0b1526;
+}
+#payout .big{font:900 1.6rem/1.1 Nunito,sans-serif;color:#0b6b34}
+#payout .cmd{
+  display:block;margin-top:.35rem;padding:.35rem .45rem;background:#fff;
+  border:1px solid #7b93b8;border-radius:.3rem;
+  font:800 .95rem ui-monospace,monospace;color:#0b1526;word-break:break-all;
+}
+#payout .none{color:#42546e;font-weight:800}
+#tally b{font-size:1.05rem}
+.pill-status{display:inline-block;padding:.15rem .45rem;border-radius:.3rem;
+  font-size:.68rem;font-weight:900;vertical-align:middle}
+.ok{background:#cfeeda;color:#0b6b34;border:1px solid #17a34a}
+.bad{background:#ffdada;color:#8a1111;border:1px solid #d33}
+@media (max-width:640px){
+  #op{font-size:1rem}
+  #op input,#op select,button.act{font-size:1rem;padding:.7rem .6rem}
+  #opTab{font-size:1.05rem;padding:.75rem 1.15rem}
+}
+</style>
+</head>
+<body>
+
+<div id="stage">
+ <div id="board">
+  <div id="topline">
+    <span class="ttl">Money Game</span>
+    <span id="lotVouch">★ 6</span>
+  </div>
+
+  <div id="potLabel">Total pot</div>
+  <div id="potAmount">$0</div>
+
+  <div id="leadRow" class="empty">
+    <div id="ringWrap">
+      <div id="face"></div>
+      <div id="timeBadge">0:00</div>
+    </div>
+    <div id="leadInfo">
+      <div id="leadLabel">In the lead</div>
+      <div id="who">Nobody yet</div>
+      <div id="amount"></div>
+      <div id="winning"></div>
+    </div>
+    <div id="stamp" class="hidden">Won</div>
+  </div>
+
+  <div id="ladder">
+    <div id="ladderHead">Also in the pot</div>
+    <div id="ladderRows"></div>
+  </div>
+
+  <div id="cta" class="quiet">Waiting for the next round</div>
+ </div>
+</div>
+<div id="brand">/pay <span id="brandName">mrchicken75</span> to play</div>
+
+<button id="opTab">☰ CONTROLS</button>
+<aside id="op">
+  <div class="body">
+    <button id="opClose">✕ Close controls</button>
+
+    <h3>1 · Run the round <span id="linkPill" class="pill-status bad">not connected</span></h3>
+    <p class="hint">You seed the pot, everyone pays in, and the biggest single payment when the clock stops takes the lot. Losing payments stay in the pot — that's what the winner wins.</p>
+    <div class="row">
+      <div><label>You put in to start</label><input id="fSeed" value="1000000"></div>
+      <div><label>Length (sec)</label><input id="fSec" value="60"></div>
+    </div>
+    <div class="row">
+      <div><label>Minimum to count</label><input id="fMin" value="0" placeholder="0 = anything counts"></div>
+      <div><label>Your cut %</label><input id="fCut" value="10"></div>
+    </div>
+    <div class="row">
+      <button class="act pri" id="bOpen">▶ Start round</button>
+      <button class="act warn" id="bEnd">⏹ End now</button>
+    </div>
+    <div class="row">
+      <button class="act" id="bPause">⏸ Pause</button>
+      <button class="act warn" id="bReset">♻ Clear round</button>
+    </div>
+
+    <h3>2 · Pay the winner</h3>
+    <div id="payout"></div>
+    <div class="row"><button class="act gold" id="bCopyPay">📋 Copy the /pay command</button></div>
+
+    <h3>3 · The clock</h3>
+    <div class="row">
+      <button class="act" data-atime="-10">− 10s</button>
+      <button class="act" data-atime="10">+ 10s</button>
+      <button class="act" data-atime="30">+ 30s</button>
+    </div>
+
+    <h3>4 · Add a payment by hand</h3>
+    <p class="hint">Payments never stack. If they paid 1M and someone else paid 3M, they need a fresh 4M — and their first 1M stays in the pot.</p>
+    <div class="row"><input id="fName" placeholder="Minecraft username" autocomplete="off"></div>
+    <div class="row">
+      <input id="fAmt" placeholder="amount — 4m or 4000000">
+      <button class="act pri" id="bBid">Add</button>
+    </div>
+    <div class="row"><button class="act" id="bUndo">↩ Undo last payment</button></div>
+
+    <h3>Where the money is</h3>
+    <div id="tally"></div>
+
+    <h3>Late payments — you keep these</h3>
+    <p class="hint">Arrived after the clock stopped, so they can't win.</p>
+    <div id="lateList"></div>
+
+    <h3>Under the minimum — refund these</h3>
+    <div id="refunds"></div>
+    <div class="row"><button class="act" id="bClearRef">Clear this list</button></div>
+
+    <h3>Settings</h3>
+    <div class="row" style="align-items:flex-end">
+      <div style="flex:2"><label>Vouches ★</label><input id="fVouch" value="6"></div>
+      <button class="act" data-vouch="-1" style="flex:1">−</button>
+      <button class="act" data-vouch="1" style="flex:1">+</button>
+    </div>
+    <div class="row">
+      <div><label>Your Minecraft name</label><input id="fIgn" value="mrchicken75"></div>
+    </div>
+    <div class="row">
+      <div><label>Card width</label>
+        <select id="cWidth">
+          <option value="15">Narrow</option>
+          <option value="19" selected>Medium</option>
+          <option value="24">Wide</option>
+          <option value="100">Full width</option>
+        </select>
+      </div>
+      <div><label>Layout</label>
+        <select id="cLayout">
+          <option value="compact" selected>Compact (small on screen)</option>
+          <option value="full">Full (big on screen)</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Text size</label>
+        <select id="cSize">
+          <option value="1">Normal</option>
+          <option value="1.15" selected>Large</option>
+          <option value="1.35">Huge</option>
+          <option value="1.6">Massive</option>
+        </select>
+      </div>
+      <div><label>Card background</label>
+        <select id="cCard">
+          <option value="solid">Solid (easiest to read)</option>
+          <option value="clear">See-through</option>
+        </select>
+      </div>
+    </div>
+
+    <h3>What just happened</h3>
+    <div id="log"></div>
+  </div>
+</aside>
+
+<script>
+/* =========================================================
+   Money Game — biggest single payment takes the pot
+   /            control panel
+   /display     overlay for LIVE Studio
+   The relay runs the round; this page only draws it.
+   ========================================================= */
+const qs = new URLSearchParams(location.search);
+const DISPLAY = /^\/(display|overlay)/i.test(location.pathname) || qs.get('role') === 'display';
+const el = id => document.getElementById(id);
+const now = () => Date.now();
+
+let M = {
+  phase:'idle', seed:1000000, minBid:0, cutPct:10, endsAt:0, paused:false, pausedLeft:0,
+  pot:0, leader:null, bids:[], late:[], kept:0, rejected:[], vouches:6,
+  uiScale:1.15, layout:'compact', cardW:19
+};
+let ign = 'mrchicken75', ws = null, serverMode = false, roundLength = 60;
+
+/* ---------- helpers ---------- */
+function parseAmount(t){
+  if(!t) return 0;
+  t = String(t).toLowerCase().replace(/[\s,$_]/g,'');
+  const m = t.match(/^(\d+(?:\.\d+)?)([kmbt])?$/);
+  if(!m) return 0;
+  return Math.floor(parseFloat(m[1]) * ({k:1e3,m:1e6,b:1e9,t:1e12}[m[2]] || 1));
+}
+const trim = v => (Math.round(v*100)/100).toString();
+function money(n){
+  n = Math.floor(n || 0);
+  if(n >= 1e12) return '$' + trim(n/1e12) + 'T';
+  if(n >= 1e9)  return '$' + trim(n/1e9) + 'B';
+  if(n >= 1e6)  return '$' + trim(n/1e6) + 'M';
+  if(n >= 1e3)  return '$' + trim(n/1e3) + 'K';
+  return '$' + n;
+}
+const clock = ms => {
+  const s = Math.max(0, Math.ceil(ms/1000));
+  return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0');
+};
+const headURL = (n, s) => `https://minotar.net/helm/${encodeURIComponent(n)}/${s}.png`;
+const headAlt = (n, s) => `https://mc-heads.net/avatar/${encodeURIComponent(n)}/${s}`;
+function setFace(node, name, size){
+  const img = new Image();
+  img.onload = () => node.style.backgroundImage = `url("${img.src}")`;
+  img.onerror = () => {
+    const i2 = new Image();
+    i2.onload = () => node.style.backgroundImage = `url("${i2.src}")`;
+    i2.src = headAlt(name, size);
+  };
+  img.src = headURL(name, size);
+}
+function log(t){
+  const f = el('log'); if(!f) return;
+  const d = document.createElement('div');
+  d.textContent = new Date().toLocaleTimeString([], {hour12:false}) + '  ' + t;
+  f.prepend(d);
+  while(f.children.length > 40) f.lastChild.remove();
+}
+/* what the winner takes, and what stays with you */
+const payout  = () => Math.floor(M.pot * (100 - M.cutPct) / 100);
+const yourCut = () => M.pot - payout() + (M.kept || 0);
+const toBeat  = () => M.leader ? M.leader.amount + 1 : Math.max(1, M.minBid);
+
+/* ---------- local engine (used when the relay isn't answering) ---------- */
+function localOpen(seed, minBid, sec){
+  if(seed != null) M.seed = seed;
+  if(minBid != null) M.minBid = minBid;
+  M.phase = 'live'; M.pot = M.seed;
+  M.leader = null; M.bids = []; M.late = []; M.kept = 0; M.rejected = [];
+  M.paused = false; M.pausedLeft = 0;
+  M.endsAt = now() + (sec || 60) * 1000;
+  log(`round open · pot ${money(M.pot)}`); render();
+}
+function localPay(name, amount){
+  name = String(name || '').trim().replace(/[^A-Za-z0-9_]/g,'').slice(0,16);
+  amount = Math.floor(Number(amount) || 0);
+  if(!name || amount <= 0) return;
+  if(M.phase !== 'live'){
+    M.late.push({name, amount, at: now()}); M.kept += amount;
+    log(`late: ${name} ${money(amount)} — you keep it`); return render();
+  }
+  if(M.minBid > 0 && amount < M.minBid){
+    M.rejected.push({name, amount, why:'under minimum'});
+    log(`refund ${name} — under minimum`); return render();
+  }
+  M.pot += amount;
+  M.bids.unshift({name, amount, at: now()});
+  if(M.bids.length > 15) M.bids.pop();
+  if(!M.leader || amount > M.leader.amount){
+    M.leader = {name, amount, at: now()};
+    log(`lead: ${name} ${money(amount)}`);
+  } else {
+    log(`${name} ${money(amount)} — stays in the pot`);
+  }
+  render();
+}
+function localEnd(){ M.phase = 'done'; M.endsAt = 0; log('round over'); render(); }
+function localReset(){
+  M = Object.assign({}, M, {phase:'idle', pot:0, leader:null, bids:[], late:[], kept:0,
+    rejected:[], endsAt:0, paused:false, pausedLeft:0});
+  log('cleared'); render();
+}
+function localPause(){
+  M.paused = !M.paused;
+  if(M.paused){ M.pausedLeft = M.endsAt ? Math.max(0, M.endsAt - now()) : 0; M.endsAt = 0; }
+  else if(M.pausedLeft){ M.endsAt = now() + M.pausedLeft; M.pausedLeft = 0; }
+  render();
+}
+setInterval(() => {
+  if(serverMode || M.phase !== 'live' || M.paused) return;
+  if(M.endsAt && now() >= M.endsAt) localEnd();
+}, 50);
+
+/* ---------- drawing ---------- */
+function render(){
+  el('potAmount').textContent = money(M.pot);
+  el('lotVouch').textContent = '★ ' + M.vouches;
+  el('brandName').textContent = ign;
+
+  const row = el('leadRow'), cta = el('cta');
+  row.className = M.phase === 'done' && M.leader ? 'won' : (M.leader ? '' : 'empty');
+  el('stamp').classList.toggle('hidden', M.phase !== 'done' || !M.leader);
+  el('leadLabel').textContent = M.phase === 'done' ? 'Winner' : 'In the lead';
+  el('potLabel').textContent = M.phase === 'done' ? 'Final pot' : 'Total pot';
+
+  if(M.leader){
+    el('who').textContent = M.leader.name;
+    el('amount').textContent = 'paid ' + money(M.leader.amount);
+    el('winning').textContent = (M.phase === 'done' ? 'won ' : 'wins ') + money(payout());
+    if(el('face').dataset.n !== M.leader.name){
+      el('face').dataset.n = M.leader.name;
+      setFace(el('face'), M.leader.name, 256);
+    }
+  } else {
+    el('who').textContent = M.phase === 'live' ? 'Nobody yet' : '—';
+    el('amount').textContent = '';
+    el('winning').textContent = '';
+    el('face').dataset.n = '';
+    el('face').style.backgroundImage = '';
+  }
+
+  cta.className = 'cta';
+  if(M.phase === 'done'){
+    cta.className = 'quiet';
+    cta.textContent = M.leader ? `${M.leader.name} won ${money(payout())}` : 'Nobody played';
+  } else if(M.paused){
+    cta.className = 'quiet'; cta.textContent = 'Paused';
+  } else if(M.phase === 'live'){
+    cta.textContent = M.leader ? `Pay over ${money(M.leader.amount)} to take it` : 'Any payment takes the lead';
+  } else {
+    cta.className = 'quiet'; cta.textContent = 'Waiting for the next round';
+  }
+
+  const rows = el('ladderRows');
+  const others = M.bids.filter(b => !(M.leader && b.name === M.leader.name && b.amount === M.leader.amount));
+  el('ladderHead').classList.toggle('hidden', others.length === 0);
+  rows.innerHTML = others.slice(0, 5).map(b =>
+    `<div class="rb">
+       <img src="${headURL(b.name,32)}" onerror="this.onerror=null;this.src='${headAlt(b.name,32)}'" alt="">
+       <span class="n">${b.name}</span><span class="a">${money(b.amount)}</span>
+     </div>`).join('');
+
+  if(!DISPLAY){
+    el('tally').innerHTML =
+      `pot: <b>${money(M.pot)}</b><br>` +
+      `winner takes: <b style="color:#0b6b34">${money(payout())}</b> ` +
+      `<span style="color:#42546e">(after your ${M.cutPct}%)</span><br>` +
+      `you keep: <b>${money(yourCut())}</b>` +
+      (M.kept ? ` <span style="color:#42546e">(incl. ${money(M.kept)} late)</span>` : '') +
+      `<br><span style="color:#42546e">your seed was ${money(M.seed)}</span>`;
+    /* exactly what to send, with your cut already removed */
+    const pay = el('payout');
+    if(M.leader){
+      const amt = payout();
+      pay.innerHTML =
+        `pay <b>${M.leader.name}</b><br>` +
+        `<span class="big">${money(amt)}</span> ` +
+        `<span style="color:#42546e">= ${amt.toLocaleString()}</span>` +
+        `<span class="cmd">/pay ${M.leader.name} ${amt}</span>`;
+      pay.dataset.cmd = `/pay ${M.leader.name} ${amt}`;
+    } else {
+      pay.innerHTML = '<span class="none">nobody to pay yet</span>';
+      pay.dataset.cmd = '';
+    }
+    el('lateList').innerHTML = M.late.length
+      ? M.late.slice(-12).map(x => `${x.name} — ${money(x.amount)}`).join('<br>')
+      : '<span style="color:#42546e">none</span>';
+    el('refunds').innerHTML = M.rejected.length
+      ? M.rejected.slice(-12).map(x => `${x.name} — ${money(x.amount)}`).join('<br>')
+      : '<span style="color:#42546e">nothing to refund</span>';
+  }
+}
+
+/* the clock is the ring around the leader's head */
+function paintClock(){
+  const ring = el('ringWrap'), badge = el('timeBadge');
+  let ms = 0;
+  if(M.paused) ms = M.pausedLeft || 0;
+  else if(M.phase === 'live' && M.endsAt) ms = Math.max(0, M.endsAt - now());
+
+  const pct = M.phase === 'live' || M.paused
+    ? Math.max(0, Math.min(100, (ms / Math.max(1, roundLength * 1000)) * 100))
+    : 0;
+  ring.style.setProperty('--p', pct.toFixed(1));
+  ring.classList.toggle('low', ms > 0 && ms <= 10000);
+  badge.textContent = M.phase === 'done' ? 'OVER' : clock(ms);
+  requestAnimationFrame(paintClock);
+}
+
+/* ---------- relay ---------- */
+function cmd(name, args){
+  if(serverMode && ws && ws.readyState === 1){
+    ws.send(JSON.stringify({t:'cmd', name, args: args || {}}));
+    return true;
+  }
+  return false;
+}
+function connect(){
+  let url = window.__OVERLAY_WS || (location.protocol === 'file:' ? 'ws://localhost:8092' : location.origin.replace(/^http/,'ws'));
+  try{ ws = new WebSocket(url); }catch(e){ return setLink(false); }
+  ws.onopen = () => setLink(true);
+  ws.onclose = () => { serverMode = false; setLink(false); setTimeout(connect, 2000); };
+  ws.onmessage = ev => {
+    let msg; try{ msg = JSON.parse(ev.data); }catch(e){ return; }
+    if(!msg.m) return;
+    serverMode = true; setLink(true);
+    const wasIdle = M.phase !== 'live';
+    M = msg.m;
+    if(wasIdle && M.phase === 'live' && M.endsAt){
+      roundLength = Math.max(1, Math.round((M.endsAt - now()) / 1000));
+    }
+    if(msg.s && msg.s.ign) ign = msg.s.ign;
+    syncFields();
+    document.body.classList.toggle('compact', (M.layout || 'compact') === 'compact');
+    applyWidth(M.cardW || 19);
+    fit();
+    render();
+  };
+}
+function setLink(ok){
+  const p = el('linkPill'); if(!p) return;
+  p.className = 'pill-status ' + (ok ? 'ok' : 'bad');
+  p.textContent = ok ? 'live' : 'not connected';
+}
+function syncFields(){
+  if(DISPLAY) return;
+  const set = (id, v) => { const n = el(id); if(n && document.activeElement !== n) n.value = v; };
+  set('fSeed', M.seed); set('fMin', M.minBid); set('fCut', M.cutPct);
+  set('fVouch', M.vouches); set('fIgn', ign);
+  const sz = el('cSize'); if(sz && M.uiScale) sz.value = String(M.uiScale);
+  const ly = el('cLayout'); if(ly && M.layout) ly.value = M.layout;
+  const cw = el('cWidth'); if(cw && M.cardW) cw.value = String(M.cardW);
+}
+
+/* ---------- controls ---------- */
+function bindPanel(){
+  el('bOpen').onclick = () => {
+    const seed = parseAmount(el('fSeed').value) || 0;
+    const minBid = parseAmount(el('fMin').value) || 0;
+    const sec = parseInt(el('fSec').value) || 60;
+    roundLength = sec;
+    if(!cmd('m.open', {seed, minBid, sec})) localOpen(seed, minBid, sec);
+  };
+  el('bEnd').onclick = () => { if(!cmd('m.end')) localEnd(); };
+  el('bPause').onclick = () => { if(!cmd('m.pause')) localPause(); };
+  el('bReset').onclick = e => {
+    if(!e.target._armed){
+      e.target._armed = true;
+      e.target.textContent = '⚠ Tap again to clear';
+      setTimeout(() => { e.target._armed = false; e.target.textContent = '♻ Clear round'; }, 4000);
+      return;
+    }
+    e.target._armed = false; e.target.textContent = '♻ Clear round';
+    if(!cmd('m.reset')) localReset();
+  };
+  document.querySelectorAll('[data-atime]').forEach(b => b.onclick = () => {
+    const sec = Number(b.dataset.atime);
+    if(!cmd('m.addTime', {sec}) && M.endsAt){ M.endsAt = Math.max(now(), M.endsAt + sec*1000); render(); }
+  });
+  el('bBid').onclick = () => {
+    const name = el('fName').value.trim();
+    const amount = parseAmount(el('fAmt').value);
+    if(!name || !amount) return;
+    if(!cmd('m.pay', {name, amount})) localPay(name, amount);
+    el('fName').value = ''; el('fAmt').value = ''; el('fName').focus();
+  };
+  el('fAmt').addEventListener('keydown', e => e.key === 'Enter' && el('bBid').click());
+  el('fName').addEventListener('keydown', e => e.key === 'Enter' && el('fAmt').focus());
+  el('bUndo').onclick = () => {
+    if(cmd('m.undo')) return;
+    const b = M.bids.shift();
+    if(b){
+      M.pot -= b.amount;
+      M.leader = M.bids.reduce((best, x) => !best || x.amount > best.amount ? x : best, null);
+      render();
+    }
+  };
+  el('bCopyPay').onclick = e => {
+    const cmdText = el('payout').dataset.cmd;
+    if(!cmdText) return;
+    navigator.clipboard.writeText(cmdText)
+      .then(() => { e.target.textContent = '✓ Copied'; setTimeout(() => e.target.textContent = '📋 Copy the /pay command', 1500); })
+      .catch(() => log('copy failed — type it from the box above'));
+  };
+  el('bClearRef').onclick = () => { if(!cmd('m.clearRejected')){ M.rejected = []; render(); } };
+  const setVouch = v => {
+    v = Math.max(0, v);
+    M.vouches = v;
+    el('fVouch').value = v;
+    cmd('m.config', {vouches: v});
+    render();
+  };
+  el('fVouch').oninput = e => setVouch(parseInt(e.target.value) || 0);
+  document.querySelectorAll('[data-vouch]').forEach(b =>
+    b.onclick = () => setVouch((M.vouches || 0) + Number(b.dataset.vouch)));
+  el('fCut').onchange = e => {
+    const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
+    if(!cmd('m.config', {cutPct: v})){ M.cutPct = v; render(); }
+  };
+  el('fMin').onchange = e => {
+    const v = parseAmount(e.target.value) || 0;
+    if(!cmd('m.config', {minBid: v})){ M.minBid = v; render(); }
+  };
+  el('fSeed').onchange = e => {
+    const v = parseAmount(e.target.value) || 0;
+    if(!cmd('m.config', {seed: v})){ M.seed = v; render(); }
+  };
+  el('fIgn').onchange = e => cmd('config', {ign: e.target.value.trim() || 'mrchicken75'});
+}
+
+function applyWidth(v){
+  const w = Number(v) || 19;
+  document.documentElement.style.setProperty('--cardw', w >= 100 ? '100%' : w + 'rem');
+}
+el('cWidth').onchange = e => {
+  M.cardW = Number(e.target.value);
+  cmd('m.config', {cardW: M.cardW});
+  applyWidth(M.cardW); render();
+};
+el('cLayout').onchange = e => {
+  M.layout = e.target.value;
+  cmd('m.config', {layout: M.layout});
+  document.body.classList.toggle('compact', M.layout === 'compact');
+  fit(); render();
+};
+el('cSize').onchange = e => {
+  M.uiScale = parseFloat(e.target.value) || 1;
+  cmd('m.config', {uiScale: M.uiScale});
+  fit(); render();
+};
+el('cCard').onchange = e => document.body.classList.toggle('clearbg', e.target.value === 'clear');
+el('opTab').onclick = () => el('op').classList.toggle('open');
+el('opClose').onclick = () => el('op').classList.remove('open');
+addEventListener('keydown', e => {
+  if(/input|select|textarea/i.test(e.target.tagName)) return;
+  if(e.key.toLowerCase() === 'p') el('op').classList.toggle('open');
+});
+
+function fit(){
+  const w = Math.min(innerWidth, innerHeight * 9/16);
+  const px = Math.min(30, Math.max(10, (w / 32) * (M.uiScale || 1)));
+  document.documentElement.style.fontSize = px + 'px';
+  el('stage').style.maxWidth = innerWidth + 'px';
+  el('stage').style.margin = '0 auto';
+}
+addEventListener('resize', fit);
+
+document.body.classList.toggle('compact', (M.layout || 'compact') === 'compact');
+applyWidth(M.cardW || 19);
+fit();
+if(DISPLAY){
+  /* page itself is see-through so only the card shows on stream;
+     the card stays solid so the text is readable over gameplay */
+  document.body.classList.add('transparent');
+  el('opTab').style.display = 'none';
+} else {
+  bindPanel();
+}
+connect();
+render();
+paintClock();
+</script>
+</body>
+</html>

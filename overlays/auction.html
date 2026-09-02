@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Donut Auction — live auction overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@500;600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --gold:#f5c451;
+  --gold-dim:#8a6a15;
+  --plum:#1a1026;
+  --plum-2:#120b1c;
+  --cream:#f6efe2;
+  --red:#ff4242;
+  font-size:18px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;width:100%;overflow:hidden}
+body{
+  background:#0d0714;
+  font-family:'Oswald',system-ui,sans-serif;
+  color:var(--cream);-webkit-font-smoothing:antialiased;
+}
+body.transparent{background:transparent}
+body.chroma{background:#00b140}
+
+#stage{
+  position:fixed;top:0;right:0;bottom:0;left:0;
+  display:flex;flex-direction:column;
+  padding:.9rem;gap:0;justify-content:flex-start;
+}
+/* the actual card — solid so it reads over gameplay */
+#board{
+  width:100%;max-width:var(--cardw,19rem);margin:0 auto;   /* a block, not a banner */
+  display:flex;flex-direction:column;gap:.5rem;
+  background:linear-gradient(180deg,#1c1129,#120b1c);
+  border:.16rem solid var(--gold-dim);
+  border-radius:.6rem;
+  padding:.85rem .9rem 1rem;
+  box-shadow:0 .5rem 1.6rem rgba(0,0,0,.75), inset 0 .08rem 0 rgba(255,255,255,.06);
+  max-height:100%;overflow:hidden;
+}
+body.clearbg #board{background:rgba(18,11,28,.55);border-color:rgba(138,106,21,.5)}
+
+/* ---------- lot strip ---------- */
+#lotbar{display:flex;align-items:stretch;gap:.5rem;justify-content:center}
+#lotbar .chip{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-width:7rem;padding:.3rem .8rem .38rem;
+  background:linear-gradient(180deg,#26183a,#180f26);
+  border:.1rem solid #4a3a66;border-radius:.4rem;
+  box-shadow:0 .22rem 0 rgba(0,0,0,.45);
+}
+#lotbar .chip b{
+  font-family:'Bebas Neue',sans-serif;font-size:2.2rem;line-height:1;
+  color:#ffffff;letter-spacing:.03em;
+  text-shadow:0 .06rem .2rem rgba(0,0,0,.85);
+}
+#lotbar .chip i{
+  font-style:normal;font-size:.72rem;font-weight:700;letter-spacing:.16em;
+  text-transform:uppercase;color:#d3c2ee;margin-top:.1rem;
+}
+#lotbar .chip.gold{border-color:var(--gold-dim)}
+#lotbar .chip.gold b{color:var(--gold)}
+
+/* ---------- item ---------- */
+#item{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:2.9rem;line-height:1;letter-spacing:.04em;
+  color:#ffffff;text-shadow:0 .12rem .3rem rgba(0,0,0,.8);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+
+/* ---------- countdown ---------- */
+#clock{display:flex;flex-direction:column;align-items:center;gap:.3rem;margin-top:.1rem}
+#timetext{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:3.9rem;line-height:.85;letter-spacing:.06em;
+  color:var(--gold);font-variant-numeric:tabular-nums;
+  text-shadow:0 .1rem .35rem rgba(0,0,0,.85),0 0 1.6rem rgba(245,196,81,.35);
+}
+#timebar{
+  width:100%;height:.42rem;border-radius:1rem;overflow:hidden;
+  background:#2a1a3c;box-shadow:inset 0 .06rem .18rem rgba(0,0,0,.7);
+}
+#timefill{
+  height:100%;width:100%;border-radius:1rem;
+  background:linear-gradient(90deg,#ffe08a,#f5c451 55%,#c98f18);
+  transition:width .25s linear;
+}
+#clock.final #timetext{color:#ff6b6b;text-shadow:0 0 1.6rem rgba(255,66,66,.6);animation:flash .5s steps(2) infinite}
+#clock.final #timefill{background:linear-gradient(90deg,#ff6b6b,#8f0f0f)}
+#clock.warn #timetext{animation:tick .6s ease-in-out infinite}
+#clock.done #timefill{width:0}
+@keyframes flash{50%{opacity:.4}}
+@keyframes tick{50%{transform:scale(1.06)}}
+
+/* ---------- the money ---------- */
+#lead{
+  position:relative;
+  background:linear-gradient(180deg,rgba(26,16,38,.96),rgba(18,11,28,.96));
+  border-left:.35rem solid var(--gold);
+  padding:.75rem .9rem .85rem;margin-top:.15rem;border-radius:.35rem;
+  box-shadow:0 .4rem 1.2rem rgba(0,0,0,.45), inset 0 .06rem 0 rgba(255,255,255,.06);
+}
+#lead.empty{border-left-color:#4a3a66}
+#lead.sold{border-left-color:var(--red)}
+#leadLabel{
+  font-size:.82rem;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:#f0d9a4;
+}
+#amount{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:4.6rem;line-height:.9;color:var(--gold);
+  text-shadow:0 .1rem .4rem rgba(0,0,0,.8),0 0 2rem rgba(245,196,81,.35);
+}
+#lead.empty #amount{color:#9a89b8;font-size:2.6rem}
+#bidder{display:flex;align-items:center;gap:.7rem;margin-top:.5rem}
+#face{
+  width:3.5rem;height:3.5rem;flex:none;border-radius:.3rem;
+  background:#241634 center/cover no-repeat;image-rendering:pixelated;
+  border:.16rem solid var(--gold);
+}
+#lead.sold #face{border-color:var(--red)}
+#who{
+  font-family:'Bebas Neue',sans-serif;font-size:2.3rem;line-height:1;letter-spacing:.02em;
+  color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+#stamp{
+  position:absolute;top:1.2rem;right:.8rem;
+  font-family:'Bebas Neue',sans-serif;font-size:2.2rem;letter-spacing:.1em;
+  color:var(--red);border:.2rem solid var(--red);padding:.1rem .6rem;border-radius:.2rem;
+  transform:rotate(-11deg);opacity:.95;
+  text-shadow:0 .1rem .3rem rgba(0,0,0,.6);
+}
+
+/* ---------- outbid ladder ---------- */
+#ladder{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:.22rem;margin-top:.3rem}
+#ladderHead{
+  font-size:.76rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#bda9e0;
+  margin-bottom:.1rem;
+}
+.rb{
+  display:flex;align-items:center;gap:.5rem;
+  background:rgba(36,22,52,.75);border-left:.15rem solid #4a3a66;
+  padding:.26rem .55rem;font-size:1.05rem;font-weight:700;color:#d7cae9;border-radius:.25rem;
+}
+.rb img{width:1.5rem;height:1.5rem;image-rendering:pixelated;opacity:.75}
+.rb .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:line-through}
+.rb .a{font-family:'Bebas Neue',sans-serif;font-size:1.25rem;letter-spacing:.04em}
+
+/* ---------- call to action ---------- */
+#cta{
+  text-align:center;font-size:1.15rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:#20160a;background:linear-gradient(180deg,#ffd979,#e0aa2c);padding:.45rem;border-radius:.3rem;
+  box-shadow:0 .25rem .7rem rgba(0,0,0,.4);font-size:.92rem;
+}
+#cta.quiet{background:#2c1c40;color:#f0d9a4;border:.1rem solid #4a3a66}
+#cta.hot{background:var(--red);color:#fff;animation:flash .6s steps(2) infinite}
+.hidden{display:none !important}
+
+#brand{
+  position:fixed;bottom:.3rem;left:0;right:0;text-align:center;
+  font-size:.7rem;font-weight:700;letter-spacing:.18em;color:#a08fc0;text-transform:uppercase;
+  pointer-events:none;
+}
+
+
+/* ---------- compact: built for a small box on stream ----------
+   Only three things survive: what it is, what the leading bid is,
+   and how long is left. Everything else is noise at this size. */
+body.compact #ladder,
+body.compact #cta,
+body.compact #leadLabel,
+body.compact #brand{display:none}
+body.compact #board{padding:.6rem .7rem .7rem;gap:.35rem}
+body.compact #lotbar{order:3;gap:.4rem}
+body.compact #lotbar .chip{
+  flex-direction:row;gap:.35rem;align-items:baseline;
+  min-width:0;padding:.14rem .5rem .18rem;
+}
+body.compact #lotbar .chip b{font-size:1.45rem}
+body.compact #lotbar .chip i{font-size:.62rem;letter-spacing:.1em;margin:0}
+body.compact #item{font-size:2.1rem;text-align:center}
+body.compact #clock{order:2;flex-direction:row;align-items:center;gap:.5rem}
+body.compact #timetext{font-size:2.6rem}
+body.compact #timebar{flex:1;height:.5rem}
+body.compact #lead{
+  order:1;padding:.4rem .5rem .5rem;border-left:none;
+  border-top:.16rem solid var(--gold);border-radius:.3rem;
+  display:flex;flex-direction:column;align-items:center;gap:.15rem;
+}
+body.compact #amount{font-size:4.6rem;line-height:.85}
+body.compact #bidder{margin-top:.1rem;gap:.45rem}
+body.compact #face{width:2.6rem;height:2.6rem}
+body.compact #who{font-size:2rem}
+body.compact #stamp{font-size:1.8rem;top:.4rem;right:.4rem}
+
+/* ---------- operator panel (light on purpose) ---------- */
+#op{
+  position:fixed;top:0;right:0;bottom:0;width:min(26rem,420px);max-width:100%;
+  background:#eef3fa;border-left:3px solid #33475f;
+  transform:translateX(101%);transition:transform .22s ease;
+  z-index:50;display:flex;flex-direction:column;font-size:.82rem;color:#0b1526;
+}
+#op.open{transform:none}
+#opTab{
+  position:fixed;top:.6rem;right:.6rem;z-index:51;
+  background:#fff;color:#0b1526;border:3px solid #17a34a;border-radius:.5rem;
+  padding:.6rem 1rem;font:900 .9rem Nunito,sans-serif;cursor:pointer;letter-spacing:.04em;
+  box-shadow:0 .2rem .7rem rgba(0,0,0,.55);
+}
+#opClose{
+  width:100%;background:#ffe3e3;color:#8a1111;border:2px solid #d33;border-radius:.4rem;
+  padding:.6rem;font:900 .85rem Nunito,sans-serif;cursor:pointer;margin-bottom:.8rem;
+}
+#op .body{padding:.9rem 1rem 3rem;overflow-y:auto}
+#op h3{font-size:.8rem;font-weight:900;color:#0b1526;margin:1.1rem 0 .15rem;
+  padding-left:.5rem;border-left:.28rem solid #17a34a}
+#op h3:first-of-type{margin-top:0}
+#op .hint{font-size:.72rem;color:#42546e;margin:0 0 .45rem;line-height:1.35}
+#op label{display:block;font-size:.7rem;font-weight:800;color:#33475f;margin-bottom:.15rem}
+#op input,#op select{
+  width:100%;-webkit-appearance:none;appearance:none;
+  background:#fff;color:#0b1526;caret-color:#0b1526;
+  border:2px solid #7b93b8;border-radius:.4rem;padding:.5rem .55rem;
+  font:800 .85rem Nunito,sans-serif;
+}
+#op input::placeholder{color:#5b6880;font-weight:700}
+#op input:focus,#op select:focus{outline:3px solid #17a34a}
+.row{display:flex;gap:.45rem;margin-bottom:.45rem}
+.row>*{flex:1}
+button.act{
+  background:#dce7f6;color:#0b1526;border:2px solid #5b7699;border-radius:.4rem;
+  padding:.55rem .5rem;font:900 .82rem Nunito,sans-serif;cursor:pointer;
+}
+button.act.pri{background:#cfeeda;border-color:#17a34a}
+button.act.warn{background:#ffdada;border-color:#d33}
+button.act.gold{background:#ffedbf;border-color:#c8930d}
+button.act:active{transform:scale(.97)}
+#suggest{
+  position:relative;background:#fff;border:2px solid #7b93b8;border-top:none;
+  border-radius:0 0 .4rem .4rem;max-height:11rem;overflow-y:auto;margin:-.45rem 0 .45rem;
+}
+#suggest div{padding:.45rem .55rem;font-weight:800;cursor:pointer;border-bottom:1px solid #e3eaf4}
+#suggest div:hover,#suggest div.sel{background:#cfeeda}
+#log,#refunds{
+  background:#fff;border:2px solid #7b93b8;border-radius:.4rem;padding:.45rem .5rem;
+  font:800 .75rem/1.6 Nunito,sans-serif;color:#26374d;max-height:11rem;overflow-y:auto;
+}
+#refunds{color:#8a1111;margin-bottom:.45rem}
+.pill-status{display:inline-block;padding:.15rem .45rem;border-radius:.3rem;
+  font-size:.68rem;font-weight:900;vertical-align:middle}
+.ok{background:#cfeeda;color:#0b6b34;border:1px solid #17a34a}
+.bad{background:#ffdada;color:#8a1111;border:1px solid #d33}
+@media (max-width:640px){
+  #op{font-size:1rem}
+  #op input,#op select,button.act{font-size:1rem;padding:.7rem .6rem}
+  #opTab{font-size:1.05rem;padding:.75rem 1.15rem}
+}
+</style>
+</head>
+<body>
+
+<div id="stage">
+ <div id="board">
+  <div id="lotbar">
+    <span class="chip"><b id="lotMin">$1M</b><i>min bid</i></span>
+    <span class="chip gold"><b id="lotVouch">★ 6</b><i>vouches</i></span>
+  </div>
+
+  <div id="item">—</div>
+
+  <div id="clock">
+    <div id="timetext">0:00</div>
+    <div id="timebar"><div id="timefill"></div></div>
+  </div>
+
+  <div id="lead" class="empty">
+    <div id="leadLabel">Current bid</div>
+    <div id="amount">No bids</div>
+    <div id="bidder" class="hidden">
+      <div id="face"></div>
+      <div id="who"></div>
+    </div>
+    <div id="stamp" class="hidden">Sold</div>
+  </div>
+
+  <div id="ladder">
+    <div id="ladderHead">Outbid</div>
+    <div id="ladderRows"></div>
+  </div>
+
+  <div id="cta" class="quiet">Waiting for the next lot</div>
+ </div>
+</div>
+<div id="brand">/pay <span id="brandName">mrchicken75</span> to bid</div>
+
+<button id="opTab">☰ CONTROLS</button>
+<aside id="op">
+  <div class="body">
+    <button id="opClose">✕ Close controls</button>
+
+    <h3>1 · What are you selling <span id="linkPill" class="pill-status bad">solo</span></h3>
+    <p class="hint">Start typing and it finds the item — you don't need the spelling. Tap one to fill it in.</p>
+    <div class="row"><input id="fItem" placeholder="e.g. netherite, elytra, spawner" autocomplete="off"></div>
+    <div id="suggest" class="hidden"></div>
+    <div class="row">
+      <div><label>Minimum bid</label><input id="fMin" value="1000000"></div>
+      <div><label>Length (sec)</label><input id="fSec" value="60"></div>
+    </div>
+    <div class="row">
+      <button class="act pri" id="bOpen">▶ Start auction</button>
+      <button class="act warn" id="bClose">🔨 Sell now</button>
+    </div>
+    <div class="row">
+      <button class="act" id="bPause">⏸ Pause</button>
+      <button class="act warn" id="bReset">♻ Clear auction</button>
+    </div>
+
+    <h3>2 · Live delay</h3>
+    <p class="hint">TikTok shows your stream a few seconds late, so bids arrive late too. This keeps taking bids after the clock hits zero — viewers see 0:00 but late bids still count. Set 0 for no delay.</p>
+    <div class="row" style="align-items:flex-end">
+      <div style="flex:2"><label>Extra seconds after zero</label><input id="fDelay" value="5"></div>
+      <button class="act pri" id="bSetDelay" style="flex:1">Set</button>
+    </div>
+
+    <h3>3 · The clock</h3>
+    <div class="row">
+      <button class="act" data-atime="-10">− 10s</button>
+      <button class="act" data-atime="10">+ 10s</button>
+      <button class="act" data-atime="30">+ 30s</button>
+    </div>
+
+    <h3>4 · Add a bid by hand</h3>
+    <p class="hint">Bids never stack. If they bid 5M and want to go higher, they pay a whole new higher amount — not the difference.</p>
+    <div class="row"><input id="fName" placeholder="Minecraft username" autocomplete="off"></div>
+    <div class="row">
+      <input id="fAmt" placeholder="amount — 10m or 10000000">
+      <button class="act pri" id="bBid">Add bid</button>
+    </div>
+    <div class="row"><button class="act" id="bUndo">↩ Undo last bid</button></div>
+
+    <h3>Paid but not a valid bid</h3>
+    <p class="hint">Too low, or after it sold. These need refunding.</p>
+    <div id="refunds"></div>
+    <div class="row"><button class="act" id="bClearRef">Clear this list</button></div>
+
+    <h3>Settings</h3>
+    <div class="row">
+      <div><label>Vouches ★</label><input id="fVouch" value="6"></div>
+      <div><label>Your Minecraft name</label><input id="fIgn" value="mrchicken75"></div>
+    </div>
+    <div class="row">
+      <div><label>Card width</label>
+        <select id="cWidth">
+          <option value="15">Narrow</option>
+          <option value="19" selected>Medium</option>
+          <option value="24">Wide</option>
+          <option value="100">Full width</option>
+        </select>
+      </div>
+      <div><label>Layout</label>
+        <select id="cLayout">
+          <option value="compact" selected>Compact (small on screen)</option>
+          <option value="full">Full (big on screen)</option>
+        </select>
+      </div>
+      <div><label>Text size</label>
+        <select id="cSize">
+          <option value="1">Normal</option>
+          <option value="1.15" selected>Large</option>
+          <option value="1.35">Huge</option>
+          <option value="1.6">Massive</option>
+        </select>
+      </div>
+      <div><label>Card background</label>
+        <select id="cCard">
+          <option value="solid">Solid (easiest to read)</option>
+          <option value="clear">See-through</option>
+        </select>
+      </div>
+    </div>
+
+    <h3>What just happened</h3>
+    <div id="log"></div>
+  </div>
+</aside>
+
+<script>
+/* =========================================================
+   Donut Auction — highest single payment before the clock ends
+   /auction          control panel
+   /auction-display  overlay for LIVE Studio
+   The relay runs the auction; this page only draws it.
+   ========================================================= */
+const qs = new URLSearchParams(location.search);
+const DISPLAY = /^\/(auction-display|display|overlay)/i.test(location.pathname) || qs.get('role') === 'display';
+const el = id => document.getElementById(id);
+const now = () => Date.now();
+
+let A = {
+  phase:'idle', item:'', minBid:1000000, endsAt:0, delaySec:5, inDelay:false,
+  delayEndsAt:0, paused:false, pausedLeft:0, high:null, bids:[], rejected:[], vouches:6,
+  uiScale:1.15, layout:'compact', cardW:19
+};
+let ign = 'mrchicken75', ws = null, serverMode = false;
+
+/* ---------- helpers ---------- */
+function parseAmount(t){
+  if(!t) return 0;
+  t = String(t).toLowerCase().replace(/[\s,$_]/g,'');
+  const m = t.match(/^(\d+(?:\.\d+)?)([kmbt])?$/);
+  if(!m) return 0;
+  return Math.floor(parseFloat(m[1]) * ({k:1e3,m:1e6,b:1e9,t:1e12}[m[2]] || 1));
+}
+const trim = v => (Math.round(v*100)/100).toString();
+function money(n){
+  if(n >= 1e12) return '$' + trim(n/1e12) + 'T';
+  if(n >= 1e9)  return '$' + trim(n/1e9) + 'B';
+  if(n >= 1e6)  return '$' + trim(n/1e6) + 'M';
+  if(n >= 1e3)  return '$' + trim(n/1e3) + 'K';
+  return '$' + n;
+}
+const clock = ms => {
+  const s = Math.max(0, Math.ceil(ms/1000));
+  return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0');
+};
+const headURL = (n, s) => `https://minotar.net/helm/${encodeURIComponent(n)}/${s}.png`;
+const headAlt = (n, s) => `https://mc-heads.net/avatar/${encodeURIComponent(n)}/${s}`;
+function setFace(node, name, size){
+  const img = new Image();
+  img.onload = () => node.style.backgroundImage = `url("${img.src}")`;
+  img.onerror = () => {
+    const i2 = new Image();
+    i2.onload = () => node.style.backgroundImage = `url("${i2.src}")`;
+    i2.src = headAlt(name, size);
+  };
+  img.src = headURL(name, size);
+}
+function log(t){
+  const f = el('log'); if(!f) return;
+  const d = document.createElement('div');
+  d.textContent = new Date().toLocaleTimeString([], {hour12:false}) + '  ' + t;
+  f.prepend(d);
+  while(f.children.length > 40) f.lastChild.remove();
+}
+
+/* ---------- item names, so spelling doesn't matter ---------- */
+const ITEMS = `Netherite Kit|Netherite Armour Kit|Netherite Tool Kit|Diamond Kit|God Kit|Starter Kit|PvP Kit|Mining Kit|Grinder Kit|Spawner Kit|Netherite Ingot|Netherite Scrap|Netherite Block|Netherite Sword|Netherite Pickaxe|Netherite Axe|Netherite Shovel|Netherite Hoe|Netherite Helmet|Netherite Chestplate|Netherite Leggings|Netherite Boots|Netherite Upgrade Smithing Template|Diamond|Diamond Block|Diamond Sword|Diamond Pickaxe|Diamond Axe|Diamond Helmet|Diamond Chestplate|Diamond Leggings|Diamond Boots|Emerald|Emerald Block|Gold Ingot|Gold Block|Golden Apple|Enchanted Golden Apple|Iron Ingot|Iron Block|Copper Ingot|Copper Block|Lapis Lazuli|Redstone|Redstone Block|Coal|Coal Block|Quartz|Ancient Debris|Elytra|Totem of Undying|Shulker Box|Shulker Shell|Ender Chest|Ender Pearl|Eye of Ender|Beacon|Conduit|Heart of the Sea|Nautilus Shell|Trident|Mace|Wind Charge|Breeze Rod|Heavy Core|Dragon Egg|Dragon Head|Dragon Breath|End Crystal|Nether Star|Wither Skeleton Skull|Zombie Head|Skeleton Skull|Creeper Head|Player Head|Spawner|Zombie Spawner|Skeleton Spawner|Blaze Spawner|Spider Spawner|Cave Spider Spawner|Silverfish Spawner|Pig Spawner|Iron Golem Spawner|Villager Spawner|Enderman Spawner|Creeper Spawner|Slime Spawner|Magma Cube Spawner|Guardian Spawner|Witch Spawner|Trial Spawner|Ominous Bottle|Ominous Trial Key|Trial Key|Mob Head|Experience Bottle|Enchanted Book|Mending Book|Unbreaking III Book|Efficiency V Book|Fortune III Book|Silk Touch Book|Looting III Book|Sharpness V Book|Protection IV Book|Feather Falling IV Book|Depth Strider III Book|Thorns III Book|Infinity Book|Power V Book|Riptide III Book|Loyalty III Book|Channeling Book|Impaling V Book|Luck of the Sea III Book|Lure III Book|Swift Sneak III Book|Soul Speed III Book|Frost Walker II Book|Aqua Affinity Book|Respiration III Book|Fire Aspect II Book|Knockback II Book|Sweeping Edge III Book|Bane of Arthropods V Book|Smite V Book|Flame Book|Punch II Book|Quick Charge III Book|Multishot Book|Piercing IV Book|Curse of Binding Book|Curse of Vanishing Book|Anvil|Enchanting Table|Grindstone|Smithing Table|Crafting Table|Furnace|Blast Furnace|Smoker|Hopper|Dropper|Dispenser|Observer|Piston|Sticky Piston|Comparator|Repeater|Redstone Torch|Note Block|Jukebox|Chest|Trapped Chest|Barrel|Lodestone|Respawn Anchor|Crying Obsidian|Obsidian|Bedrock|End Portal Frame|End Stone|Purpur Block|Chorus Fruit|Popped Chorus Fruit|Shulker Boxes|Bundle|Sponge|Wet Sponge|TNT|Gunpowder|Blaze Rod|Blaze Powder|Ghast Tear|Magma Cream|Fermented Spider Eye|Spider Eye|Slime Ball|Slime Block|Honey Block|Honeycomb|Bee Nest|Beehive|Glowstone|Glowstone Dust|Sea Lantern|Prismarine|Prismarine Shard|Prismarine Crystals|Amethyst Shard|Amethyst Block|Budding Amethyst|Spyglass|Lightning Rod|Pointed Dripstone|Moss Block|Azalea|Flowering Azalea|Sculk|Sculk Catalyst|Sculk Sensor|Calibrated Sculk Sensor|Sculk Shrieker|Echo Shard|Recovery Compass|Disc Fragment|Music Disc Pigstep|Music Disc Otherside|Music Disc 5|Music Disc Creator|Music Disc Precipice|Music Disc Relic|Bow|Crossbow|Arrow|Spectral Arrow|Tipped Arrow|Shield|Fishing Rod|Flint and Steel|Shears|Compass|Clock|Map|Name Tag|Lead|Saddle|Horse Armor|Diamond Horse Armor|Golden Horse Armor|Iron Horse Armor|Netherite Horse Armor|Firework Rocket|Firework Star|Cake|Bread|Cooked Beef|Cooked Porkchop|Cooked Chicken|Cooked Mutton|Cooked Salmon|Cooked Cod|Golden Carrot|Carrot|Potato|Baked Potato|Beetroot|Melon|Pumpkin|Sugar Cane|Sugar|Wheat|Hay Bale|Bone|Bone Meal|Bone Block|Rotten Flesh|String|Feather|Leather|Rabbit Foot|Rabbit Hide|Phantom Membrane|Scute|Turtle Shell|Nether Wart|Brewing Stand|Cauldron|Glass Bottle|Potion of Healing|Potion of Strength|Potion of Swiftness|Potion of Fire Resistance|Potion of Invisibility|Potion of Night Vision|Potion of Water Breathing|Potion of Regeneration|Potion of Leaping|Potion of Slow Falling|Potion of Turtle Master|Splash Potion|Lingering Potion|Oak Log|Spruce Log|Birch Log|Jungle Log|Acacia Log|Dark Oak Log|Mangrove Log|Cherry Log|Crimson Stem|Warped Stem|Bamboo|Stone|Cobblestone|Deepslate|Cobbled Deepslate|Granite|Diorite|Andesite|Tuff|Calcite|Basalt|Blackstone|Netherrack|Soul Sand|Soul Soil|Magma Block|Nether Bricks|Quartz Block|Sand|Red Sand|Gravel|Clay|Dirt|Grass Block|Podzol|Mycelium|Snow Block|Ice|Packed Ice|Blue Ice|Glass|Tinted Glass|Iron Bars|Scaffolding|Ladder|Torch|Lantern|Soul Lantern|Campfire|Soul Campfire|Bell|Armor Stand|Item Frame|Glow Item Frame|Painting|Flower Pot|Banner|Shield Pattern|Villager Trade|Emerald Ore|Diamond Ore|Gold Ore|Iron Ore|Copper Ore|Coal Ore|Lapis Ore|Redstone Ore|Nether Gold Ore|Nether Quartz Ore|Deepslate Diamond Ore|Deepslate Emerald Ore|Deepslate Gold Ore|Deepslate Iron Ore|Deepslate Redstone Ore|Deepslate Lapis Ore|Deepslate Coal Ore|Deepslate Copper Ore`
+  .split('|');
+
+/* forgiving match: exact-ish first, then "contains", then letters in order
+   so "nethrt ingt" still finds Netherite Ingot */
+function findItems(q){
+  q = q.trim().toLowerCase();
+  if(!q) return [];
+  const starts = [], has = [], fuzzy = [];
+  for(const it of ITEMS){
+    const low = it.toLowerCase();
+    if(low.startsWith(q)) starts.push(it);
+    else if(low.includes(q)) has.push(it);
+    else {
+      let i = 0;
+      for(const ch of low){ if(ch === q[i]) i++; if(i === q.length) break; }
+      if(i === q.length) fuzzy.push(it);
+    }
+  }
+  return [...starts, ...has, ...fuzzy].slice(0, 8);
+}
+
+/* ---------- drawing ---------- */
+let lotLength = 60;          // remembered so the bar knows what "full" means
+
+function render(){
+  el('lotMin').textContent = A.minBid > 0 ? money(A.minBid) : 'Any';
+  el('lotVouch').textContent = '★ ' + A.vouches;
+  el('brandName').textContent = ign;
+  el('item').textContent = A.item || 'Nothing up yet';
+
+  const lead = el('lead'), cta = el('cta');
+  lead.className = A.phase === 'sold' ? 'sold' : (A.high ? '' : 'empty');
+  el('stamp').classList.toggle('hidden', A.phase !== 'sold' || !A.high);
+  el('leadLabel').textContent = A.phase === 'sold' ? 'Sold to' : 'Current bid';
+
+  if(A.high){
+    el('amount').textContent = money(A.high.amount);
+    el('bidder').classList.remove('hidden');
+    el('who').textContent = A.high.name;
+    if(el('face').dataset.n !== A.high.name){
+      el('face').dataset.n = A.high.name;
+      setFace(el('face'), A.high.name, 256);
+    }
+  } else {
+    el('amount').textContent = A.phase === 'live' ? 'No bids' : '—';
+    el('bidder').classList.add('hidden');
+    el('face').dataset.n = '';
+  }
+
+  /* the line that tells viewers exactly what to send */
+  cta.className = 'cta';
+  if(A.phase === 'sold'){
+    cta.className = 'quiet';
+    cta.textContent = A.high ? `Sold for ${money(A.high.amount)}` : 'Ended with no bids';
+  } else if(A.paused){
+    cta.className = 'quiet'; cta.textContent = 'Paused';
+  } else if(A.inDelay){
+    cta.className = 'hot'; cta.textContent = 'Going once — last bids counting';
+  } else if(A.phase === 'live'){
+    cta.textContent = A.high
+      ? `Pay over ${money(A.high.amount)} to take the lead`
+      : (A.minBid > 0 ? `Opening bid ${money(A.minBid)}` : 'Any bid takes the lead');
+  } else {
+    cta.className = 'quiet'; cta.textContent = 'Waiting for the next lot';
+  }
+
+  /* everyone who has been beaten, newest first */
+  const rows = el('ladderRows');
+  const beaten = A.bids.filter(b => !(A.high && b.name === A.high.name && b.amount === A.high.amount));
+  el('ladderHead').classList.toggle('hidden', beaten.length === 0);
+  rows.innerHTML = beaten.slice(0, 6).map(b =>
+    `<div class="rb">
+       <img src="${headURL(b.name,32)}" onerror="this.onerror=null;this.src='${headAlt(b.name,32)}'" alt="">
+       <span class="n">${b.name}</span><span class="a">${money(b.amount)}</span>
+     </div>`).join('');
+
+  if(!DISPLAY){
+    const ref = el('refunds');
+    ref.innerHTML = A.rejected.length
+      ? A.rejected.slice(-12).map(x => `${x.name} — ${money(x.amount)} <span style="color:#42546e">(${x.why})</span>`).join('<br>')
+      : '<span style="color:#42546e">nothing to refund</span>';
+  }
+}
+
+function paintClock(){
+  const wrap = el('clock'), fill = el('timefill'), text = el('timetext');
+  let ms = 0;
+  if(A.paused) ms = A.pausedLeft || 0;
+  else if(A.phase === 'live' && !A.inDelay && A.endsAt) ms = Math.max(0, A.endsAt - now());
+
+  if(A.phase === 'live' && !A.inDelay && A.endsAt){
+    const total = Math.max(1, lotLength * 1000);
+    fill.style.width = Math.min(100, (ms / total) * 100) + '%';
+  } else if(A.inDelay){
+    fill.style.width = '100%';
+  } else if(A.phase !== 'live'){
+    fill.style.width = '0%';
+  }
+
+  wrap.classList.toggle('final', A.inDelay);
+  wrap.classList.toggle('warn', !A.inDelay && ms > 0 && ms <= 10000);
+  wrap.classList.toggle('done', A.phase === 'sold');
+  text.textContent = A.inDelay ? 'FINAL CALL' : clock(ms);
+  requestAnimationFrame(paintClock);
+}
+
+/* ---------- local engine ----------
+   If the relay isn't running (or is an older copy without the auction),
+   this page runs the auction itself so the buttons always do something. */
+function localOpen(item, minBid, sec){
+  if(item) A.item = item;
+  if(minBid != null) A.minBid = minBid;   // 0 is a real minimum
+  A.phase = 'live'; A.high = null; A.bids = []; A.rejected = [];
+  A.inDelay = false; A.delayEndsAt = 0; A.paused = false;
+  A.endsAt = now() + (sec || 60) * 1000;
+  log(`started: ${A.item}`); render();
+}
+function localBid(name, amount){
+  name = String(name || '').trim().replace(/[^A-Za-z0-9_]/g,'').slice(0,16);
+  amount = Math.floor(Number(amount) || 0);
+  if(!name || amount <= 0) return;
+  if(A.phase !== 'live'){ A.rejected.push({name, amount, why:'auction not running'}); log(`refund ${name}`); return render(); }
+  if(amount < A.minBid){ A.rejected.push({name, amount, why:'under minimum'}); log(`refund ${name} — under min`); return render(); }
+  if(A.high && amount <= A.high.amount){
+    A.rejected.push({name, amount, why:`under ${A.high.name}'s ${money(A.high.amount)}`});
+    log(`refund ${name} — does not beat ${money(A.high.amount)}`); return render();
+  }
+  A.high = {name, amount, at: now()};
+  A.bids.unshift({name, amount, at: now()});
+  if(A.bids.length > 12) A.bids.pop();
+  log(`bid ${name} ${money(amount)}`); render();
+}
+function localClose(){ A.phase = 'sold'; A.inDelay = false; A.endsAt = 0; log('sold'); render(); }
+function localReset(){
+  A = {phase:'idle', item:'', minBid:A.minBid, endsAt:0, delaySec:A.delaySec, inDelay:false,
+       delayEndsAt:0, paused:false, pausedLeft:0, high:null, bids:[], rejected:[], vouches:A.vouches};
+  log('cleared'); render();
+}
+function localPause(){
+  A.paused = !A.paused;
+  if(A.paused){ A.pausedLeft = A.endsAt ? Math.max(0, A.endsAt - now()) : 0; A.endsAt = 0; }
+  else if(A.pausedLeft){ A.endsAt = now() + A.pausedLeft; A.pausedLeft = 0; }
+  render();
+}
+setInterval(() => {
+  if(serverMode || A.phase !== 'live' || A.paused) return;
+  if(A.endsAt && now() >= A.endsAt){
+    if(A.delaySec > 0 && !A.inDelay){
+      A.inDelay = true; A.delayEndsAt = now() + A.delaySec * 1000;
+      log(`clock hit zero — ${A.delaySec}s of late bids still count`); render();
+    } else if(!A.inDelay || now() >= A.delayEndsAt){
+      localClose();
+    }
+  }
+}, 50);
+
+/* ---------- relay ---------- */
+function cmd(name, args){
+  if(serverMode && ws && ws.readyState === 1){
+    ws.send(JSON.stringify({t:'cmd', name, args: args || {}}));
+    return true;
+  }
+  return false;
+}
+function connect(){
+  let url = window.__OVERLAY_WS || (location.protocol === 'file:' ? 'ws://localhost:8091' : location.origin.replace(/^http/,'ws'));
+  try{ ws = new WebSocket(url); }catch(e){ return setLink(false); }
+  ws.onopen = () => setLink(true);
+  ws.onclose = () => { serverMode = false; setLink(false); setTimeout(connect, 2000); };
+  ws.onmessage = ev => {
+    let m; try{ m = JSON.parse(ev.data); }catch(e){ return; }
+    if(m.a){
+      serverMode = true; setLink(true);
+      const wasIdle = A.phase !== 'live';
+      A = m.a;
+      if(wasIdle && A.phase === 'live' && A.endsAt){
+        lotLength = Math.max(1, Math.round((A.endsAt - now()) / 1000));
+      }
+      if(m.s && m.s.ign) ign = m.s.ign;
+      syncFields();
+      document.body.classList.toggle('compact', (A.layout || 'compact') === 'compact');
+      applyWidth(A.cardW || 19);
+      fit();
+      render();
+    }
+  };
+}
+function setLink(ok){
+  const p = el('linkPill'); if(!p) return;
+  p.className = 'pill-status ' + (ok ? 'ok' : 'bad');
+  p.textContent = ok ? 'live' : 'not connected';
+}
+function syncFields(){
+  if(DISPLAY) return;
+  const set = (id, v) => { const n = el(id); if(n && document.activeElement !== n) n.value = v; };
+  set('fMin', A.minBid);
+  set('fDelay', A.delaySec);
+  set('fVouch', A.vouches);
+  const sz = el('cSize'); if(sz && A.uiScale) sz.value = String(A.uiScale);
+  const ly = el('cLayout'); if(ly && A.layout) ly.value = A.layout;
+  const cw = el('cWidth'); if(cw && A.cardW) cw.value = String(A.cardW);
+  set('fIgn', ign);
+}
+
+/* ---------- controls ---------- */
+function bindPanel(){
+  const sug = el('suggest');
+  el('fItem').addEventListener('input', e => {
+    const hits = findItems(e.target.value);
+    if(!hits.length){ sug.classList.add('hidden'); return; }
+    sug.classList.remove('hidden');
+    sug.innerHTML = hits.map(h => `<div>${h}</div>`).join('');
+    [...sug.children].forEach(c => c.onclick = () => {
+      el('fItem').value = c.textContent;
+      sug.classList.add('hidden');
+      cmd('a.config', {item: c.textContent});
+      A.item = c.textContent; render();
+    });
+  });
+  el('fItem').addEventListener('keydown', e => {
+    if(e.key === 'Enter'){
+      const first = sug.querySelector('div');
+      if(first && !sug.classList.contains('hidden')) first.click();
+      else { A.item = el('fItem').value; cmd('a.config', {item: A.item}); render(); }
+    }
+  });
+
+  el('bOpen').onclick = () => {
+    const item = el('fItem').value.trim() || A.item;
+    const raw = el('fMin').value.trim();
+    const minBid = raw === '' ? 1000000 : parseAmount(raw);   // 0 is allowed
+    const sec = parseInt(el('fSec').value) || 60;
+    lotLength = sec;
+    if(!cmd('a.open', {item, minBid, sec})) localOpen(item, minBid, sec);
+    sug.classList.add('hidden');
+  };
+  el('bClose').onclick = () => { if(!cmd('a.close')) localClose(); };
+  el('bPause').onclick = () => { if(!cmd('a.pause')) localPause(); };
+  el('bReset').onclick = e => {
+    if(!e.target._armed){
+      e.target._armed = true;
+      e.target.textContent = '⚠ Tap again to clear';
+      setTimeout(() => { e.target._armed = false; e.target.textContent = '♻ Clear auction'; }, 4000);
+      return;
+    }
+    e.target._armed = false; e.target.textContent = '♻ Clear auction';
+    if(!cmd('a.reset')) localReset();
+  };
+  el('bSetDelay').onclick = () => {
+    const v = Math.max(0, parseInt(el('fDelay').value) || 0);
+    if(!cmd('a.config', {delaySec: v})) A.delaySec = v;
+    log(v ? `live delay set to ${v}s` : 'live delay off');
+  };
+  document.querySelectorAll('[data-atime]').forEach(b => b.onclick = () => {
+    const sec = Number(b.dataset.atime);
+    if(!cmd('a.addTime', {sec}) && A.endsAt){ A.endsAt = Math.max(now(), A.endsAt + sec*1000); render(); }
+  });
+  el('bBid').onclick = () => {
+    const name = el('fName').value.trim();
+    const amount = parseAmount(el('fAmt').value);
+    if(!name || !amount) return;
+    if(!cmd('a.bid', {name, amount})) localBid(name, amount);
+    el('fName').value = ''; el('fAmt').value = ''; el('fName').focus();
+  };
+  el('fAmt').addEventListener('keydown', e => e.key === 'Enter' && el('bBid').click());
+  el('fName').addEventListener('keydown', e => e.key === 'Enter' && el('fAmt').focus());
+  el('bUndo').onclick = () => {
+    if(cmd('a.undo')) return;
+    A.bids.shift(); A.high = A.bids[0] || null; render();
+  };
+  el('bClearRef').onclick = () => { if(!cmd('a.clearRejected')){ A.rejected = []; render(); } };
+  el('fVouch').oninput = e => {
+    const v = parseInt(e.target.value) || 0;
+    if(!cmd('a.config', {vouches: v})) { A.vouches = v; render(); }
+  };
+  el('fIgn').onchange = e => cmd('config', {ign: e.target.value.trim() || 'mrchicken75'});
+  el('fMin').onchange = e => {
+    const raw = e.target.value.trim();
+    const v = raw === '' ? 1000000 : parseAmount(raw);        // 0 means anything counts
+    if(!cmd('a.config', {minBid: v})) { A.minBid = v; render(); }
+  };
+}
+
+el('cCard').onchange = e => document.body.classList.toggle('clearbg', e.target.value === 'clear');
+function applyWidth(v){
+  const w = Number(v) || 19;
+  document.documentElement.style.setProperty('--cardw', w >= 100 ? '100%' : w + 'rem');
+}
+el('cWidth').onchange = e => {
+  A.cardW = Number(e.target.value);
+  cmd('a.config', {cardW: A.cardW});
+  applyWidth(A.cardW); render();
+};
+el('cLayout').onchange = e => {
+  const v = e.target.value;
+  A.layout = v;
+  cmd('a.config', {layout: v});
+  document.body.classList.toggle('compact', v === 'compact');
+  fit(); render();
+};
+el('cSize').onchange = e => {
+  const v = parseFloat(e.target.value) || 1;
+  A.uiScale = v;
+  cmd('a.config', {uiScale: v});   // pushes to the overlay through the relay
+  fit(); render();
+};
+el('opTab').onclick = () => el('op').classList.toggle('open');
+el('opClose').onclick = () => el('op').classList.remove('open');
+addEventListener('keydown', e => {
+  if(/input|select|textarea/i.test(e.target.tagName)) return;
+  if(e.key.toLowerCase() === 'p') el('op').classList.toggle('open');
+});
+
+function fit(){
+  /* Text is sized off the smaller side, so a short wide source still
+     scales properly. uiScale is your Text size dropdown. */
+  const w = Math.min(innerWidth, innerHeight * 9/16);
+  const base = w / 32;
+  /* capped, so a wide browser window doesn't blow the control panel up */
+  const px = Math.min(30, Math.max(10, base * (A.uiScale || 1)));
+  document.documentElement.style.fontSize = px + 'px';
+  el('stage').style.maxWidth = innerWidth + 'px';
+  el('stage').style.margin = '0 auto';
+}
+addEventListener('resize', fit);
+
+document.body.classList.toggle('compact', (A.layout || 'compact') === 'compact');
+applyWidth(A.cardW || 19);
+fit();
+if(DISPLAY){
+  document.body.classList.add('transparent');
+  el('opTab').style.display = 'none';
+} else {
+  bindPanel();
+}
+connect();
+render();
+paintClock();
+</script>
+</body>
+</html>

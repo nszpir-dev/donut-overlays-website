@@ -124,13 +124,18 @@ function attachUplink(ws, user) {
   ws._userId = id;
   console.log(`[relay] launcher connected for ${user.email}`);
 
+  /* Each game broadcasts a differently shaped message — the board sends
+     {s}, the auction {a,s}, the money game {m,s,payout,yourCut}. Rather
+     than teach this hub all three, the launcher sends the exact object
+     its own overlay expects and we pass it straight through. */
   ws.on('message', raw => {
     let m;
     try { m = JSON.parse(raw.toString()); } catch { return; }
-    if (m.t !== 'state' || !m.game) return;
+    if (m.t !== 'up' || !m.game || !m.payload) return;
     if (!allowedGames(user).includes(m.game)) return;
 
-    const text = JSON.stringify({ t: 'state', s: m.s });
+    let text;
+    try { text = JSON.stringify(m.payload); } catch { return; }
     h.last.set(m.game, text);
     for (const v of h.viewers) {
       if (v.readyState === 1 && v._game === m.game) v.send(text);
