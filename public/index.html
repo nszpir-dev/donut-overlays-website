@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Donut Overlays — live games for Minecraft streamers</title>
+<meta name="description" content="Elimination boards, live auctions and money games that run off in-game payments. Works with TikTok LIVE Studio, Twitch and YouTube.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Karla:wght@400;500;600;700;800&family=Pixelify+Sans:wght@600;700&display=swap" rel="stylesheet">
+<style>
+
+:root{
+  --ink:#060912;
+  --ink-2:#0c1322;
+  --panel:rgba(16,24,42,.78);
+  --line:#22304a;
+  --gold:#ffc93c;
+  --gold-2:#ff9b2f;
+  --teal:#19e3c8;
+  --violet:#8b5cff;
+  --pink:#ff4d9d;
+  --text:#eaf1ff;
+  --muted:#93a6c4;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--ink);color:var(--text);
+  font-family:Karla,system-ui,-apple-system,sans-serif;
+  font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+h1,h2,h3,.display{font-family:'Bebas Neue',Impact,sans-serif;font-weight:400;letter-spacing:.015em;line-height:.95}
+a{color:inherit}
+.wrap{width:min(1180px,92vw);margin:0 auto;position:relative;z-index:2}
+
+/* ---------- the sky ----------
+   Built from gradients rather than an image so it stays sharp at
+   any size and costs nothing to load. */
+#sky{position:fixed;top:0;right:0;bottom:0;left:0;z-index:0;overflow:hidden;pointer-events:none}
+#sky .glow{position:absolute;border-radius:50%;filter:blur(90px);opacity:.55}
+#sky .g1{width:70vw;height:70vw;left:-18vw;top:-24vw;background:radial-gradient(circle,#8b5cff,transparent 62%)}
+#sky .g2{width:62vw;height:62vw;right:-16vw;top:-10vw;background:radial-gradient(circle,#19e3c8,transparent 62%);opacity:.42}
+#sky .g3{width:80vw;height:50vw;left:12vw;top:34vh;background:radial-gradient(circle,#ff4d9d,transparent 64%);opacity:.24}
+#sky .g4{width:60vw;height:40vw;right:-10vw;top:78vh;background:radial-gradient(circle,#39e08a,transparent 64%);opacity:.22}
+#sky .stars{
+  position:absolute;top:0;right:0;bottom:0;left:0;
+  background-image:
+    radial-gradient(1px 1px at 12% 18%, #fff9, transparent),
+    radial-gradient(1px 1px at 34% 62%, #fff7, transparent),
+    radial-gradient(1px 1px at 58% 24%, #fff8, transparent),
+    radial-gradient(2px 2px at 72% 71%, #fff6, transparent),
+    radial-gradient(1px 1px at 88% 40%, #fff7, transparent),
+    radial-gradient(1px 1px at 22% 85%, #fff5, transparent);
+}
+#sky .veil{position:absolute;top:0;right:0;bottom:0;left:0;
+  background:linear-gradient(180deg,rgba(6,9,18,.20),rgba(6,9,18,.82) 62%,var(--ink))}
+/* video still takes over if plains.mp4 is uploaded */
+#bgvid{position:absolute;top:0;left:0;width:100%;height:105vh;object-fit:cover;display:none}
+#bgvid.on{display:block}
+
+/* ---------- header ---------- */
+header{
+  position:sticky;top:0;z-index:40;
+  background:rgba(6,9,18,.72);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
+}
+header .wrap{display:flex;align-items:center;gap:1rem;height:76px}
+.mark{display:flex;align-items:center;gap:.6rem;font-family:'Pixelify Sans',sans-serif;font-weight:700;font-size:1.15rem;letter-spacing:.02em;letter-spacing:.05em}
+.mark .dot{
+  width:1.15rem;height:1.15rem;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#a9ffc9,#22a35b);
+  box-shadow:0 0 .1rem .25rem rgba(34,163,91,.2), 0 0 1.6rem rgba(60,220,130,.55);
+}
+nav{margin-left:auto;display:flex;gap:1rem;align-items:center;font-size:.95rem;font-weight:600;color:var(--muted)}
+nav .btn{
+  font-family:Karla,system-ui,-apple-system,sans-serif;font-weight:800;font-size:1rem;
+  padding:.55rem 1.05rem;white-space:nowrap;letter-spacing:.01em;
+}
+nav a:hover{color:var(--text)}
+@media(max-width:900px){nav .hide-sm{display:none}}
+
+.btn{
+  display:inline-block;padding:.68rem 1.3rem;border-radius:.5rem;
+  font-family:Karla,system-ui,-apple-system,sans-serif;font-weight:800;font-size:1rem;
+  letter-spacing:.01em;line-height:1.25;text-align:center;
+  text-decoration:none;cursor:pointer;border:2px solid transparent;
+  background:transparent;color:var(--text);
+  -webkit-appearance:none;appearance:none;
+}
+.btn-gold{
+  background:linear-gradient(180deg,#7bf59f,#22a35b);color:#06210f;
+  box-shadow:0 .4rem 1.2rem rgba(34,163,91,.4);
+  border-color:#8dffb4;
+}
+.btn-gold:hover{filter:brightness(1.07)}
+.btn-ghost{border-color:#33445f;color:var(--text);background:rgba(20,30,50,.7)}
+.btn-ghost:hover{border-color:var(--teal);color:#fff}
+.btn-discord{background:#5865f2;color:#fff;display:inline-flex;align-items:center;gap:.5rem}
+.btn-discord:hover{filter:brightness(1.08)}
+.icon-btn{
+  width:2.7rem;height:2.7rem;border-radius:.65rem;border:none;
+  background:#5865f2;display:grid;place-items:center;cursor:pointer;flex:none;
+  box-shadow:0 .3rem .9rem rgba(88,101,242,.4);
+}
+.icon-btn:hover{background:#6b76f5}
+.icon-btn svg{width:1.7rem;height:1.7rem;fill:#ffffff}
+.cur{position:relative;display:inline-flex;align-items:center}
+.cur::after{                       /* our own arrow, since the native one is ugly */
+  content:"";position:absolute;right:.7rem;top:50%;transform:translateY(-30%);
+  width:0;height:0;border-left:.32rem solid transparent;border-right:.32rem solid transparent;
+  border-top:.38rem solid var(--muted);pointer-events:none;
+}
+.cur select{
+  -webkit-appearance:none;appearance:none;
+  background:linear-gradient(180deg,rgba(28,40,64,.9),rgba(16,24,42,.9));
+  color:var(--text);border:1px solid #33445f;border-radius:.5rem;
+  padding:.58rem 1.9rem .58rem .8rem;
+  font-family:'Pixelify Sans',sans-serif;font-weight:700;font-size:1.02rem;
+  cursor:pointer;line-height:1.25;white-space:nowrap;
+}
+.cur select:hover{border-color:var(--teal)}
+.cur select:focus{outline:2px solid var(--teal);outline-offset:1px}
+.cur option{background:#0c1322;color:var(--text);font-weight:700}
+
+/* ---------- hero ---------- */
+.hero{padding:5.5rem 0 4.5rem}
+.hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:4rem;align-items:center}
+.hero h1{font-size:clamp(3.4rem,7vw,5.6rem)}
+.hero h1 .shine{
+  background:linear-gradient(92deg,var(--gold) 10%,#fff 40%,var(--teal) 78%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.hero p.lede{font-size:1.18rem;line-height:1.6;color:#b9c9e4;margin:1.4rem 0 2.2rem;max-width:38ch;line-height:1.55}
+.hero .cta-row{display:flex;gap:.9rem;flex-wrap:wrap;align-items:center}
+.hero .cta-row .btn{font-size:1.08rem;padding:.8rem 1.5rem}
+.trial-note{font-size:.9rem;color:var(--muted);margin-top:1.1rem}
+.counts{display:flex;gap:2.2rem;margin-top:2.4rem}
+.counts b{display:block;font-family:'Bebas Neue',sans-serif;font-size:2.1rem;color:var(--gold);line-height:1}
+.counts span{font-size:.82rem;color:var(--muted)}
+@media(max-width:960px){.hero .wrap{grid-template-columns:1fr;gap:2.5rem}}
+
+/* ---------- live board ---------- */
+.demo-frame{
+  background:var(--panel);border:1px solid var(--line);border-radius:1rem;padding:1rem;
+  box-shadow:0 2rem 5rem rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05);
+  backdrop-filter:blur(8px);
+}
+.demo-chrome{display:flex;align-items:center;gap:.5rem;margin-bottom:.8rem;color:var(--muted);font-size:.78rem;font-weight:700}
+.demo-chrome .live{display:inline-flex;align-items:center;gap:.35rem;color:#ff6b6b}
+.demo-chrome .live::before{content:"";width:.5rem;height:.5rem;border-radius:50%;background:#ff4242;animation:blink 1.4s steps(2) infinite}
+@keyframes blink{50%{opacity:.25}}
+.board{
+  background:#070d18;border:2px solid var(--teal);border-radius:.6rem;padding:.75rem;
+  box-shadow:0 0 2rem rgba(25,227,200,.25);
+}
+.board-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.6rem}
+.board-top .t{font-family:'Bebas Neue',sans-serif;font-size:2.3rem;color:#ff3b3b;line-height:1;
+  text-shadow:0 0 1.2rem rgba(255,60,60,.6)}
+.board-top .p{font-size:.82rem;color:var(--muted);font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:.32rem}
+.cell{background:#0d1728;border:1px solid #1f2c44;border-radius:.28rem;overflow:hidden;transition:transform .15s}
+.cell img{width:100%;aspect-ratio:1;display:block;image-rendering:pixelated;background:#16202f}
+.cell .nm{font-size:.5rem;font-weight:800;text-align:center;padding:.15rem 0;color:#c9d6e8;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell.hit{border-color:var(--pink);box-shadow:0 0 .55rem rgba(255,77,157,.9);transform:scale(1.08)}
+.cell.gone{opacity:0;transform:scale(.3)}
+.feed{margin-top:.6rem;font-size:.82rem;color:var(--muted);font-weight:700;height:1.3rem;overflow:hidden}
+.feed b{color:var(--teal)}
+
+/* ---------- sections ---------- */
+section{padding:6rem 0;position:relative}
+.sec-head{max-width:46ch;margin-bottom:3rem}
+.sec-head h2{font-size:clamp(2.4rem,4.4vw,3.4rem)}
+.sec-head h2 em{font-style:normal;color:var(--gold)}
+.sec-head p{color:var(--muted);margin-top:.9rem;line-height:1.7}
+
+/* ---------- games ---------- */
+.games{display:grid;grid-template-columns:repeat(3,1fr);gap:1.6rem}
+@media(max-width:900px){.games{grid-template-columns:1fr}}
+.game{display:flex;flex-direction:column;border-top:2px solid var(--line);padding-top:1.1rem}
+.game:nth-child(1){border-top-color:var(--teal)}
+.game:nth-child(2){border-top-color:var(--gold)}
+.game:nth-child(3){border-top-color:var(--violet)}
+.game .shot{height:180px;display:flex;align-items:center;justify-content:flex-start}
+.game .body{padding:.9rem 0 0;display:flex;flex-direction:column;gap:.7rem;flex:1}
+.game h3{font-size:2rem}
+.game p{font-size:.95rem;color:var(--muted);flex:1}
+.game .row{display:flex;gap:.55rem}
+.game .row{gap:.6rem}
+.game .btn{padding:.62rem 1rem;font-size:.98rem;flex:1}
+
+.mini{width:100%;max-width:250px;font-family:Karla,sans-serif}
+.mini .cardish{border-radius:.4rem;padding:.55rem .65rem;border:2px solid var(--pv-accent,#19e3c8);
+  background:linear-gradient(180deg,rgba(13,22,38,.95),rgba(7,13,24,.95))}
+.mini .lbl{font-size:.55rem;font-weight:800;letter-spacing:.16em;color:#93a6c4;text-transform:uppercase}
+.mini .big{font-family:'Bebas Neue',sans-serif;font-size:2.4rem;line-height:1;color:var(--pv-accent,#19e3c8)}
+.mini .rowline{display:flex;align-items:center;gap:.4rem;margin-top:.35rem}
+.mini .rowline img{width:1.6rem;height:1.6rem;border-radius:.2rem;image-rendering:pixelated}
+.mini .who{font-family:'Bebas Neue',sans-serif;font-size:1.3rem}
+.mini .grid3{display:grid;grid-template-columns:repeat(4,1fr);gap:.2rem;margin-top:.3rem}
+.mini .grid3 img{width:100%;aspect-ratio:1;border-radius:.15rem;image-rendering:pixelated}
+
+/* ---------- steps ---------- */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:2rem}
+@media(max-width:900px){.steps{grid-template-columns:1fr}}
+.step{border-top:1px solid var(--line);padding-top:1rem}
+.step h3{font-size:1.7rem;margin:0 0 .5rem;color:var(--gold)}
+.step p{color:var(--muted);font-size:.95rem}
+
+/* ---------- links ---------- */
+.links{background:var(--panel);border:1px solid var(--line);border-radius:.9rem;padding:1.6rem;backdrop-filter:blur(8px)}
+.linkrow{display:flex;align-items:center;gap:1rem;padding:.85rem 0;border-bottom:1px solid var(--line)}
+.linkrow:last-child{border-bottom:none}
+.linkrow .plat{width:160px;font-weight:800;flex:none}
+.linkrow code{
+  flex:1;background:#070d18;border:1px solid var(--line);border-radius:.4rem;
+  padding:.55rem .7rem;font-size:.82rem;color:#a9c6ee;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.linkrow button{
+  background:rgba(20,30,50,.7);border:1px solid var(--line);color:var(--muted);border-radius:.4rem;
+  padding:.55rem .8rem;font:700 .82rem Karla,sans-serif;cursor:pointer;flex:none;
+}
+.linkrow button:hover{color:var(--text);border-color:var(--teal)}
+@media(max-width:700px){.linkrow{flex-wrap:wrap}.linkrow .plat{width:auto}}
+
+/* ---------- pricing ---------- */
+.plans{display:grid;grid-template-columns:1fr 1fr;max-width:880px;
+  border:1px solid var(--line);border-radius:1rem;overflow:hidden;background:var(--panel);backdrop-filter:blur(8px)}
+@media(max-width:800px){.plans{grid-template-columns:1fr}}
+.plan{padding:2rem 1.9rem}
+.plan + .plan{border-left:1px solid var(--line)}
+@media(max-width:800px){.plan + .plan{border-left:none;border-top:1px solid var(--line)}}
+.plan.best{background:linear-gradient(180deg,rgba(255,201,60,.07),transparent)}
+.plan h3{font-size:1.8rem;color:var(--muted);letter-spacing:.06em}
+.plan.best h3{color:var(--gold)}
+.plan .price{font-family:'Bebas Neue',sans-serif;font-size:4.2rem;line-height:.9;margin:.5rem 0 .2rem}
+.plan .price span{font-family:'Bebas Neue',sans-serif;font-size:.95rem;font-weight:700;color:var(--muted)}
+.plan .approx{font-size:.82rem;color:var(--muted);min-height:1.2rem}
+.plan ul{list-style:none;margin:1.3rem 0 1.6rem;display:flex;flex-direction:column;gap:.6rem}
+.plan li{padding-left:1.4rem;position:relative;font-size:.95rem}
+.plan li::before{content:"";position:absolute;left:0;top:.62rem;width:.55rem;height:.55rem;border-radius:50%;background:var(--teal)}
+.plan li.no{color:#63748c}
+.plan li.no::before{background:#33445f}
+.plan .btn{display:block;text-align:center;width:100%}
+.gate-note{font-size:.85rem;color:var(--muted);margin-top:.7rem;text-align:center}
+.fineprint{margin-top:1.6rem;font-size:.9rem;color:var(--muted);max-width:62ch}
+
+/* ---------- reviews ---------- */
+.reviews{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem}
+@media(max-width:900px){.reviews{grid-template-columns:1fr}}
+.rev{
+  background:var(--panel);border:1px solid var(--line);border-radius:.8rem;padding:1.2rem 1.3rem;
+  display:flex;flex-direction:column;gap:.6rem;backdrop-filter:blur(6px);
+}
+.rev .stars{color:var(--gold);letter-spacing:.15em;font-size:.95rem}
+.rev p{font-size:.97rem}
+.rev .by{display:flex;align-items:center;gap:.5rem;color:var(--muted);font-size:.85rem;font-weight:700;margin-top:auto}
+.rev .by img{width:1.5rem;height:1.5rem;border-radius:.25rem;image-rendering:pixelated}
+.rev-actions{margin-top:1.6rem;display:flex;gap:.7rem;align-items:center;flex-wrap:wrap}
+
+/* ---------- faq ---------- */
+.faq{display:grid;grid-template-columns:repeat(2,1fr);gap:1.4rem 3rem}
+@media(max-width:800px){.faq{grid-template-columns:1fr}}
+.faq h3{font-size:1.45rem;margin-bottom:.35rem;color:var(--text)}
+.faq p{color:var(--muted);font-size:.95rem}
+
+/* ---------- modals ---------- */
+.sheet{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(3,6,12,.78);z-index:60;
+  display:none;align-items:center;justify-content:center;padding:1.2rem;backdrop-filter:blur(4px)}
+.sheet.open{display:flex}
+.sheet-inner{background:#0c1322;border:1px solid var(--line);border-radius:1rem;
+  width:min(880px,100%);max-height:90vh;overflow:auto;box-shadow:0 2rem 6rem rgba(0,0,0,.7)}
+.sheet-inner.narrow{width:min(430px,100%)}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 1.4rem;border-bottom:1px solid var(--line)}
+.sheet-head h3{font-size:1.8rem}
+.sheet-head button{background:none;border:none;color:var(--muted);font-size:1.6rem;cursor:pointer;line-height:1}
+.sheet-body{display:grid;grid-template-columns:1.1fr .9fr;gap:1.4rem;padding:1.4rem}
+.sheet-body.single{grid-template-columns:1fr}
+@media(max-width:760px){.sheet-body{grid-template-columns:1fr}}
+.stage-prev{background:#070d18;border:1px solid var(--line);border-radius:.6rem;
+  padding:1.2rem;display:flex;align-items:center;justify-content:center;min-height:260px}
+.opt{margin-bottom:1.1rem}
+.opt label{display:block;font-size:.78rem;font-weight:800;color:var(--muted);margin-bottom:.4rem}
+.swatches{display:flex;gap:.5rem;flex-wrap:wrap}
+.sw{width:2.1rem;height:2.1rem;border-radius:.35rem;border:2px solid transparent;cursor:pointer}
+.sw.on{border-color:#fff}
+.seg{display:flex;border:1px solid var(--line);border-radius:.4rem;overflow:hidden}
+.seg button{flex:1;background:none;border:none;color:var(--muted);padding:.55rem;font:700 .85rem Karla,sans-serif;cursor:pointer}
+.seg button.on{background:#182437;color:var(--text)}
+
+.field{margin-bottom:.9rem}
+.field label{display:block;font-size:.78rem;font-weight:800;color:var(--muted);margin-bottom:.35rem}
+.field input{
+  width:100%;background:#070d18;border:1px solid var(--line);border-radius:.45rem;
+  padding:.7rem .8rem;color:var(--text);font:600 .95rem Karla,sans-serif;
+}
+.field input:focus{outline:2px solid var(--teal);outline-offset:0}
+.msg{font-size:.88rem;margin-top:.6rem;min-height:1.2rem}
+.msg.bad{color:#ff8f8f}
+.msg.good{color:var(--teal)}
+.switch{margin-top:.9rem;font-size:.9rem;color:var(--muted);text-align:center}
+.switch a{color:var(--teal);cursor:pointer;text-decoration:underline}
+
+footer{border-top:1px solid var(--line);padding:2.6rem 0;color:var(--muted);font-size:.9rem;position:relative;z-index:2}
+footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+
+.who-mini{font-size:.85rem;color:var(--muted);font-weight:700;max-width:12ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#starPick{display:flex;gap:.4rem;margin-bottom:.9rem}
+#starPick button{background:#070d18;border:1px solid var(--line);color:var(--muted);border-radius:.4rem;
+  padding:.45rem .7rem;font:800 .95rem Karla,sans-serif;cursor:pointer}
+#starPick button.on{border-color:var(--gold);color:var(--gold)}
+#reviewText{width:100%;min-height:7rem;background:#070d18;border:1px solid var(--line);border-radius:.5rem;
+  padding:.7rem .8rem;color:var(--text);font:500 .95rem Karla,sans-serif;resize:vertical}
+#reviewText:focus{outline:2px solid var(--teal)}
+</style>
+</head>
+<body>
+
+<div id="sky" aria-hidden="true">
+  <video id="bgvid" autoplay muted loop playsinline preload="auto" poster=""></video>
+  <div class="glow g1"></div><div class="glow g2"></div>
+  <div class="glow g3"></div><div class="glow g4"></div>
+  <div class="stars"></div>
+  <div class="veil"></div>
+</div>
+
+<header>
+  <div class="wrap">
+    <div class="mark"><span class="dot"></span> Donut Overlays</div>
+    <nav>
+      <a href="#games" class="hide-sm">Overlays</a>
+      <a href="#how" class="hide-sm">How it works</a>
+      <a href="#reviews" class="hide-sm">Reviews</a>
+      <a href="#pricing" class="hide-sm">Pricing</a>
+      <button class="icon-btn" id="discordIcon" title="Join the Discord" aria-label="Join the Discord">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.317 4.3698a19.7913 19.7913 0 0 0-4.8851-1.5152.0741.0741 0 0 0-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 0 0-.0785-.037 19.7363 19.7363 0 0 0-4.8852 1.515.0699.0699 0 0 0-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 0 0 .0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 0 0 .0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 0 0-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 0 1-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 0 1 .0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 0 1 .0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 0 1-.0066.1276 12.2986 12.2986 0 0 1-1.873.8914.0766.0766 0 0 0-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 0 0 .0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 0 0 .0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 0 0-.0312-.0286ZM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189Zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>
+      </button>
+      <span class="cur">
+        <select id="currency" aria-label="Currency">
+          <option value="USD">USD $</option><option value="CAD">CAD $</option>
+          <option value="GBP">GBP £</option><option value="EUR">EUR €</option>
+          <option value="AUD">AUD $</option>
+        </select>
+      </span>
+      <span id="accountArea"></span>
+      <a href="#pricing" class="btn btn-gold">Start free trial</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <div>
+      <h1>Your chat pays.<br><span class="shine">The board plays.</span></h1>
+      <p class="lede">Live games for Minecraft streamers that run off real in-game payments. Someone pays you on Donut, their head lands on the board about a tenth of a second later.</p>
+      <div class="cta-row">
+        <a href="#pricing" class="btn btn-gold">Start your 7 day trial</a>
+        <a href="#games" class="btn btn-ghost">See the overlays</a>
+      </div>
+      <p class="trial-note">Works with TikTok LIVE Studio, Twitch and YouTube.</p>
+      <div class="counts">
+        <div><b>0.1s</b><span>payment to screen</span></div>
+        <div><b>3</b><span>games included</span></div>
+        <div><b>5 min</b><span>to set up</span></div>
+      </div>
+    </div>
+
+    <div class="demo-frame">
+      <div class="demo-chrome"><span class="live">live</span> elimination board · 8 players</div>
+      <div class="board">
+        <div class="board-top">
+          <div class="t" id="dTime">0:00</div>
+          <div class="p"><span id="dPot">$41M</span> in the pot</div>
+        </div>
+        <div class="grid" id="dGrid"></div>
+        <div class="feed" id="dFeed">&nbsp;</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section id="games">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Three games, <em>one setup</em></h2>
+      <p>Each one reads your Minecraft chat directly, so payments land on screen without you typing anything.</p>
+    </div>
+    <div class="games">
+      <div class="game">
+        <div class="shot"><div class="mini" id="pv-board"></div></div>
+        <div class="body">
+          <h3>Elimination board</h3>
+          <p>Everyone who pays gets a square. The board locks, then entries get wiped out until one person is left holding the pot.</p>
+          <div class="row">
+            <button class="btn btn-ghost" data-customize="board">Customise</button>
+            <button class="btn btn-ghost" data-links="board">Get links</button>
+          </div>
+        </div>
+      </div>
+      <div class="game">
+        <div class="shot"><div class="mini" id="pv-auction"></div></div>
+        <div class="body">
+          <h3>Live auction</h3>
+          <p>Put an item up, set a clock. Highest single payment takes it. Bids never stack, and late bids still count while your stream runs behind.</p>
+          <div class="row">
+            <button class="btn btn-ghost" data-customize="auction">Customise</button>
+            <button class="btn btn-ghost" data-links="auction">Get links</button>
+          </div>
+        </div>
+      </div>
+      <div class="game">
+        <div class="shot"><div class="mini" id="pv-money"></div></div>
+        <div class="body">
+          <h3>Money game</h3>
+          <p>You seed a pot, viewers pay in, biggest payment when the clock stops takes the lot. Losing payments stay in, and your cut comes off automatically.</p>
+          <div class="row">
+            <button class="btn btn-ghost" data-customize="money">Customise</button>
+            <button class="btn btn-ghost" data-links="money">Get links</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Running in about <em>five minutes</em></h2>
+      <p>No plugin, no server access, nothing to install on Donut. It reads the chat log your own game already writes.</p>
+    </div>
+    <div class="steps">
+      <div class="step"><h3>Run the launcher</h3><p>One download, one double-click. It finds your Minecraft log on its own and signs in with your account.</p></div>
+      <div class="step"><h3>Paste your link</h3><p>Every overlay has its own address. Drop it into LIVE Studio, OBS or Streamlabs like any other source.</p></div>
+      <div class="step"><h3>Take payments</h3><p>Someone pays you in game and they are on the board before you have finished saying their name.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Links for <em>wherever you stream</em></h2>
+      <p>An example of what you get after signing up. Your real addresses are tied to your account, so nobody else can point at your board.</p>
+    </div>
+    <div class="links">
+      <div class="linkrow"><div class="plat">Control panel</div><code id="l1">donutoverlays.com/panel/board</code><button data-copy="l1">Copy</button></div>
+      <div class="linkrow"><div class="plat">TikTok LIVE Studio</div><code id="l2">donutoverlays.com/o/7f3a91c4/display</code><button data-copy="l2">Copy</button></div>
+      <div class="linkrow"><div class="plat">OBS · Streamlabs</div><code id="l3">donutoverlays.com/o/7f3a91c4/display</code><button data-copy="l3">Copy</button></div>
+    </div>
+  </div>
+</section>
+
+<section id="pricing">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Seven days free, <em>then pick a plan</em></h2>
+      <p>Most streamers make the monthly cost back in a single round. Cancel whenever — the overlays simply stop loading.</p>
+    </div>
+    <div class="plans">
+      <div class="plan">
+        <h3>Single</h3>
+        <div class="price" data-usd="8">$8<span>/month</span></div>
+        <div class="approx" data-approx="8"></div>
+        <ul>
+          <li>Any one overlay you choose</li>
+          <li>Every platform: TikTok, Twitch, YouTube</li>
+          <li>Full colour and layout control</li>
+          <li class="no">Switching games mid-month</li>
+        </ul>
+        <a href="#" class="btn btn-ghost" data-plan="single">Start free trial</a>
+        <p class="gate-note"></p>
+      </div>
+      <div class="plan best">
+        <h3>All three</h3>
+        <div class="price" data-usd="12">$12<span>/month</span></div>
+        <div class="approx" data-approx="12"></div>
+        <ul>
+          <li>Elimination board, auction and money game</li>
+          <li>Every platform: TikTok, Twitch, YouTube</li>
+          <li>Full colour and layout control</li>
+          <li>New games added as they launch</li>
+        </ul>
+        <a href="#" class="btn btn-gold" data-plan="all">Start free trial</a>
+        <p class="gate-note"></p>
+      </div>
+    </div>
+    <p class="fineprint">Your overlays are served from our end, not stored on your computer. That is what keeps them fast, and it means a cancelled plan stops working straight away rather than lingering.</p>
+  </div>
+</section>
+
+<section id="reviews">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>What streamers <em>say</em></h2>
+      <p>From people running these games on live every week.</p>
+    </div>
+    <div class="reviews" id="reviewList"></div>
+    <div class="rev-actions">
+      <button class="btn btn-gold" id="reviewBtn">Log in to leave a review</button>
+      <span style="color:var(--muted);font-size:.9rem">Reviews are checked before they appear.</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h2>Questions people ask</h2></div>
+    <div class="faq">
+      <div><h3>Does this work on Donut SMP?</h3><p>Yes. It reads the chat log your own client writes, so it needs nothing from the server and breaks no rules.</p></div>
+      <div><h3>How fast is it really?</h3><p>Payment to pixels is roughly a tenth of a second. Viewers see it a few seconds later because that is how long every platform holds video.</p></div>
+      <div><h3>Do I need OBS?</h3><p>Only for Twitch and YouTube. TikTok LIVE Studio takes the link directly.</p></div>
+      <div><h3>What if my server words payments differently?</h3><p>Send us the line and we will add it. Recognising new payment formats takes a day, not a release.</p></div>
+      <div><h3>Can I run two games at once?</h3><p>Not on one account — both would be reading the same payments and fighting over them. Run one per stream.</p></div>
+      <div><h3>What happens when I cancel?</h3><p>Your overlay links stop loading at the end of the paid period. Settings are kept for 90 days if you come back.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>Donut Overlays — built by a Donut streamer, for Donut streamers.</div>
+    <div>Not affiliated with Mojang, Microsoft, TikTok, Twitch or YouTube.</div>
+  </div>
+</footer>
+
+<div class="sheet" id="sheet">
+  <div class="sheet-inner">
+    <div class="sheet-head"><h3 id="sheetTitle">Customise</h3><button id="sheetClose" aria-label="Close">×</button></div>
+    <div class="sheet-body">
+      <div class="stage-prev"><div class="mini" id="pv-live" style="max-width:280px"></div></div>
+      <div>
+        <div class="opt"><label>Accent colour</label><div class="swatches" id="swatches"></div></div>
+        <div class="opt"><label>Layout</label>
+          <div class="seg" id="segLayout"><button data-v="compact" class="on">Compact</button><button data-v="full">Full</button></div>
+        </div>
+        <div class="opt"><label>Text size</label>
+          <div class="seg" id="segSize"><button data-v="1">Normal</button><button data-v="1.2" class="on">Large</button><button data-v="1.45">Huge</button></div>
+        </div>
+        <p style="color:var(--muted);font-size:.88rem">Changes save to your account and reach the overlay on stream immediately — no need to re-add the source.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="authSheet">
+  <div class="sheet-inner narrow">
+    <div class="sheet-head"><h3 id="authTitle">Log in</h3><button id="authClose" aria-label="Close">×</button></div>
+    <div class="sheet-body single">
+      <div>
+        <div class="field"><label>Email</label><input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></div>
+        <div class="field"><label>Password</label><input id="authPass" type="password" autocomplete="current-password" placeholder="at least 8 characters"></div>
+        <button class="btn btn-gold" id="authGo" style="width:100%">Log in</button>
+        <div class="msg" id="authMsg"></div>
+        <div class="switch" id="authSwitch"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="discordSheet">
+  <div class="sheet-inner narrow">
+    <div class="sheet-head"><h3>Join the Discord</h3><button id="discordClose" aria-label="Close">×</button></div>
+    <div class="sheet-body single">
+      <div>
+        <p style="color:var(--muted);margin-bottom:1.1rem">Setup help, payment format fixes and new games get posted there first. Join, then carry on to checkout.</p>
+        <button class="btn btn-discord" id="discordGo" style="width:100%;justify-content:center">Open the Discord</button>
+        <button class="btn btn-ghost" id="discordDone" style="width:100%;margin-top:.6rem">I have joined — continue</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="reviewSheet">
+  <div class="sheet-inner narrow">
+    <div class="sheet-head"><h3>Write a review</h3><button id="reviewClose" aria-label="Close">×</button></div>
+    <div class="sheet-body single">
+      <div>
+        <div class="field"><label>Rating</label>
+          <div id="starPick">
+            <button data-v="5" class="on">5</button><button data-v="4">4</button>
+            <button data-v="3">3</button><button data-v="2">2</button><button data-v="1">1</button>
+          </div>
+        </div>
+        <div class="field"><label>Minecraft name (for your head)</label><input id="reviewIgn" placeholder="e.g. mrchicken75"></div>
+        <div class="field"><label>Your review</label><textarea id="reviewText" placeholder="What did you run, and how did it go?"></textarea></div>
+        <button class="btn btn-gold" id="reviewGo" style="width:100%">Send it</button>
+        <div class="msg" id="reviewMsg"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+/* =========================================================
+   Fill these in before you go live.
+   ========================================================= */
+let DISCORD_INVITE = 'https://discord.gg/UPyz79jcth';
+/* the backend lives on the same origin as this page, so API is just '' */
+const API = '';
+
+/* ---------------- shared bits ---------------- */
+const NAMES = ['9void','xqovr','DrDonutt','VyperJames','Sc0tty','mighty4l','nj_lucca','Crawdiddle','Tubbo','Purpled','mrchicken75','Skeppy'];
+const head = (n, s) => `https://minotar.net/helm/${encodeURIComponent(n)}/${s}.png`;
+const money = n => n >= 1e9 ? '$' + (n/1e9).toFixed(1) + 'B'
+                : n >= 1e6 ? '$' + (n/1e6).toFixed(n % 1e6 ? 1 : 0) + 'M'
+                : n >= 1e3 ? '$' + Math.round(n/1e3) + 'K' : '$' + n;
+const pick = a => a[Math.floor(Math.random() * a.length)];
+
+
+/* ---------------- hero: a board that actually plays ---------------- */
+const grid = document.getElementById('dGrid');
+const feedEl = document.getElementById('dFeed');
+const potEl = document.getElementById('dPot');
+const timeEl = document.getElementById('dTime');
+let entries = [], pot = 0, phase = 'filling', clock = 12;
+
+function makeEntry(){
+  const name = pick(NAMES);
+  const id = Math.random().toString(36).slice(2);
+  entries.push({ id, name });
+  pot += 1e6;
+  const c = document.createElement('div');
+  c.className = 'cell';
+  c.dataset.id = id;
+  c.innerHTML = `<img src="${head(name,64)}" alt="" loading="lazy"><div class="nm">${name}</div>`;
+  grid.append(c);
+  feedEl.innerHTML = `<b>${name}</b> paid $1M`;
+  potEl.textContent = money(pot);
+}
+function cellOf(id){ return grid.querySelector(`[data-id="${id}"]`); }
+
+async function loop(){
+  /* fill up */
+  for(let i = 0; i < 18; i++){ makeEntry(); await wait(220); }
+  /* lock, then pick people off */
+  phase = 'locked';
+  feedEl.textContent = 'Board locked — eliminations starting';
+  await wait(900);
+  while(entries.length > 1){
+    const target = pick(entries);
+    /* skip around before landing */
+    for(let i = 0; i < 7; i++){
+      const c = cellOf(pick(entries).id);
+      if(c){ c.classList.add('hit'); await wait(90 + i * 22); c.classList.remove('hit'); }
+    }
+    const tc = cellOf(target.id);
+    if(tc){
+      tc.classList.add('hit');
+      await wait(420);
+      tc.classList.add('gone');
+      feedEl.innerHTML = `<b>${target.name}</b> eliminated`;
+      await wait(300);
+      tc.remove();
+    }
+    entries = entries.filter(e => e.id !== target.id);
+    await wait(340);
+  }
+  feedEl.innerHTML = `<b>${entries[0].name}</b> wins ${money(pot)}`;
+  await wait(2600);
+  grid.innerHTML = ''; entries = []; pot = 0; potEl.textContent = '$0';
+  loop();
+}
+const wait = ms => new Promise(r => setTimeout(r, ms));
+function ticker(){
+  timeEl.textContent = phase === 'filling' ? '0:' + String(Math.max(0, clock)).padStart(2,'0') : '0:00';
+  if(phase === 'filling' && clock > 0) clock--;
+  setTimeout(ticker, 1000);
+}
+if(!matchMedia('(prefers-reduced-motion: reduce)').matches){ loop(); ticker(); }
+else { for(let i = 0; i < 12; i++) makeEntry(); timeEl.textContent = '0:00'; }
+
+
+/* ---------------- previews ---------------- */
+function previewHTML(kind, opt){
+  const a = opt.accent, s = opt.scale, compact = opt.layout === 'compact';
+  const n1 = NAMES[0], n2 = NAMES[1];
+  const fs = r => (r * s).toFixed(2) + 'rem';
+  if(kind === 'board'){
+    return `<div class="cardish" style="--pv-accent:${a}">
+      <div class="lbl" style="font-size:${fs(.55)}">Elimination board</div>
+      <div class="grid3">${NAMES.slice(0,8).map(n => `<img src="${head(n,32)}" alt="">`).join('')}</div>
+      <div class="rowline"><span class="lbl" style="font-size:${fs(.55)}">Pot</span>
+        <span class="big" style="font-size:${fs(1.6)};margin-left:auto">$18M</span></div>
+    </div>`;
+  }
+  if(kind === 'auction'){
+    return `<div class="cardish" style="--pv-accent:${a}">
+      <div class="lbl" style="font-size:${fs(.55)}">Netherite kit</div>
+      <div class="big" style="font-size:${fs(2.2)}">$15M</div>
+      <div class="rowline"><img src="${head(n2,32)}" alt=""><span class="who" style="font-size:${fs(1.1)}">${n2}</span>
+        <span class="lbl" style="font-size:${fs(.5)};margin-left:auto">0:42</span></div>
+      ${compact ? '' : `<div class="lbl" style="font-size:${fs(.5)};margin-top:.4rem">Outbid: ${n1} $12M</div>`}
+    </div>`;
+  }
+  return `<div class="cardish" style="--pv-accent:${a}">
+    <div class="lbl" style="font-size:${fs(.55)}">Total pot</div>
+    <div class="big" style="font-size:${fs(2.4)}">$11M</div>
+    <div class="rowline"><img src="${head(n1,32)}" alt=""><span class="who" style="font-size:${fs(1.1)}">${n1}</span>
+      <span class="who" style="font-size:${fs(1)};margin-left:auto;color:${a}">wins $9.9M</span></div>
+    ${compact ? '' : `<div class="lbl" style="font-size:${fs(.5)};margin-top:.4rem">Also in: ${n2} $3M</div>`}
+  </div>`;
+}
+const base = { accent:'#2ee66b', layout:'compact', scale:1.2 };
+const opts = { board:{...base}, auction:{...base, accent:'#f0b429'}, money:{...base} };
+const paint = k => document.getElementById('pv-' + k).innerHTML = previewHTML(k, opts[k]);
+['board','auction','money'].forEach(paint);
+
+
+/* ---------------- customiser ---------------- */
+const sheet = document.getElementById('sheet');
+const swatchWrap = document.getElementById('swatches');
+const COLOURS = ['#2ee66b','#f0b429','#2fb8f6','#ff4d9d','#b06bff','#ff6b3d'];
+let editing = 'board';
+
+swatchWrap.innerHTML = COLOURS.map(c =>
+  `<button class="sw" data-c="${c}" style="background:${c}" aria-label="accent ${c}"></button>`).join('');
+
+function refreshSheet(){
+  const o = opts[editing];
+  document.getElementById('pv-live').innerHTML = previewHTML(editing, o);
+  swatchWrap.querySelectorAll('.sw').forEach(b => b.classList.toggle('on', b.dataset.c === o.accent));
+  document.querySelectorAll('#segLayout button').forEach(b => b.classList.toggle('on', b.dataset.v === o.layout));
+  document.querySelectorAll('#segSize button').forEach(b => b.classList.toggle('on', Number(b.dataset.v) === o.scale));
+  paint(editing);
+}
+document.querySelectorAll('[data-customize]').forEach(b => b.onclick = () => {
+  editing = b.dataset.customize;
+  document.getElementById('sheetTitle').textContent =
+    'Customise the ' + ({board:'elimination board', auction:'auction', money:'money game'})[editing];
+  sheet.classList.add('open');
+  refreshSheet();
+});
+swatchWrap.onclick = e => {
+  const b = e.target.closest('.sw'); if(!b) return;
+  opts[editing].accent = b.dataset.c; refreshSheet();
+};
+document.getElementById('segLayout').onclick = e => {
+  const b = e.target.closest('button'); if(!b) return;
+  opts[editing].layout = b.dataset.v; refreshSheet();
+};
+document.getElementById('segSize').onclick = e => {
+  const b = e.target.closest('button'); if(!b) return;
+  opts[editing].scale = Number(b.dataset.v); refreshSheet();
+};
+document.getElementById('sheetClose').onclick = () => sheet.classList.remove('open');
+sheet.onclick = e => { if(e.target === sheet) sheet.classList.remove('open'); };
+addEventListener('keydown', e => { if(e.key === 'Escape') sheet.classList.remove('open'); });
+
+
+/* ---------------- currency ----------------
+   Display only. Stripe bills in USD, so anything else is shown
+   as an approximate figure and labelled as one. */
+const RATES = { USD:[1,'$'], CAD:[1.36,'$'], GBP:[0.78,'£'], EUR:[0.92,'€'], AUD:[1.50,'$'] };
+function showPrices(code){
+  const [rate, sym] = RATES[code] || RATES.USD;
+  document.querySelectorAll('[data-usd]').forEach(el => {
+    const usd = Number(el.dataset.usd);
+    const val = code === 'USD' ? usd : Math.round(usd * rate);
+    el.innerHTML = sym + val + '<span>/month</span>';
+  });
+  document.querySelectorAll('[data-approx]').forEach(el => {
+    el.textContent = code === 'USD' ? '' : 'about ' + code + ', billed as $' + el.dataset.approx + ' USD';
+  });
+  try { localStorage.setItem('cur', code); } catch(e){}
+}
+const curSel = document.getElementById('currency');
+let saved = 'USD';
+try { saved = localStorage.getItem('cur') || 'USD'; } catch(e){}
+curSel.value = saved;
+showPrices(saved);
+curSel.onchange = e => showPrices(e.target.value);
+
+
+
+/* ---------------- background video ----------------
+   Uses plains.mp4 if it's there, falls back to the drawn scene if
+   it isn't, and skips it on phones so nobody burns their data. */
+(function(){
+  const vid = document.getElementById('bgvid');
+  const small = matchMedia('(max-width: 760px)').matches;
+  const slow = navigator.connection && /2g/.test(navigator.connection.effectiveType || '');
+  if(small || slow || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  vid.addEventListener('canplay', () => {
+    vid.classList.add('on');
+    document.getElementById('sky').classList.add('video');
+    vid.play().catch(() => {});
+  }, { once: true });
+  vid.addEventListener('error', () => { /* no file yet — drawn scene stays */ });
+  vid.src = 'plains.mp4';
+})();
+
+/* ---------------- accounts ---------------- */
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem(k,v); } catch(e){} },
+  del(k){ try { localStorage.removeItem(k); } catch(e){} },
+};
+let me = null;
+try { me = JSON.parse(store.get('me') || 'null'); } catch(e){ me = null; }
+const authHeader = () => me ? { Authorization: 'Bearer ' + me.token } : {};
+
+function paintAccount(){
+  const box = document.getElementById('accountArea');
+  if(me){
+    box.innerHTML = `<span class="who-mini" id="acctStatus">${me.email}</span>
+      <button class="btn btn-ghost" id="logoutBtn">Log out</button>`;
+    document.getElementById('logoutBtn').onclick = () => {
+      me = null; store.del('me'); paintAccount(); paintReviewForm();
+    };
+    refreshMe();
+  } else {
+    box.innerHTML = `<button class="btn btn-ghost" id="loginBtn" style="font-family:'Pixelify Sans',sans-serif">Login</button>`;
+    document.getElementById('loginBtn').onclick = () => openAuth('login');
+  }
+}
+
+/* pulls plan/trial/renewal status from the server so the header shows
+   something more useful than just the email once it's known. */
+async function refreshMe(){
+  if(!me) return;
+  try {
+    const r = await fetch(API + '/api/me', { headers: authHeader() });
+    if(!r.ok) return; // expired token etc — leave the email showing
+    const data = await r.json();
+    const el = document.getElementById('acctStatus');
+    if(!el) return;
+    let label = me.email;
+    if(data.status === 'trialing' && data.trialEnd){
+      label += ` · trial ends ${new Date(data.trialEnd).toLocaleDateString()}`;
+    } else if(data.status === 'active' && data.currentPeriodEnd){
+      label += ` · ${data.plan} plan`;
+    } else if(data.status === 'canceled'){
+      label += ' · plan cancelled';
+    }
+    el.textContent = label;
+  } catch(e){ /* server not reachable — leave the email showing */ }
+}
+
+let authMode = 'login';
+function openAuth(mode){
+  authMode = mode;
+  document.getElementById('authTitle').textContent = mode === 'login' ? 'Log in' : 'Create an account';
+  document.getElementById('authGo').textContent = mode === 'login' ? 'Log in' : 'Sign up';
+  document.getElementById('authSwitch').innerHTML = mode === 'login'
+    ? `No account yet? <a id="toSignup">Sign up</a>`
+    : `Already have one? <a id="toLogin">Log in</a>`;
+  const t1 = document.getElementById('toSignup'), t2 = document.getElementById('toLogin');
+  if(t1) t1.onclick = () => openAuth('signup');
+  if(t2) t2.onclick = () => openAuth('login');
+  document.getElementById('authMsg').textContent = '';
+  document.getElementById('authSheet').classList.add('open');
+}
+document.getElementById('authClose').onclick = () => document.getElementById('authSheet').classList.remove('open');
+
+document.getElementById('authGo').onclick = async () => {
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPass').value;
+  const msg = document.getElementById('authMsg');
+  if(!email || !password){ msg.className = 'msg bad'; msg.textContent = 'Fill both boxes in.'; return; }
+  if(password.length < 8){ msg.className = 'msg bad'; msg.textContent = 'Password needs at least 8 characters.'; return; }
+  msg.className = 'msg'; msg.textContent = 'One moment…';
+  try {
+    const r = await fetch(API + '/api/' + (authMode === 'login' ? 'login' : 'signup'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || 'that did not work');
+    me = { email: data.email, token: data.token };
+    store.set('me', JSON.stringify(me));
+    paintAccount(); paintReviewForm();
+    document.getElementById('authSheet').classList.remove('open');
+    if(pendingPlan) proceedToCheckout();
+  } catch(e){
+    msg.className = 'msg bad';
+    msg.textContent = e.message === 'Failed to fetch'
+      ? 'Accounts are not switched on yet — the server is still being set up.'
+      : e.message;
+  }
+};
+
+/* ---------------- discord gate ----------------
+   Honour system for now: it remembers that they clicked through.
+   Swap for Discord login later if people start dodging it. */
+function joinedDiscord(){ return store.get('joined') === 'yes'; }
+document.getElementById('discordIcon').onclick = () => window.open(DISCORD_INVITE, '_blank');
+document.getElementById('discordClose').onclick = () => document.getElementById('discordSheet').classList.remove('open');
+document.getElementById('discordGo').onclick = () => window.open(DISCORD_INVITE, '_blank');
+document.getElementById('discordDone').onclick = () => {
+  store.set('joined', 'yes');
+  document.getElementById('discordSheet').classList.remove('open');
+  paintGate();
+  proceedToCheckout();
+};
+function paintGate(){
+  document.querySelectorAll('.gate-note').forEach(n => {
+    n.textContent = joinedDiscord() ? '' : 'Join the Discord first — one click, then checkout opens.';
+  });
+}
+
+let pendingPlan = null;
+
+/* runs after both gates (Discord + logged in) are satisfied */
+function proceedToCheckout(){
+  if(!joinedDiscord()) return; // discord sheet already handles re-entry
+  if(!me){ openAuth('login'); return; } // authGo success calls this again
+  startCheckout(pendingPlan);
+}
+
+async function startCheckout(plan){
+  pendingPlan = null;
+  try {
+    const r = await fetch(API + '/api/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify({ plan }),
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || 'could not start checkout');
+    location.href = data.url;
+  } catch(e){
+    alert(e.message === 'Failed to fetch'
+      ? 'Checkout is not switched on yet — the server is still being set up.'
+      : e.message);
+  }
+}
+document.querySelectorAll('[data-plan]').forEach(b => b.addEventListener('click', e => {
+  e.preventDefault();
+  pendingPlan = b.dataset.plan;
+  if(!joinedDiscord()){
+    document.getElementById('discordSheet').classList.add('open');
+    return;
+  }
+  proceedToCheckout();
+}));
+
+/* bounced back from Stripe Checkout */
+(function(){
+  const q = new URLSearchParams(location.search);
+  if(q.get('checkout') === 'success'){
+    setTimeout(() => alert('You\'re in! Your trial has started — check your email/account for details.'), 300);
+    refreshMe();
+  } else if(q.get('checkout') === 'cancelled'){
+    setTimeout(() => alert('Checkout was cancelled — no charge was made.'), 300);
+  }
+})();
+
+/* ---------------- reviews ---------------- */
+const SAMPLE = [
+  { ign:'9void', stars:5, text:'Set it up in five minutes and ran a 40 person board the same night. Nobody could believe it was reading chat by itself.' },
+  { ign:'xqovr', stars:5, text:'The auction one paid for itself in a single lot. Live delay is the bit I did not know I needed.' },
+  { ign:'DrDonutt', stars:4, text:'Money game is chaos in the best way. Would like more colour presets but it looks sharp already.' },
+];
+const starRow = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+
+async function loadReviews(){
+  const wrap = document.getElementById('reviewList');
+  let list = SAMPLE;
+  try {
+    const r = await fetch(API + '/api/reviews');
+    if(r.ok){
+      const data = await r.json();
+      if(Array.isArray(data.reviews) && data.reviews.length) list = data.reviews;
+    }
+  } catch(e){ /* server not up yet — the samples stand in */ }
+  wrap.innerHTML = list.slice(0, 6).map(v => `
+    <div class="rev">
+      <div class="stars">${starRow(v.stars || 5)}</div>
+      <p>${String(v.text || '').replace(/[<>]/g, '')}</p>
+      <div class="by">
+        <img src="${head(v.ign || 'Steve', 32)}" alt="" loading="lazy">${v.ign || 'anonymous'}
+      </div>
+    </div>`).join('');
+}
+function paintReviewForm(){
+  const b = document.getElementById('reviewBtn');
+  b.textContent = me ? 'Write a review' : 'Log in to leave a review';
+}
+document.getElementById('reviewBtn').onclick = () => {
+  if(!me) return openAuth('login');
+  document.getElementById('reviewSheet').classList.add('open');
+};
+document.getElementById('reviewClose').onclick = () => document.getElementById('reviewSheet').classList.remove('open');
+document.querySelectorAll('#starPick button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#starPick button').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
+});
+document.getElementById('reviewGo').onclick = async () => {
+  const stars = Number((document.querySelector('#starPick button.on') || {}).dataset?.v || 5);
+  const text = document.getElementById('reviewText').value.trim();
+  const ign = document.getElementById('reviewIgn').value.trim();
+  const msg = document.getElementById('reviewMsg');
+  if(text.length < 10){ msg.className = 'msg bad'; msg.textContent = 'Say a bit more than that.'; return; }
+  msg.className = 'msg'; msg.textContent = 'Sending…';
+  try {
+    const r = await fetch(API + '/api/reviews', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify({ stars, text, ign }),
+    });
+    if(!r.ok) throw new Error((await r.json()).error || 'could not send that');
+    msg.className = 'msg good'; msg.textContent = 'Thanks — it will show up once checked.';
+    document.getElementById('reviewText').value = '';
+    setTimeout(() => document.getElementById('reviewSheet').classList.remove('open'), 1200);
+    loadReviews();
+  } catch(e){
+    msg.className = 'msg bad';
+    msg.textContent = e.message === 'Failed to fetch' ? 'Reviews are not switched on yet.' : e.message;
+  }
+};
+
+paintAccount(); paintGate(); paintReviewForm(); loadReviews();
+
+/* pull the real Discord invite from the server config so it can be
+   changed later without touching this file */
+fetch(API + '/api/config').then(r => r.json()).then(cfg => {
+  if(cfg && cfg.discordInvite) DISCORD_INVITE = cfg.discordInvite;
+}).catch(() => {});
+
+/* ---------------- copy buttons ---------------- */
+document.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => {
+  const text = document.getElementById(b.dataset.copy).textContent;
+  navigator.clipboard.writeText('https://' + text).then(() => {
+    const old = b.textContent; b.textContent = 'Copied';
+    setTimeout(() => b.textContent = old, 1400);
+  }).catch(() => {});
+});
+document.querySelectorAll('[data-links]').forEach(b => b.onclick = () =>
+  document.querySelector('.links').scrollIntoView({behavior:'smooth', block:'center'}));
+
+</script>
+</body>
+</html>
