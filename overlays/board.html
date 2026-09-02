@@ -1121,16 +1121,26 @@ function bindHost(){
   el('bPause').onclick = () => { if(!cmd('pause')) togglePause(); };
   /* no confirm() — browsers block it inside embedded/preview frames.
      Two taps within 4 seconds instead. */
-  let armed = 0;
+  /* Armed state is a flag, not a stopwatch. Comparing timestamps meant a
+     slow second tap silently re-armed instead of confirming — and because
+     the label already read "Tap again", nothing changed on screen and the
+     button looked broken. Now: while it says "Tap again", tapping wipes. */
+  let armed = false, armTimer = null;
+  const disarm = btn => {
+    armed = false;
+    clearTimeout(armTimer);
+    btn.textContent = '♻ Clear everything and start over';
+  };
   el('bReset').onclick = e => {
-    if(now() - armed > 4000){
-      armed = now();
-      e.target.textContent = '⚠ Tap again to wipe the round';
-      setTimeout(() => { if(now() - armed >= 4000) e.target.textContent = '♻ Clear everything and start over'; }, 4100);
+    const btn = e.target;
+    if(!armed){
+      armed = true;
+      btn.textContent = '⚠ Tap again to wipe the round';
+      clearTimeout(armTimer);
+      armTimer = setTimeout(() => disarm(btn), 6000);
       return;
     }
-    armed = 0;
-    e.target.textContent = '♻ Clear everything and start over';
+    disarm(btn);
     if(!cmd('reset')) resetRound();
   };
   el('bUndo').onclick  = () => cmd('undo') || undoLast();
