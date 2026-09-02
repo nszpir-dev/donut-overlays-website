@@ -1089,7 +1089,7 @@ async function paintSetup(){
 
   document.getElementById('setupTitle').innerHTML = 'Your overlays, <em>ready to go</em>';
   document.getElementById('setupBlurb').textContent =
-    'Step 1 downloads the app that reads your Minecraft chat. Step 2 is the address you paste into your streaming software — it never changes, so you only ever do it once.';
+    'Step 1 downloads the app that reads your Minecraft chat. Step 2 is the address you add as a browser source — it works the same in TikTok LIVE Studio, OBS, Streamlabs or anything else, and it never changes, so you only ever paste it once.';
 
   const rows = [];
   rows.push(`
@@ -1099,10 +1099,21 @@ async function paintSetup(){
       <a class="btn btn-gold" style="padding:.55rem .9rem;font-size:.85rem" href="${data.download}">Download</a>
     </div>`);
 
+  rows.push(`
+    <div class="linkrow" style="border-bottom:none;padding-bottom:.2rem">
+      <div class="plat">2 · Your overlays</div>
+      <div style="flex:1;color:var(--muted);font-size:.88rem">
+        Add as a <b>browser source</b> in TikTok LIVE Studio, OBS, Streamlabs — any of them.
+      </div>
+    </div>`);
+
+  /* Each row says which game it is. Naming a platform here was wrong:
+     one link works everywhere, and what a streamer actually needs to
+     know is which of their overlays they are copying. */
   data.links.forEach((l, i) => {
     rows.push(`
       <div class="linkrow">
-        <div class="plat">${i === 0 ? '2 · Paste into OBS' : '&nbsp;'}</div>
+        <div class="plat" style="padding-left:1.2rem;font-weight:700;color:var(--teal)">${l.name}</div>
         <code id="ln${i}">${l.url}</code>
         <button data-copy="ln${i}">Copy</button>
       </div>`);
