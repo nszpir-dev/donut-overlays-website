@@ -67,13 +67,14 @@ header{
   border-bottom:1px solid var(--line);
 }
 header .wrap{display:flex;align-items:center;gap:1rem;height:76px}
-.mark{display:flex;align-items:center;gap:.6rem;font-family:'Pixelify Sans',sans-serif;font-weight:700;font-size:1.15rem;letter-spacing:.02em;letter-spacing:.05em}
+.mark{display:flex;align-items:center;gap:.6rem;font-family:'Pixelify Sans',sans-serif;font-weight:700;font-size:1.15rem;letter-spacing:.05em;white-space:nowrap;flex:none}
 .mark .dot{
   width:1.15rem;height:1.15rem;border-radius:50%;
   background:radial-gradient(circle at 35% 30%,#a9ffc9,#22a35b);
   box-shadow:0 0 .1rem .25rem rgba(34,163,91,.2), 0 0 1.6rem rgba(60,220,130,.55);
 }
-nav{margin-left:auto;display:flex;gap:1rem;align-items:center;font-size:.95rem;font-weight:600;color:var(--muted)}
+nav{margin-left:auto;display:flex;gap:.75rem;align-items:center;font-size:.95rem;font-weight:600;color:var(--muted)}
+nav > a{white-space:nowrap}
 nav .btn{
   font-family:Karla,system-ui,-apple-system,sans-serif;font-weight:800;font-size:1rem;
   padding:.55rem 1.05rem;white-space:nowrap;letter-spacing:.01em;
@@ -306,7 +307,17 @@ section{padding:6rem 0;position:relative}
 footer{border-top:1px solid var(--line);padding:2.6rem 0;color:var(--muted);font-size:.9rem;position:relative;z-index:2}
 footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 
-.who-mini{font-size:.85rem;color:var(--muted);font-weight:700;max-width:12ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* header account block — two tight lines instead of one long run-on */
+.acct{display:flex;flex-direction:column;align-items:flex-end;line-height:1.2;gap:.05rem;flex:none}
+.acct .mail{font-size:.76rem;color:var(--muted);font-weight:700;max-width:15ch;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct .state{font-size:.74rem;font-weight:800;white-space:nowrap;color:var(--gold);letter-spacing:.02em}
+.acct .state.active{color:var(--teal)}
+.acct .state.ended{color:#ff8f8f}
+.btn-sm{padding:.45rem .85rem;font-size:.9rem}
+/* shed the least important bits before things start colliding */
+@media(max-width:1150px){ .acct .mail{display:none} }
+@media(max-width:1040px){ nav .cur{display:none} }
 #starPick{display:flex;gap:.4rem;margin-bottom:.9rem}
 #starPick button{background:#070d18;border:1px solid var(--line);color:var(--muted);border-radius:.4rem;
   padding:.45rem .7rem;font:800 .95rem Karla,sans-serif;cursor:pointer}
@@ -345,7 +356,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
         </select>
       </span>
       <span id="accountArea"></span>
-      <a href="#pricing" class="btn btn-gold">Start free trial</a>
+      <a href="#pricing" class="btn btn-gold" id="headerCta">Start free trial</a>
     </nav>
   </div>
 </header>
@@ -806,8 +817,11 @@ const authHeader = () => me ? { Authorization: 'Bearer ' + me.token } : {};
 function paintAccount(){
   const box = document.getElementById('accountArea');
   if(me){
-    box.innerHTML = `<span class="who-mini" id="acctStatus">${me.email}</span>
-      <button class="btn btn-ghost" id="logoutBtn">Log out</button>`;
+    box.innerHTML = `<span class="acct">
+        <span class="mail" title="${me.email}">${me.email}</span>
+        <span class="state" id="acctState"></span>
+      </span>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn">Log out</button>`;
     document.getElementById('logoutBtn').onclick = () => {
       me = null; store.del('me'); paintAccount(); paintReviewForm();
     };
@@ -815,6 +829,27 @@ function paintAccount(){
   } else {
     box.innerHTML = `<button class="btn btn-ghost" id="loginBtn" style="font-family:'Pixelify Sans',sans-serif">Login</button>`;
     document.getElementById('loginBtn').onclick = () => openAuth('login');
+    setCta(null);
+  }
+}
+
+/* a short date like "Sep 8" — the full ISO date was eating the header */
+const shortDate = d => new Date(d).toLocaleDateString(undefined, { month:'short', day:'numeric' });
+
+/* The header button is "Start free trial" for a stranger, but that reads as
+   nonsense to someone already trialing — they get "Manage plan" instead. */
+function setCta(status){
+  const cta = document.getElementById('headerCta');
+  if(!cta) return;
+  const subscribed = status === 'trialing' || status === 'active' || status === 'past_due';
+  if(subscribed){
+    cta.textContent = 'Manage plan';
+    cta.href = '#';
+    cta.onclick = e => { e.preventDefault(); openPortal(); };
+  } else {
+    cta.textContent = 'Start free trial';
+    cta.href = '#pricing';
+    cta.onclick = null;
   }
 }
 
@@ -826,18 +861,40 @@ async function refreshMe(){
     const r = await fetch(API + '/api/me', { headers: authHeader() });
     if(!r.ok) return; // expired token etc — leave the email showing
     const data = await r.json();
-    const el = document.getElementById('acctStatus');
+    setCta(data.status);
+    const el = document.getElementById('acctState');
     if(!el) return;
-    let label = me.email;
+    el.className = 'state';
     if(data.status === 'trialing' && data.trialEnd){
-      label += ` · trial ends ${new Date(data.trialEnd).toLocaleDateString()}`;
-    } else if(data.status === 'active' && data.currentPeriodEnd){
-      label += ` · ${data.plan} plan`;
+      el.textContent = 'Trial ends ' + shortDate(data.trialEnd);
+    } else if(data.status === 'active'){
+      el.classList.add('active');
+      el.textContent = data.plan === 'all' ? 'All overlays' : 'Single overlay';
+    } else if(data.status === 'past_due'){
+      el.classList.add('ended');
+      el.textContent = 'Payment failed';
     } else if(data.status === 'canceled'){
-      label += ' · plan cancelled';
+      el.classList.add('ended');
+      el.textContent = 'Plan cancelled';
+    } else {
+      el.textContent = 'No plan yet';
     }
-    el.textContent = label;
   } catch(e){ /* server not reachable — leave the email showing */ }
+}
+
+/* Stripe's own billing page: change card, switch plan, cancel. Cancelling
+   there flows back to us through the subscription.updated webhook. */
+async function openPortal(){
+  try {
+    const r = await fetch(API + '/api/portal', { method: 'POST', headers: authHeader() });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || 'could not open the billing page');
+    location.href = data.url;
+  } catch(e){
+    alert(e.message === 'Failed to fetch'
+      ? 'The billing page is not reachable right now.'
+      : e.message);
+  }
 }
 
 let authMode = 'login';

@@ -249,6 +249,32 @@ app.post('/api/checkout', auth, async (req, res) => {
   }
 });
 
+// ---- billing portal ----
+// Stripe's own hosted page. Customers change card, switch plan or cancel
+// there, and the resulting subscription.updated / .deleted webhook keeps
+// our copy of their status in step. Saves us building any of that.
+app.post('/api/portal', auth, async (req, res) => {
+  if (!stripe) return res.status(503).json({ error: 'billing is not set up on the server yet' });
+  const user = req.user;
+  if (!user.stripeCustomerId) {
+    return res.status(400).json({ error: 'there is no subscription on this account yet' });
+  }
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: user.stripeCustomerId,
+      return_url: PUBLIC_URL,
+    });
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('[portal] error', err);
+    res.status(500).json({
+      error: err.message && /configuration/i.test(err.message)
+        ? 'the Stripe customer portal has not been switched on yet'
+        : 'could not open the billing page',
+    });
+  }
+});
+
 // ---- reviews ----
 app.get('/api/reviews', async (req, res) => {
   const reviews = await Review.find({ approved: true }).sort({ createdAt: -1 }).limit(20).lean();
