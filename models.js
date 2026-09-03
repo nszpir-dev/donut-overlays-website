@@ -24,6 +24,24 @@ const userSchema = new mongoose.Schema({
 
   // Which single overlay a "single" plan customer picked.
   overlayChoice: { type: String, default: 'board' },
+
+  /* Password reset. Only the HASH of the token is stored, so a leaked
+     database still cannot be used to take over an account — same reasoning
+     as never storing the password itself. */
+  resetTokenHash: { type: String, default: null },
+  resetExpires: { type: Date, default: null },
+
+  /* Emails we have already sent, so a webhook that fires twice (Stripe
+     retries) does not mail the customer twice. */
+  sent: {
+    welcome: { type: Boolean, default: false },
+    trialEnding: { type: Boolean, default: false },
+  },
+
+  /* How their overlays look on stream. Set on the website, read by the
+     hosted overlay page. Shape: { board:{accent,scale,bgImage,bgOpacity},
+     auction:{accent,scale}, money:{accent,scale} } */
+  look: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
 });
 
 const reviewSchema = new mongoose.Schema({

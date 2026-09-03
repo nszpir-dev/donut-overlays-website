@@ -11,6 +11,8 @@ const Stripe = require('stripe');
 
 const { User, Review } = require('./models');
 const relay = require('./relay');
+const mail = require('./mailer');
+const look = require('./look');
 
 const {
   PORT = 8080,
@@ -84,6 +86,25 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
         await applySubscriptionToUser(user, sub);
         if (!wasTrialing && sub.status === 'trialing') {
           await notifyNewTrial(user, sub);
+        }
+        break;
+      }
+      /* Stripe fires this three days before a trial converts. Using its
+         event rather than our own timer means there is no scheduler to
+         run, and the date in the email is the date Stripe will actually
+         charge on. */
+      case 'customer.subscription.trial_will_end': {
+        const sub = event.data.object;
+        const user = await User.findOne({ stripeCustomerId: sub.customer });
+        if (!user || (user.sent && user.sent.trialEnding)) break;
+        const ends = sub.trial_end
+          ? new Date(sub.trial_end * 1000).toLocaleDateString('en-US',
+              { weekday: 'long', month: 'long', day: 'numeric' })
+          : 'in three days';
+        const res = await mail.trialEnding(user.email, ends, user.plan);
+        if (res.sent) {
+          user.sent = Object.assign({}, user.sent, { trialEnding: true });
+          await user.save();
         }
         break;
       }
@@ -186,6 +207,12 @@ app.post('/api/signup', async (req, res) => {
     const user = await User.create({ email, passwordHash });
     const token = signToken(user);
     res.json({ email: user.email, token });
+
+    /* After the response: a slow or broken mail provider must never be
+       the reason somebody cannot finish signing up. */
+    mail.welcome(user.email)
+      .then(r => { if (r.sent) return User.updateOne({ _id: user._id }, { 'sent.welcome': true }); })
+      .catch(err => console.error('[signup] welcome mail', err.message));
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'an account with that email already exists' });
     console.error('[signup] error', err);
@@ -208,6 +235,64 @@ app.post('/api/login', async (req, res) => {
     res.status(500).json({ error: 'something went wrong logging in' });
   }
 });
+
+/* ---------------- forgotten passwords ----------------
+   Two rules drive the shape of this:
+
+   1. The reply is identical whether or not the email exists. Otherwise
+      the form doubles as a way to test which emails have accounts.
+   2. Only a hash of the token is stored, and it expires in an hour and
+      dies on first use. A stolen database backup is then useless for
+      taking over accounts. */
+const RESET_TTL_MS = 60 * 60 * 1000;
+const hashToken = t => crypto.createHash('sha256').update(t).digest('hex');
+
+app.post('/api/forgot', async (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  res.json({ ok: true });          // same answer either way, always
+  if (!email) return;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return;
+    const token = crypto.randomBytes(32).toString('hex');
+    user.resetTokenHash = hashToken(token);
+    user.resetExpires = new Date(Date.now() + RESET_TTL_MS);
+    await user.save();
+    await mail.passwordReset(user.email, `${PUBLIC_URL}/reset?token=${token}`);
+  } catch (err) {
+    console.error('[forgot] error', err);
+  }
+});
+
+app.post('/api/reset', async (req, res) => {
+  try {
+    const token = String(req.body.token || '');
+    const password = String(req.body.password || '');
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'password needs at least 8 characters' });
+    }
+    const user = await User.findOne({
+      resetTokenHash: hashToken(token),
+      resetExpires: { $gt: new Date() },
+    });
+    if (!user) {
+      return res.status(400).json({ error: 'that reset link has expired or already been used' });
+    }
+    user.passwordHash = await bcrypt.hash(password, 10);
+    user.resetTokenHash = null;     // one use only
+    user.resetExpires = null;
+    await user.save();
+    res.json({ email: user.email, token: signToken(user) });
+  } catch (err) {
+    console.error('[reset] error', err);
+    res.status(500).json({ error: 'could not reset that password' });
+  }
+});
+
+/* The link in the email. The single page app reads ?token= and opens the
+   "set a new password" box. */
+app.get('/reset', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'public', 'terms.html')));
 
 app.get('/api/me', auth, (req, res) => {
   const u = req.user;
@@ -318,6 +403,29 @@ app.get('/download/:token/donut-overlays-launcher.zip', async (req, res) => {
   res.download(file, 'donut-overlays-launcher.zip');
 });
 
+/* ---------------- how the overlays look ----------------
+   Saved per account and injected into the hosted overlay page, which is
+   what makes the customiser on the website change what viewers actually
+   see rather than only the little preview next to it. The validation and
+   the injected script both live in look.js. */
+const { cleanLook, lookScript } = look;
+
+app.get('/api/look', auth, (req, res) => {
+  res.json({ look: cleanLook(req.user.look || {}) });
+});
+
+app.put('/api/look', auth, async (req, res) => {
+  try {
+    req.user.look = cleanLook(req.body.look || {});
+    req.user.markModified('look');
+    await req.user.save();
+    res.json({ ok: true, look: req.user.look });
+  } catch (err) {
+    console.error('[look] error', err);
+    res.status(500).json({ error: 'could not save that' });
+  }
+});
+
 /* Someone on the single-overlay plan swapping which one they use. */
 app.post('/api/choose-overlay', auth, async (req, res) => {
   const game = String(req.body.game || '');
@@ -368,6 +476,13 @@ app.get('/o/:token/:game', async (req, res) => {
   html = html.includes('</head>')
     ? html.replace('</head>', inject + '</head>')
     : inject + html;
+
+  /* The customer's saved look goes in at the END of the body, after the
+     overlay's own script has finished setting its defaults — otherwise
+     the board would paint the stock chicken over their image. */
+  const theirLook = (cleanLook(user.look || {})[game]) || {};
+  const lookTag = lookScript(game, theirLook);
+  html = html.includes('</body>') ? html.replace('</body>', lookTag + '</body>') : html + lookTag;
 
   res.set('Cache-Control', 'no-store');
   res.send(html);
