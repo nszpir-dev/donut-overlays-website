@@ -229,38 +229,34 @@ button.act:active{transform:scale(.97)}
 }
 
 /* ---------- end-of-game credit ----------
-   Only ever visible once the round is over, so it can never sit on top
-   of live play. Sizes are in rem, which every one of these overlays
-   scales with the browser source, so it stays in proportion whether the
-   source is 720p or 1080p. */
+   Inside the card on purpose: a credit pinned to the edge of the browser
+   source gets cropped out, and then it may as well not exist. Sizes are
+   in rem, which these overlays scale with the source, so it holds its
+   proportion at 720p or 1080p. */
 #credit{
-  align-items:center;flex-direction:column;gap:.05rem;
+  flex-direction:column;align-items:center;gap:.06rem;
   border-radius:.6rem;
-  background:rgba(7,12,20,.86);
-  border:.1rem solid rgba(255,201,60,.42);
-  box-shadow:0 .35rem 1.2rem rgba(0,0,0,.55);
+  background:rgba(7,12,20,.72);
+  border:.1rem solid rgba(255,201,60,.45);
   text-align:center;pointer-events:none;
-  animation:creditIn .5s ease both;
 }
-@keyframes creditIn{from{opacity:0}to{opacity:1}}
-#credit .l1{font-weight:700;color:#dfe7f5;letter-spacing:.02em;line-height:1.25}
+#credit .l1{font-weight:800;color:#e4ebf8;letter-spacing:.02em;line-height:1.25}
 #credit .l2{
   font-weight:900;color:#ffc93c;letter-spacing:.03em;line-height:1.2;
-  text-shadow:0 0 .9rem rgba(255,201,60,.45);
+  text-shadow:0 0 .9rem rgba(255,201,60,.5);
 }
+@keyframes creditIn{from{opacity:0;transform:translateY(.45rem)}to{opacity:1;transform:none}}
 #credit{
-  display:none;width:100%;max-width:var(--cardw,19rem);
-  margin:.55rem auto 0;padding:.45rem .8rem .52rem;
+  display:none;margin-top:.15rem;padding:.5rem .7rem .56rem;
+  animation:creditIn .5s ease both;
+  order:99;   /* compact mode reorders the card's rows; this one is always last */
 }
 #credit.show{display:flex}
-/* safe to slide this one: nothing else is using its transform */
-@keyframes creditRise{from{opacity:0;transform:translateY(.55rem)}to{opacity:1;transform:none}}
-#credit{animation-name:creditRise}
-#credit .l1{font-size:.88rem}
-#credit .l2{font-size:1.2rem}
-body.compact #credit{margin-top:.4rem;padding:.36rem .6rem .42rem;border-radius:.45rem}
-body.compact #credit .l1{font-size:.8rem}
-body.compact #credit .l2{font-size:1.08rem}
+#credit .l1{font-size:.92rem}
+#credit .l2{font-size:1.38rem}
+body.compact #credit{padding:.42rem .6rem .48rem;border-radius:.5rem}
+body.compact #credit .l1{font-size:.86rem}
+body.compact #credit .l2{font-size:1.42rem}
 </style>
 </head>
 <body>
@@ -295,10 +291,10 @@ body.compact #credit .l2{font-size:1.08rem}
   </div>
 
   <div id="cta" class="quiet">Waiting for the next round</div>
- </div>
- <div id="credit" aria-hidden="true">
-   <div class="l1">Thanks for playing Money Game on</div>
-   <div class="l2">donutoverlays.com</div>
+  <div id="credit" aria-hidden="true">
+    <div class="l1">Thanks for playing Money Game on</div>
+    <div class="l2">donutoverlays.com</div>
+  </div>
  </div>
 </div>
 <div id="brand">/pay <span id="brandName">mrchicken75</span> to play</div>
@@ -521,9 +517,9 @@ setInterval(() => {
 
 /* ---------- drawing ---------- */
 /* ---------- end-of-game credit ----------
-   One switch, driven by the same state everything else is drawn from, so
-   it appears the moment the round ends and is gone the moment the next
-   one opens. The delay lets the result land on screen first. */
+   One switch, driven by the same state the card is drawn from, so the
+   row appears when the game ends and is gone when the next one opens.
+   The pause lets the result land on screen first. */
 var creditTimer = null, creditOn = null;
 function setCredit(on){
   on = !!on;
