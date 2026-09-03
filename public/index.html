@@ -614,7 +614,7 @@ let DISCORD_INVITE = 'https://discord.gg/UPyz79jcth';
 const API = '';
 
 /* ---------------- shared bits ---------------- */
-const NAMES = ['9void','xqovr','DrDonutt','VyperJames','Sc0tty','mighty4l','nj_lucca','Crawdiddle','Tubbo','Purpled','mrchicken75','Skeppy'];
+const NAMES = ['9void','xqovr','DrDonutt','VyperJames','Sc0tty','mighty4l','nj_lucca','Crawdiddle','ThatOneEnby','glazed_kai','mrchicken75','sprinkle_r'];
 const head = (n, s) => `https://minotar.net/helm/${encodeURIComponent(n)}/${s}.png`;
 const money = n => n >= 1e9 ? '$' + (n/1e9).toFixed(1) + 'B'
                 : n >= 1e6 ? '$' + (n/1e6).toFixed(n % 1e6 ? 1 : 0) + 'M'
@@ -823,7 +823,7 @@ function paintAccount(){
       </span>
       <button class="btn btn-ghost btn-sm" id="logoutBtn">Log out</button>`;
     document.getElementById('logoutBtn').onclick = () => {
-      me = null; store.del('me'); paintAccount(); paintReviewForm();
+      me = null; store.del('me'); paintAccount(); paintReviewForm(); loadReviews();
     };
     refreshMe();
   } else {
@@ -930,7 +930,7 @@ document.getElementById('authGo').onclick = async () => {
     if(!r.ok) throw new Error(data.error || 'that did not work');
     me = { email: data.email, token: data.token };
     store.set('me', JSON.stringify(me));
-    paintAccount(); paintReviewForm();
+    paintAccount(); paintReviewForm(); loadReviews();
     document.getElementById('authSheet').classList.remove('open');
     if(pendingPlan) proceedToCheckout();
   } catch(e){
@@ -1008,23 +1008,33 @@ document.querySelectorAll('[data-plan]').forEach(b => b.addEventListener('click'
 })();
 
 /* ---------------- reviews ---------------- */
-const SAMPLE = [
-  { ign:'9void', stars:5, text:'Set it up in five minutes and ran a 40 person board the same night. Nobody could believe it was reading chat by itself.' },
-  { ign:'xqovr', stars:5, text:'The auction one paid for itself in a single lot. Live delay is the bit I did not know I needed.' },
-  { ign:'DrDonutt', stars:4, text:'Money game is chaos in the best way. Would like more colour presets but it looks sharp already.' },
-];
+/* Only real, approved reviews ever show here. Nothing is written in
+   locally: if the server has none yet, the section hides itself. */
 const starRow = n => '★'.repeat(n) + '☆'.repeat(5 - n);
 
 async function loadReviews(){
   const wrap = document.getElementById('reviewList');
-  let list = SAMPLE;
+  const sec  = document.getElementById('reviews');
+  let list = [];
   try {
     const r = await fetch(API + '/api/reviews');
     if(r.ok){
       const data = await r.json();
-      if(Array.isArray(data.reviews) && data.reviews.length) list = data.reviews;
+      if(Array.isArray(data.reviews)) list = data.reviews;
     }
-  } catch(e){ /* server not up yet — the samples stand in */ }
+  } catch(e){ /* server not up yet */ }
+
+  const navLink = document.querySelector('nav a[href="#reviews"]');
+  const show = list.length > 0 || !!me;   // signed-in people still get the form
+  sec.style.display = show ? '' : 'none';
+  if(navLink) navLink.style.display = show ? '' : 'none';
+
+  if(!list.length){
+    wrap.innerHTML = show
+      ? '<p style="color:var(--muted);grid-column:1/-1;margin:0">No reviews yet — be the first.</p>'
+      : '';
+    return;
+  }
   wrap.innerHTML = list.slice(0, 6).map(v => `
     <div class="rev">
       <div class="stars">${starRow(v.stars || 5)}</div>
