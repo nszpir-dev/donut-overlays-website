@@ -348,6 +348,35 @@ button.act:disabled{opacity:.45;cursor:not-allowed}
   #op input,#op select,button.act{font-size:1rem;padding:.7rem .6rem}
   #opTab{font-size:1.05rem;padding:.75rem 1.15rem}
 }
+
+/* ---------- end-of-game credit ----------
+   Only ever visible once the round is over, so it can never sit on top
+   of live play. Sizes are in rem, which every one of these overlays
+   scales with the browser source, so it stays in proportion whether the
+   source is 720p or 1080p. */
+#credit{
+  align-items:center;flex-direction:column;gap:.05rem;
+  border-radius:.6rem;
+  background:rgba(7,12,20,.86);
+  border:.1rem solid rgba(255,201,60,.42);
+  box-shadow:0 .35rem 1.2rem rgba(0,0,0,.55);
+  text-align:center;pointer-events:none;
+  animation:creditIn .5s ease both;
+}
+@keyframes creditIn{from{opacity:0}to{opacity:1}}
+#credit .l1{font-weight:700;color:#dfe7f5;letter-spacing:.02em;line-height:1.25}
+#credit .l2{
+  font-weight:900;color:#ffc93c;letter-spacing:.03em;line-height:1.2;
+  text-shadow:0 0 .9rem rgba(255,201,60,.45);
+}
+#credit{
+  display:none;position:fixed;left:50%;bottom:2.5rem;
+  transform:translateX(-50%);
+  z-index:60;padding:.5rem 1.3rem .58rem;white-space:nowrap;
+}
+#credit.show{display:flex}
+#credit .l1{font-size:1.15rem}
+#credit .l2{font-size:1.7rem}
 </style>
 </head>
 <body>
@@ -968,7 +997,24 @@ function paintClock(){
   t.textContent = clock(ms);
   t.classList.toggle('warn', ms > 0 && ms < 11000);
 }
+/* ---------- end-of-game credit ----------
+   One switch, driven by the same state everything else is drawn from, so
+   it appears the moment the round ends and is gone the moment the next
+   one opens. The delay lets the result land on screen first. */
+var creditTimer = null, creditOn = null;
+function setCredit(on){
+  on = !!on;
+  if(on === creditOn) return;
+  creditOn = on;
+  clearTimeout(creditTimer);
+  var box = document.getElementById('credit');
+  if(!box) return;
+  if(on) creditTimer = setTimeout(function(){ box.classList.add('show'); }, 1400);
+  else box.classList.remove('show');
+}
+
 function paintModal(){
+  setCredit(!!S.modal && S.modal.kind === 'winner');
   if(!S.modal){ modal.classList.add('hidden'); modal.innerHTML=''; return; }
   const m = S.modal;
   const key = m.kind + m.name + m.pct;
@@ -1283,5 +1329,10 @@ connect();
 render();
 tick();
 </script>
+<div id="credit" aria-hidden="true">
+  <div class="l1">Thanks for playing Donut Royale on</div>
+  <div class="l2">donutoverlays.com</div>
+</div>
+
 </body>
 </html>

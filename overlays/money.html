@@ -227,6 +227,40 @@ button.act:active{transform:scale(.97)}
   #op input,#op select,button.act{font-size:1rem;padding:.7rem .6rem}
   #opTab{font-size:1.05rem;padding:.75rem 1.15rem}
 }
+
+/* ---------- end-of-game credit ----------
+   Only ever visible once the round is over, so it can never sit on top
+   of live play. Sizes are in rem, which every one of these overlays
+   scales with the browser source, so it stays in proportion whether the
+   source is 720p or 1080p. */
+#credit{
+  align-items:center;flex-direction:column;gap:.05rem;
+  border-radius:.6rem;
+  background:rgba(7,12,20,.86);
+  border:.1rem solid rgba(255,201,60,.42);
+  box-shadow:0 .35rem 1.2rem rgba(0,0,0,.55);
+  text-align:center;pointer-events:none;
+  animation:creditIn .5s ease both;
+}
+@keyframes creditIn{from{opacity:0}to{opacity:1}}
+#credit .l1{font-weight:700;color:#dfe7f5;letter-spacing:.02em;line-height:1.25}
+#credit .l2{
+  font-weight:900;color:#ffc93c;letter-spacing:.03em;line-height:1.2;
+  text-shadow:0 0 .9rem rgba(255,201,60,.45);
+}
+#credit{
+  display:none;width:100%;max-width:var(--cardw,19rem);
+  margin:.55rem auto 0;padding:.45rem .8rem .52rem;
+}
+#credit.show{display:flex}
+/* safe to slide this one: nothing else is using its transform */
+@keyframes creditRise{from{opacity:0;transform:translateY(.55rem)}to{opacity:1;transform:none}}
+#credit{animation-name:creditRise}
+#credit .l1{font-size:.88rem}
+#credit .l2{font-size:1.2rem}
+body.compact #credit{margin-top:.4rem;padding:.36rem .6rem .42rem;border-radius:.45rem}
+body.compact #credit .l1{font-size:.8rem}
+body.compact #credit .l2{font-size:1.08rem}
 </style>
 </head>
 <body>
@@ -261,6 +295,10 @@ button.act:active{transform:scale(.97)}
   </div>
 
   <div id="cta" class="quiet">Waiting for the next round</div>
+ </div>
+ <div id="credit" aria-hidden="true">
+   <div class="l1">Thanks for playing Money Game on</div>
+   <div class="l2">donutoverlays.com</div>
  </div>
 </div>
 <div id="brand">/pay <span id="brandName">mrchicken75</span> to play</div>
@@ -482,6 +520,22 @@ setInterval(() => {
 }, 50);
 
 /* ---------- drawing ---------- */
+/* ---------- end-of-game credit ----------
+   One switch, driven by the same state everything else is drawn from, so
+   it appears the moment the round ends and is gone the moment the next
+   one opens. The delay lets the result land on screen first. */
+var creditTimer = null, creditOn = null;
+function setCredit(on){
+  on = !!on;
+  if(on === creditOn) return;
+  creditOn = on;
+  clearTimeout(creditTimer);
+  var box = document.getElementById('credit');
+  if(!box) return;
+  if(on) creditTimer = setTimeout(function(){ box.classList.add('show'); }, 1400);
+  else box.classList.remove('show');
+}
+
 function render(){
   el('potAmount').textContent = money(M.pot);
   el('lotVouch').textContent = '★ ' + M.vouches;
@@ -489,6 +543,7 @@ function render(){
 
   const row = el('leadRow'), cta = el('cta');
   row.className = M.phase === 'done' && M.leader ? 'won' : (M.leader ? '' : 'empty');
+  setCredit(M.phase === 'done');
   el('stamp').classList.toggle('hidden', M.phase !== 'done' || !M.leader);
   el('leadLabel').textContent = M.phase === 'done' ? 'Winner' : 'In the lead';
   el('potLabel').textContent = M.phase === 'done' ? 'Final pot' : 'Total pot';
