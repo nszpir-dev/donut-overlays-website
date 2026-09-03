@@ -321,6 +321,19 @@ section{padding:6rem 0;position:relative}
 .pw-eye .slash{display:none}
 .pw-eye.on{color:var(--teal)}
 .pw-eye.on .slash{display:block}
+.hidden{display:none !important}
+
+/* picture-behind-the-board control */
+.art-row{display:flex;gap:.7rem;align-items:center}
+.art-prev{
+  width:4.4rem;height:4.4rem;flex:none;border-radius:.5rem;
+  border:1px solid var(--line);background:#070d18 center/contain no-repeat;
+  image-rendering:pixelated;
+}
+.art-prev.empty{display:grid;place-items:center}
+.art-prev.empty::after{content:'none';color:var(--muted);font-size:.72rem}
+.art-btns{display:flex;flex-wrap:wrap;gap:.35rem;align-content:flex-start}
+.btn-sm{padding:.34rem .6rem;font-size:.82rem}
 .msg{font-size:.88rem;margin-top:.6rem;min-height:1.2rem}
 .msg.bad{color:#ff8f8f}
 .msg.good{color:var(--teal)}
@@ -548,7 +561,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
       <div><h3>Do I need OBS?</h3><p>Only for Twitch and YouTube. TikTok LIVE Studio takes the link directly.</p></div>
       <div><h3>What if my server words payments differently?</h3><p>Send us the line and we will add it. Recognising new payment formats takes a day, not a release.</p></div>
       <div><h3>Can I run two games at once?</h3><p>Not on one account — both would be reading the same payments and fighting over them. Run one per stream.</p></div>
-      <div><h3>What happens when I cancel?</h3><p>Your overlay links stop loading at the end of the paid period. Settings are kept for 90 days if you come back.</p></div>
+      <div><h3>What happens when I cancel?</h3><p>Your overlay links stop loading at the end of the paid period, and your settings and link are kept in case you come back. Charged after you cancelled? That is always refunded — see the <a href="/terms">refund policy</a>.</p></div>
     </div>
   </div>
 </section>
@@ -557,6 +570,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
   <div class="wrap">
     <div>Donut Overlays — built by a Donut streamer, for Donut streamers.</div>
     <div>Not affiliated with Mojang, Microsoft, TikTok, Twitch or YouTube.</div>
+    <div style="margin-top:.4rem"><a href="/terms" style="color:var(--muted)">Terms, refunds and privacy</a></div>
   </div>
 </footer>
 
@@ -567,13 +581,26 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
       <div class="stage-prev"><div class="mini" id="pv-live" style="max-width:280px"></div></div>
       <div>
         <div class="opt"><label>Accent colour</label><div class="swatches" id="swatches"></div></div>
-        <div class="opt"><label>Layout</label>
-          <div class="seg" id="segLayout"><button data-v="compact" class="on">Compact</button><button data-v="full">Full</button></div>
-        </div>
         <div class="opt"><label>Text size</label>
           <div class="seg" id="segSize"><button data-v="1">Normal</button><button data-v="1.2" class="on">Large</button><button data-v="1.45">Huge</button></div>
         </div>
-        <p style="color:var(--muted);font-size:.88rem">Changes save to your account and reach the overlay on stream immediately — no need to re-add the source.</p>
+        <div class="opt hidden" id="optArt">
+          <label>Picture behind the board</label>
+          <div class="art-row">
+            <div class="art-prev" id="artPrev"></div>
+            <div class="art-btns">
+              <button class="btn btn-ghost btn-sm" id="artPick">Choose an image…</button>
+              <button class="btn btn-ghost btn-sm" id="artDefault">Use the chicken</button>
+              <button class="btn btn-ghost btn-sm" id="artNone">No picture</button>
+              <input type="file" id="artFile" accept="image/png,image/jpeg,image/gif,image/webp" style="display:none">
+            </div>
+          </div>
+          <div class="seg" id="segArt" style="margin-top:.55rem">
+            <button data-v="0.07">Faint</button><button data-v="0.16" class="on">Normal</button><button data-v="0.28">Bolder</button>
+          </div>
+        </div>
+        <div class="msg" id="lookMsg" style="margin-top:.7rem"></div>
+        <p id="lookHint" style="color:var(--muted);font-size:.88rem;margin-top:.5rem"></p>
       </div>
     </div>
   </div>
@@ -584,9 +611,10 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
     <div class="sheet-head"><h3 id="authTitle">Log in</h3><button id="authClose" aria-label="Close">×</button></div>
     <div class="sheet-body single">
       <div>
-        <div class="field"><label>Email</label><input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></div>
-        <div class="field">
-          <label>Password</label>
+        <p id="authIntro" class="hidden" style="color:var(--muted);font-size:.93rem;margin:-.2rem 0 1rem"></p>
+        <div class="field" id="fieldEmail"><label>Email</label><input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></div>
+        <div class="field" id="fieldPass">
+          <label id="authPassLabel">Password</label>
           <div class="pw-wrap">
             <input id="authPass" type="password" autocomplete="current-password" placeholder="at least 8 characters">
             <button type="button" class="pw-eye" id="pwEye" aria-label="Show password" aria-pressed="false" title="Show password">
@@ -600,6 +628,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
         </div>
         <button class="btn btn-gold" id="authGo" style="width:100%">Log in</button>
         <div class="msg" id="authMsg"></div>
+        <div class="switch" id="authForgot"><a id="toForgot">Forgot your password?</a></div>
         <div class="switch" id="authSwitch"></div>
       </div>
     </div>
@@ -751,7 +780,12 @@ function previewHTML(kind, opt){
   </div>`;
 }
 const base = { accent:'#2ee66b', layout:'compact', scale:1.2 };
-const opts = { board:{...base}, auction:{...base, accent:'#f0b429'}, money:{...base} };
+const opts = {
+  board:   { ...base, bgImage:'', bgOpacity:0.16 },   // '' = the stock chicken
+  auction: { ...base, accent:'#f0b429' },
+  money:   { ...base },
+};
+const STOCK_ART = '/chicken.png';
 const paint = k => document.getElementById('pv-' + k).innerHTML = previewHTML(k, opts[k]);
 ['board','auction','money'].forEach(paint);
 
@@ -765,12 +799,89 @@ let editing = 'board';
 swatchWrap.innerHTML = COLOURS.map(c =>
   `<button class="sw" data-c="${c}" style="background:${c}" aria-label="accent ${c}"></button>`).join('');
 
+/* ---- the saved look ----------------------------------------------------
+   This used to change only the little preview, which made the line under
+   it ("reaches the overlay on stream immediately") a lie. Now the same
+   values are stored on the account and injected into the hosted overlay
+   page, so what you set here is what viewers see. */
+const DEFAULT_ART_OPACITY = 0.16;
+
+async function loadLook(){
+  if(!me) return;
+  try {
+    const r = await fetch(API + '/api/look', { headers: authHeader() });
+    if(!r.ok) return;
+    const { look } = await r.json();
+    ['board','auction','money'].forEach(g => {
+      const saved = (look && look[g]) || {};
+      if(saved.accent) opts[g].accent = saved.accent;
+      if(saved.scale)  opts[g].scale  = saved.scale;
+      if(g === 'board'){
+        opts.board.bgImage   = saved.bgImage || '';
+        opts.board.bgOpacity = typeof saved.bgOpacity === 'number' ? saved.bgOpacity : DEFAULT_ART_OPACITY;
+      }
+    });
+    ['board','auction','money'].forEach(paint);
+  } catch(e){ /* offline: the controls still work, they just won't persist */ }
+}
+
+let lookTimer = null;
+function saveLook(){
+  const hint = document.getElementById('lookMsg');
+  if(!me){
+    hint.className = 'msg bad';
+    hint.textContent = 'Log in to save this to your overlay.';
+    return;
+  }
+  hint.className = 'msg'; hint.textContent = 'Saving…';
+  clearTimeout(lookTimer);
+  /* Debounced: dragging through six colours should be one write, not six. */
+  lookTimer = setTimeout(async () => {
+    try {
+      const body = { look: {
+        board:   { accent: opts.board.accent,   scale: opts.board.scale,
+                   bgImage: opts.board.bgImage || '', bgOpacity: opts.board.bgOpacity },
+        auction: { accent: opts.auction.accent, scale: opts.auction.scale },
+        money:   { accent: opts.money.accent,   scale: opts.money.scale },
+      }};
+      const r = await fetch(API + '/api/look', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
+        body: JSON.stringify(body),
+      });
+      if(!r.ok) throw new Error((await r.json()).error || 'could not save that');
+      hint.className = 'msg good';
+      hint.textContent = 'Saved. Refresh the overlay source once to see it.';
+    } catch(e){
+      hint.className = 'msg bad';
+      hint.textContent = e.message === 'Failed to fetch' ? 'Could not reach the server.' : e.message;
+    }
+  }, 500);
+}
+
 function refreshSheet(){
   const o = opts[editing];
   document.getElementById('pv-live').innerHTML = previewHTML(editing, o);
   swatchWrap.querySelectorAll('.sw').forEach(b => b.classList.toggle('on', b.dataset.c === o.accent));
-  document.querySelectorAll('#segLayout button').forEach(b => b.classList.toggle('on', b.dataset.v === o.layout));
   document.querySelectorAll('#segSize button').forEach(b => b.classList.toggle('on', Number(b.dataset.v) === o.scale));
+
+  /* Only the elimination board has a picture behind it. */
+  const isBoard = editing === 'board';
+  document.getElementById('optArt').classList.toggle('hidden', !isBoard);
+  if(isBoard){
+    const prev = document.getElementById('artPrev');
+    const img = opts.board.bgImage;
+    prev.classList.toggle('empty', img === 'none');
+    prev.style.backgroundImage = (!img || img === 'none') ? 'none' : `url("${img}")`;
+    if(!img) prev.style.backgroundImage = `url("${STOCK_ART}")`;
+    const op = opts.board.bgOpacity == null ? DEFAULT_ART_OPACITY : opts.board.bgOpacity;
+    document.querySelectorAll('#segArt button').forEach(b =>
+      b.classList.toggle('on', Math.abs(Number(b.dataset.v) - op) < 0.001));
+  }
+
+  document.getElementById('lookHint').textContent = me
+    ? 'Saved to your account. The overlay picks it up next time the browser source reloads.'
+    : 'Log in and these settings follow your overlay onto stream.';
   paint(editing);
 }
 document.querySelectorAll('[data-customize]').forEach(b => b.onclick = () => {
@@ -782,15 +893,60 @@ document.querySelectorAll('[data-customize]').forEach(b => b.onclick = () => {
 });
 swatchWrap.onclick = e => {
   const b = e.target.closest('.sw'); if(!b) return;
-  opts[editing].accent = b.dataset.c; refreshSheet();
-};
-document.getElementById('segLayout').onclick = e => {
-  const b = e.target.closest('button'); if(!b) return;
-  opts[editing].layout = b.dataset.v; refreshSheet();
+  opts[editing].accent = b.dataset.c; refreshSheet(); saveLook();
 };
 document.getElementById('segSize').onclick = e => {
   const b = e.target.closest('button'); if(!b) return;
-  opts[editing].scale = Number(b.dataset.v); refreshSheet();
+  opts[editing].scale = Number(b.dataset.v); refreshSheet(); saveLook();
+};
+document.getElementById('segArt').onclick = e => {
+  const b = e.target.closest('button'); if(!b) return;
+  opts.board.bgOpacity = Number(b.dataset.v); refreshSheet(); saveLook();
+};
+document.getElementById('artDefault').onclick = () => { opts.board.bgImage = '';     refreshSheet(); saveLook(); };
+document.getElementById('artNone').onclick    = () => { opts.board.bgImage = 'none'; refreshSheet(); saveLook(); };
+document.getElementById('artPick').onclick    = () => document.getElementById('artFile').click();
+
+/* Shrink whatever they picked to 512px and re-encode before it ever
+   leaves the browser. A phone photo is several megabytes; the board draws
+   it at a few hundred pixels behind everything else, so sending the
+   original would cost the customer bandwidth for detail nobody can see. */
+document.getElementById('artFile').onchange = e => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  const msg = document.getElementById('lookMsg');
+  if(!file) return;
+  if(!/^image\/(png|jpeg|gif|webp)$/.test(file.type)){
+    msg.className = 'msg bad'; msg.textContent = 'That needs to be a PNG, JPG, GIF or WebP.'; return;
+  }
+  msg.className = 'msg'; msg.textContent = 'Reading that image…';
+  const reader = new FileReader();
+  reader.onerror = () => { msg.className = 'msg bad'; msg.textContent = 'Could not read that file.'; };
+  reader.onload = () => {
+    const img = new Image();
+    img.onerror = () => { msg.className = 'msg bad'; msg.textContent = 'That file is not an image the browser can open.'; };
+    img.onload = () => {
+      const MAX = 512;
+      const k = Math.min(1, MAX / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.width * k));
+      c.height = Math.max(1, Math.round(img.height * k));
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = k < 1;      // keep pixel art crisp when it already fits
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      const out = c.toDataURL('image/png');
+      if(out.length > 690000){
+        msg.className = 'msg bad';
+        msg.textContent = 'That image is still too big after shrinking. Try a simpler one.';
+        return;
+      }
+      opts.board.bgImage = out;
+      msg.className = 'msg'; msg.textContent = '';
+      refreshSheet(); saveLook();
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
 };
 document.getElementById('sheetClose').onclick = () => sheet.classList.remove('open');
 sheet.onclick = e => { if(e.target === sheet) sheet.classList.remove('open'); };
@@ -952,40 +1108,108 @@ document.getElementById('pwEye').onclick = () => {
   inp.focus();
 };
 
+/* One box, four jobs: log in, sign up, ask for a reset link, and set a new
+   password from that link. Same fields, shown or hidden per mode, so there
+   is only one place where a login form can go wrong. */
+const AUTH_MODES = {
+  login:  { title:'Log in',                  go:'Log in',            email:1, pass:1, forgot:1,
+            switch:'No account yet? <a data-go="signup">Sign up</a>' },
+  signup: { title:'Create an account',       go:'Sign up',           email:1, pass:1, forgot:0,
+            switch:'Already have one? <a data-go="login">Log in</a>' },
+  forgot: { title:'Reset your password',     go:'Email me a link',   email:1, pass:0, forgot:0,
+            intro:'Put in the email you signed up with and we will send you a link to set a new password. It works once and lasts an hour.',
+            switch:'Remembered it? <a data-go="login">Log in</a>' },
+  reset:  { title:'Choose a new password',   go:'Save new password', email:0, pass:1, forgot:0,
+            intro:'Almost done — pick something at least 8 characters long.',
+            passLabel:'New password', switch:'' },
+};
+let resetToken = '';
+
 function openAuth(mode){
   authMode = mode;
+  const m = AUTH_MODES[mode] || AUTH_MODES.login;
   setPwVisible(false);
-  document.getElementById('authTitle').textContent = mode === 'login' ? 'Log in' : 'Create an account';
-  document.getElementById('authGo').textContent = mode === 'login' ? 'Log in' : 'Sign up';
-  document.getElementById('authSwitch').innerHTML = mode === 'login'
-    ? `No account yet? <a id="toSignup">Sign up</a>`
-    : `Already have one? <a id="toLogin">Log in</a>`;
-  const t1 = document.getElementById('toSignup'), t2 = document.getElementById('toLogin');
-  if(t1) t1.onclick = () => openAuth('signup');
-  if(t2) t2.onclick = () => openAuth('login');
+  document.getElementById('authTitle').textContent = m.title;
+  document.getElementById('authGo').textContent = m.go;
+  document.getElementById('authPassLabel').textContent = m.passLabel || 'Password';
+  document.getElementById('fieldEmail').classList.toggle('hidden', !m.email);
+  document.getElementById('fieldPass').classList.toggle('hidden', !m.pass);
+  document.getElementById('authForgot').classList.toggle('hidden', !m.forgot);
+
+  const intro = document.getElementById('authIntro');
+  intro.textContent = m.intro || '';
+  intro.classList.toggle('hidden', !m.intro);
+
+  const sw = document.getElementById('authSwitch');
+  sw.innerHTML = m.switch;
+  sw.querySelectorAll('a[data-go]').forEach(a => a.onclick = () => openAuth(a.dataset.go));
+
   document.getElementById('authMsg').textContent = '';
+  document.getElementById('authMsg').className = 'msg';
   document.getElementById('authSheet').classList.add('open');
 }
+document.getElementById('toForgot').onclick = () => openAuth('forgot');
 document.getElementById('authClose').onclick = () => document.getElementById('authSheet').classList.remove('open');
+
+function signedIn(data){
+  me = { email: data.email, token: data.token };
+  store.set('me', JSON.stringify(me));
+  paintAccount(); paintReviewForm(); loadReviews(); loadLook();
+  document.getElementById('authSheet').classList.remove('open');
+}
 
 document.getElementById('authGo').onclick = async () => {
   const email = document.getElementById('authEmail').value.trim();
   const password = document.getElementById('authPass').value;
   const msg = document.getElementById('authMsg');
-  if(!email || !password){ msg.className = 'msg bad'; msg.textContent = 'Fill both boxes in.'; return; }
-  if(password.length < 8){ msg.className = 'msg bad'; msg.textContent = 'Password needs at least 8 characters.'; return; }
+  const needsEmail = authMode !== 'reset';
+  const needsPass  = authMode !== 'forgot';
+
+  if(needsEmail && !email){ msg.className = 'msg bad'; msg.textContent = 'Put your email in.'; return; }
+  if(needsPass && !password){ msg.className = 'msg bad'; msg.textContent = 'Put a password in.'; return; }
+  if(needsPass && password.length < 8){
+    msg.className = 'msg bad'; msg.textContent = 'Password needs at least 8 characters.'; return;
+  }
   msg.className = 'msg'; msg.textContent = 'One moment…';
+
   try {
+    /* Asking for a link deliberately gets the same answer whether or not
+       the account exists, so the form cannot be used to find out who has
+       one. The message below says so honestly rather than implying we
+       just sent something we may not have. */
+    if(authMode === 'forgot'){
+      await fetch(API + '/api/forgot', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      msg.className = 'msg good';
+      msg.textContent = 'If there is an account for that email, a reset link is on its way. Check spam too.';
+      return;
+    }
+
+    if(authMode === 'reset'){
+      const r = await fetch(API + '/api/reset', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetToken, password }),
+      });
+      const data = await r.json();
+      if(!r.ok) throw new Error(data.error || 'that did not work');
+      /* Log them in FIRST. Tidying the address bar is a nicety, and some
+         browsers refuse replaceState outright — letting that throw would
+         mean the password was changed but the person is left staring at
+         an error, which is the worst of both. */
+      signedIn(data);
+      try { history.replaceState({}, '', location.pathname); } catch(e){}
+      return;
+    }
+
     const r = await fetch(API + '/api/' + (authMode === 'login' ? 'login' : 'signup'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
     const data = await r.json();
     if(!r.ok) throw new Error(data.error || 'that did not work');
-    me = { email: data.email, token: data.token };
-    store.set('me', JSON.stringify(me));
-    paintAccount(); paintReviewForm(); loadReviews();
-    document.getElementById('authSheet').classList.remove('open');
+    signedIn(data);
     if(pendingPlan) proceedToCheckout();
   } catch(e){
     msg.className = 'msg bad';
@@ -994,6 +1218,14 @@ document.getElementById('authGo').onclick = async () => {
       : e.message;
   }
 };
+
+/* Arriving from the email link. */
+(function(){
+  const t = new URLSearchParams(location.search).get('token');
+  if(!t || !/^[a-f0-9]{16,128}$/.test(t)) return;
+  resetToken = t;
+  openAuth('reset');
+})();
 
 /* ---------------- discord gate ----------------
    Honour system for now: it remembers that they clicked through.
@@ -1134,7 +1366,7 @@ document.getElementById('reviewGo').onclick = async () => {
   }
 };
 
-paintAccount(); paintGate(); paintReviewForm(); loadReviews();
+paintAccount(); paintGate(); paintReviewForm(); loadReviews(); loadLook();
 
 /* ---------------- setup: the real links, once they're paying ----------------
    Until someone subscribes this section shows an example, because that is
