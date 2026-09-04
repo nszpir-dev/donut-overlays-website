@@ -31,6 +31,16 @@ const userSchema = new mongoose.Schema({
   resetTokenHash: { type: String, default: null },
   resetExpires: { type: Date, default: null },
 
+  /* The record that this person accepted the terms: when, which version,
+     and where they were standing when they did it. Kept as its own fields
+     rather than a bare boolean, because "they agreed" is worth nothing
+     without "to what, and when". */
+  terms: {
+    acceptedAt: { type: Date, default: null },
+    version: { type: String, default: null },
+    where: { type: String, default: null },   // 'signup' | 'prompt'
+  },
+
   /* Emails we have already sent, so a webhook that fires twice (Stripe
      retries) does not mail the customer twice. */
   sent: {

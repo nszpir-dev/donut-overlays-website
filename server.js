@@ -40,6 +40,13 @@ const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 const PRICE_IDS = { single: STRIPE_PRICE_SINGLE, all: STRIPE_PRICE_ALL };
 const TRIAL_DAYS = 7;
 
+/* The version of the terms people are agreeing to. Bump this ONLY when
+   the terms change in a way that affects customers — everyone is then
+   asked to accept again the next time they open the site, and the old
+   acceptance stays on their record. It must match the date printed at
+   the top of public/terms.html. */
+const TERMS_VERSION = '2026-09-04';
+
 const app = express();
 app.set('trust proxy', 1);
 
@@ -190,7 +197,7 @@ async function auth(req, res, next) {
 
 // ---- public config (lets the front end pick up settings without a redeploy) ----
 app.get('/api/config', (req, res) => {
-  res.json({ discordInvite: DISCORD_INVITE });
+  res.json({ discordInvite: DISCORD_INVITE, termsVersion: TERMS_VERSION });
 });
 
 /* ---------------------------------------------------------------------
@@ -304,12 +311,20 @@ app.post('/api/signup', async (req, res) => {
     const password = String(req.body.password || '');
     if (!email || !password) return res.status(400).json({ error: 'email and password are required' });
     if (password.length < 8) return res.status(400).json({ error: 'password needs at least 8 characters' });
+    /* Checked on the server as well as in the page. A tick box the browser
+       could skip past is not a record of anything. */
+    if (req.body.acceptTerms !== true) {
+      return res.status(400).json({ error: 'please tick the box to accept the terms' });
+    }
 
     const existing = await User.findOne({ email });
     if (existing) return res.status(409).json({ error: 'an account with that email already exists' });
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({ email, passwordHash });
+    const user = await User.create({
+      email, passwordHash,
+      terms: { acceptedAt: new Date(), version: TERMS_VERSION, where: 'signup' },
+    });
     const token = signToken(user);
     res.json({ email: user.email, token });
 
@@ -407,7 +422,21 @@ app.get('/api/me', auth, (req, res) => {
     status: u.status,
     trialEnd: u.trialEnd,
     currentPeriodEnd: u.currentPeriodEnd,
+    /* true when this person has not accepted the terms as they stand
+       today — either an account made before there was a box to tick, or
+       the terms have changed since they last agreed. */
+    needsTerms: !u.terms || u.terms.version !== TERMS_VERSION,
+    termsVersion: TERMS_VERSION,
   });
+});
+
+/* Accounts that existed before the box was there, and anyone who has not
+   agreed to the current version, accept through this. */
+app.post('/api/accept-terms', auth, async (req, res) => {
+  if (req.body.accept !== true) return res.status(400).json({ error: 'nothing was accepted' });
+  req.user.terms = { acceptedAt: new Date(), version: TERMS_VERSION, where: 'prompt' };
+  await req.user.save();
+  res.json({ ok: true, termsVersion: TERMS_VERSION });
 });
 
 // ---- checkout ----
@@ -419,6 +448,13 @@ app.post('/api/checkout', auth, async (req, res) => {
 
   try {
     const user = req.user;
+
+    /* Nobody gets billed without an acceptance on file. This is the point
+       where it actually matters, so it is checked here too rather than
+       trusting that the page did its job. */
+    if (!user.terms || user.terms.version !== TERMS_VERSION) {
+      return res.status(403).json({ error: 'please accept the terms first', needsTerms: true });
+    }
 
     // Someone who already has (or has already used) a subscription on this
     // account does not get a second free trial.
@@ -751,7 +787,12 @@ app.get('/admin', requireAdmin, async (req, res) => {
       <td>${fmtDate(u.trialEnd)}</td>
       <td>${fmtDate(u.currentPeriodEnd)}</td>
       <td>${fmtDate(u.createdAt)}</td>
+      <td>${u.terms && u.terms.acceptedAt
+            ? `${fmtDate(u.terms.acceptedAt)}<br><span class="muted">v${esc(u.terms.version || '?')} · ${esc(u.terms.where || '')}</span>`
+            : '<span class="pill canceled">not accepted</span>'}</td>
     </tr>`).join('');
+
+  const noTerms = users.filter(u => !u.terms || !u.terms.acceptedAt).length;
 
   res.send(adminLayout('Users & trials', `
     <h3 class="sec">Right now</h3>
@@ -776,10 +817,15 @@ app.get('/admin', requireAdmin, async (req, res) => {
       ${tile('Signed up, no plan', noPlan)}
       ${tile('Accounts total', users.length)}
     </div>
-    <p class="muted">Every date below comes straight from Stripe, not from our own guesswork.</p>
+    <p class="muted">
+      Every date below comes straight from Stripe, not from our own guesswork.
+      ${noTerms ? `<strong style="color:#ff8f8f">${noTerms} account${noTerms === 1 ? '' : 's'} predate the terms box</strong>
+         — they are asked to accept the next time they open the site, and cannot check out until they do.`
+       : 'Everyone has accepted the terms.'}
+    </p>
     <table>
-      <thead><tr><th>Email</th><th>Status</th><th>Plan</th><th>Trial started</th><th>Trial ends</th><th>Renews / ended</th><th>Signed up</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="7" class="muted">No accounts yet.</td></tr>'}</tbody>
+      <thead><tr><th>Email</th><th>Status</th><th>Plan</th><th>Trial started</th><th>Trial ends</th><th>Renews / ended</th><th>Signed up</th><th>Terms accepted</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="8" class="muted">No accounts yet.</td></tr>'}</tbody>
     </table>
     <script>
       /* Refresh only the live bits. Reloading the whole page every few
