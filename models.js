@@ -53,7 +53,30 @@ const reviewSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
+/* One document per browser that has ever loaded the site.
+   The id is a random string the browser generated and kept for itself —
+   there is no IP address and nothing here that identifies a person. It
+   exists so "how many people" can mean people rather than page loads. */
+const visitorSchema = new mongoose.Schema({
+  _id: String,
+  firstSeen: { type: Date, default: Date.now },
+  lastSeen: { type: Date, default: Date.now, index: true },
+  lastDay: { type: String, default: null },   // 'YYYY-MM-DD', to count days once
+  views: { type: Number, default: 0 },
+  email: { type: String, default: null },     // filled in if they were signed in
+}, { versionKey: false });
+
+/* One document per day. Small, permanent, and cheap to chart. */
+const dayStatSchema = new mongoose.Schema({
+  _id: String,                                 // 'YYYY-MM-DD' (UTC)
+  views: { type: Number, default: 0 },         // page loads
+  visitors: { type: Number, default: 0 },      // distinct browsers that day
+  newVisitors: { type: Number, default: 0 },   // never seen before that day
+}, { versionKey: false });
+
 module.exports = {
   User: mongoose.model('User', userSchema),
   Review: mongoose.model('Review', reviewSchema),
+  Visitor: mongoose.model('Visitor', visitorSchema),
+  DayStat: mongoose.model('DayStat', dayStatSchema),
 };

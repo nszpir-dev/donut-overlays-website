@@ -9,10 +9,11 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Stripe = require('stripe');
 
-const { User, Review } = require('./models');
+const { User, Review, Visitor, DayStat } = require('./models');
 const relay = require('./relay');
 const mail = require('./mailer');
 const look = require('./look');
+const visits = require('./visits');
 
 const {
   PORT = 8080,
@@ -190,6 +191,110 @@ async function auth(req, res, next) {
 // ---- public config (lets the front end pick up settings without a redeploy) ----
 app.get('/api/config', (req, res) => {
   res.json({ discordInvite: DISCORD_INVITE });
+});
+
+/* ---------------------------------------------------------------------
+   Visitor counting.
+
+   The page loads /px.js, which says hello once and then every 25 seconds
+   while the tab is open. That gives two things: a live count of who is on
+   the site this second, and an honest all-time total.
+
+   It deliberately runs in the browser rather than counting requests on
+   the server, because most raw requests are crawlers, uptime pings and
+   Stripe — none of which are people looking at the site.
+
+   Nothing here stores an IP address.
+   ------------------------------------------------------------------- */
+const PX_JS = `(function(){
+  var KEY = 'do_v', HEARTBEAT = 25000, id = null;
+  try {
+    id = localStorage.getItem(KEY);
+    if (!id) {
+      id = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now().toString(36)).slice(0, 24);
+      localStorage.setItem(KEY, id);
+    }
+  } catch (e) {}
+  /* Private windows refuse storage. Still count them as somebody on the
+     site right now; they just look like a new person each visit. */
+  if (!id) id = ('p' + Math.random().toString(36).slice(2) + Date.now().toString(36)).slice(0, 24);
+
+  function token(){
+    try { var m = JSON.parse(localStorage.getItem('me') || 'null'); return (m && m.token) || null; }
+    catch (e) { return null; }
+  }
+  function ping(first){
+    try {
+      fetch('/api/hit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ v: id, p: location.pathname, first: !!first, t: token() }),
+        keepalive: true,
+      }).catch(function(){});
+    } catch (e) {}
+  }
+  ping(true);
+  setInterval(function(){ if (document.visibilityState !== 'hidden') ping(false); }, HEARTBEAT);
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState === 'visible') ping(false);
+  });
+})();`;
+
+app.get('/px.js', (req, res) => {
+  res.type('application/javascript')
+     .set('Cache-Control', 'public, max-age=3600')
+     .send(PX_JS);
+});
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+app.post('/api/hit', async (req, res) => {
+  res.json({ ok: true });        // never make a visitor wait on our bookkeeping
+  try {
+    const id = String(req.body.v || '');
+    if (!/^[a-z0-9]{12,40}$/.test(id)) return;       // shape we hand out, nothing else
+    const pathname = String(req.body.p || '/').slice(0, 80);
+    const first = req.body.first === true;
+
+    /* Their email comes from verifying the login token, not from anything
+       the browser simply claims — otherwise the admin list could be made
+       to show any name at all. */
+    let email = null;
+    if (req.body.t) {
+      try {
+        const payload = jwt.verify(String(req.body.t), JWT_SECRET);
+        const u = await User.findById(payload.uid).select('email').lean();
+        if (u) email = u.email;
+      } catch (err) { /* expired or forged: they are simply a visitor */ }
+    }
+
+    visits.touch(id, { path: pathname, email, first });
+    if (!first || !MONGODB_URI) return;              // heartbeats are not page views
+
+    const now = new Date();
+    const day = today();
+    const before = await Visitor.findOneAndUpdate(
+      { _id: id },
+      {
+        $inc: { views: 1 },
+        $set: Object.assign({ lastSeen: now, lastDay: day }, email ? { email } : {}),
+        $setOnInsert: { firstSeen: now },
+      },
+      { upsert: true, new: false },                  // the doc as it was BEFORE
+    ).lean();
+
+    const brandNew = !before;
+    const firstTimeToday = brandNew || before.lastDay !== day;
+    await DayStat.updateOne(
+      { _id: day },
+      { $inc: { views: 1, visitors: firstTimeToday ? 1 : 0, newVisitors: brandNew ? 1 : 0 } },
+      { upsert: true },
+    );
+  } catch (err) {
+    /* Two tabs opening at the same instant can collide on the upsert.
+       Losing one count is not worth logging noise, let alone an error. */
+    if (err && err.code !== 11000) console.error('[hit]', err.message);
+  }
 });
 
 // ---- accounts ----
@@ -559,8 +664,59 @@ function fmtDate(d) {
   return d ? new Date(d).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' }) + ' UTC' : '—';
 }
 
+/* "3m", "2h 10m" — short enough to sit in a table cell. */
+function ago(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return s + 's';
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + 'm';
+  return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+}
+
+const PAGE_NAMES = {
+  '/': 'Home page', '/index.html': 'Home page',
+  '/terms': 'Terms & refunds', '/terms.html': 'Terms & refunds',
+  '/reset': 'Resetting a password',
+};
+const pageName = p => PAGE_NAMES[p] || p;
+
+function onlineTable(list) {
+  if (!list.length) return '<p class="muted">Nobody on the site this second.</p>';
+  return `<table>
+    <thead><tr><th>Who</th><th>Page</th><th>On the site for</th><th>Last seen</th></tr></thead>
+    <tbody>${list.map(v => `<tr>
+      <td>${v.email ? esc(v.email) : '<span class="muted">not signed in</span>'}</td>
+      <td>${esc(pageName(v.path))}</td>
+      <td>${ago(v.forMs)}</td>
+      <td>${ago(v.idleMs)} ago</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+/* Polled by the admin page every few seconds so the live count moves on
+   its own. The browser resends the admin password automatically, so this
+   is behind the same lock as the page that asks for it. */
+app.get('/admin/live.json', requireAdmin, (req, res) => {
+  const list = visits.online();
+  res.set('Cache-Control', 'no-store').json({
+    count: list.length,
+    html: onlineTable(list),
+  });
+});
+
 app.get('/admin', requireAdmin, async (req, res) => {
   const users = await User.find({}).sort({ createdAt: -1 }).lean();
+
+  // --- visitors ---
+  const nowOnline = visits.online();
+  const day = today();
+  const weekAgo = new Date(Date.now() - 7 * 864e5);
+  const [todayStat, everPeople, everViews, weekPeople] = await Promise.all([
+    DayStat.findById(day).lean(),
+    Visitor.estimatedDocumentCount(),
+    DayStat.aggregate([{ $group: { _id: null, v: { $sum: '$views' } } }]),
+    Visitor.countDocuments({ lastSeen: { $gte: weekAgo } }),
+  ]);
+  const viewsEver = (everViews[0] && everViews[0].v) || 0;
 
   const count = s => users.filter(u => u.status === s).length;
   const trialing = count('trialing');
@@ -598,6 +754,20 @@ app.get('/admin', requireAdmin, async (req, res) => {
     </tr>`).join('');
 
   res.send(adminLayout('Users & trials', `
+    <h3 class="sec">Right now</h3>
+    <div class="tiles">
+      ${tile('On the site now', `<span id="liveN">${nowOnline.length}</span>`, 'green', 'updates on its own')}
+      ${tile('People today', (todayStat && todayStat.visitors) || 0, '', ((todayStat && todayStat.views) || 0) + ' page views')}
+      ${tile('People this week', weekPeople)}
+      ${tile('People ever', everPeople, 'gold', viewsEver + ' page views all time')}
+    </div>
+    <div id="liveBox">${onlineTable(nowOnline)}</div>
+    <p class="muted" style="margin-top:.4rem">
+      Counted in the browser, so crawlers and uptime pings are not in these numbers.
+      No IP addresses are stored. <a href="/admin/visitors">Day by day →</a>
+    </p>
+
+    <h3 class="sec">Accounts</h3>
     <div class="tiles">
       ${tile('On free trial', trialing, 'gold', trialValue ? '$' + trialValue + '/mo if they all convert' : '')}
       ${tile('Paying now', active, 'green', '$' + mrr + '/mo')}
@@ -610,6 +780,64 @@ app.get('/admin', requireAdmin, async (req, res) => {
     <table>
       <thead><tr><th>Email</th><th>Status</th><th>Plan</th><th>Trial started</th><th>Trial ends</th><th>Renews / ended</th><th>Signed up</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="7" class="muted">No accounts yet.</td></tr>'}</tbody>
+    </table>
+    <script>
+      /* Refresh only the live bits. Reloading the whole page every few
+         seconds would throw away wherever you had scrolled to. */
+      setInterval(function(){
+        fetch('/admin/live.json', { cache: 'no-store' })
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(d){
+            if (!d) return;
+            document.getElementById('liveN').textContent = d.count;
+            document.getElementById('liveBox').innerHTML = d.html;
+          })
+          .catch(function(){});
+      }, 5000);
+    </script>
+  `));
+});
+
+/* Day by day, so a spike after posting a TikTok is visible. */
+app.get('/admin/visitors', requireAdmin, async (req, res) => {
+  const DAYS = 30;
+  const days = [];
+  for (let i = DAYS - 1; i >= 0; i--) {
+    days.push(new Date(Date.now() - i * 864e5).toISOString().slice(0, 10));
+  }
+  const found = await DayStat.find({ _id: { $in: days } }).lean();
+  const by = Object.fromEntries(found.map(d => [d._id, d]));
+  const rows = days.map(d => by[d] || { _id: d, views: 0, visitors: 0, newVisitors: 0 });
+
+  const peak = Math.max(1, ...rows.map(r => r.visitors));
+  const bars = rows.map(r => `
+    <div class="bar" title="${r._id}: ${r.visitors} people, ${r.views} views">
+      <div class="bar-f" style="height:${Math.round((r.visitors / peak) * 100)}%"></div>
+      <div class="bar-d">${r._id.slice(8)}</div>
+    </div>`).join('');
+
+  const recent = await Visitor.find({}).sort({ lastSeen: -1 }).limit(40).lean();
+  const totalPeople = await Visitor.estimatedDocumentCount();
+
+  res.send(adminLayout('Visitors', `
+    <h3 class="sec">People per day — last ${DAYS} days</h3>
+    <div class="chart">${bars}</div>
+    <table style="margin-top:1.5rem">
+      <thead><tr><th>Day</th><th>People</th><th>New people</th><th>Page views</th></tr></thead>
+      <tbody>${rows.slice().reverse().map(r => `<tr>
+        <td>${r._id}</td><td>${r.visitors}</td><td>${r.newVisitors}</td><td>${r.views}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+
+    <h3 class="sec">Last 40 browsers to visit <span class="muted">(of ${totalPeople} ever)</span></h3>
+    <table>
+      <thead><tr><th>Who</th><th>First visit</th><th>Last visit</th><th>Visits</th></tr></thead>
+      <tbody>${recent.map(v => `<tr>
+        <td>${v.email ? esc(v.email) : '<span class="muted">not signed in</span>'}</td>
+        <td>${fmtDate(v.firstSeen)}</td>
+        <td>${fmtDate(v.lastSeen)}</td>
+        <td>${v.views}</td>
+      </tr>`).join('') || '<tr><td colspan="4" class="muted">Nobody yet.</td></tr>'}</tbody>
     </table>
   `));
 });
@@ -670,11 +898,16 @@ function adminLayout(title, body) {
     .tile.red .tile-n{color:#ff8f8f}
     nav{margin-bottom:1rem}
     nav a{margin-right:1.2rem;font-weight:700}
+    .sec{font-size:.8rem;color:#93a6c4;text-transform:uppercase;letter-spacing:.06em;margin:1.8rem 0 0}
+    .chart{display:flex;align-items:flex-end;gap:3px;height:11rem;background:#111a2b;border:1px solid #22304a;border-radius:.6rem;padding:.8rem .8rem .2rem}
+    .bar{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%}
+    .bar-f{background:#19e3c8;border-radius:2px 2px 0 0;min-height:2px}
+    .bar-d{font-size:.6rem;color:#6d7f9c;text-align:center;padding-top:.25rem}
     button{background:#182437;color:#eaf1ff;border:1px solid #22304a;border-radius:.4rem;padding:.35rem .6rem;cursor:pointer}
     button:hover{border-color:#19e3c8}
     h1{font-size:1.4rem}
   </style></head><body>
-  <nav><a href="/admin">Users &amp; trials</a><a href="/admin/reviews">Reviews</a><a href="/">← back to site</a></nav>
+  <nav><a href="/admin">Users &amp; trials</a><a href="/admin/visitors">Visitors</a><a href="/admin/reviews">Reviews</a><a href="/">← back to site</a></nav>
   <h1>${esc(title)}</h1>
   ${body}
   </body></html>`;
