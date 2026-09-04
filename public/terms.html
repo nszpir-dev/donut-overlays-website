@@ -72,11 +72,15 @@ footer{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--line);
 </header>
 
 <h1>Terms, refunds and privacy</h1>
-<p class="updated">Last updated 3 September 2026</p>
+<p class="updated">Version 2026-09-04 · in effect from 4 September 2026</p>
 
 <div class="note">
   Plain English on purpose. This page covers what you are buying, how billing and
   cancellation work, what we do with your data, and how to get hold of a person.
+  <br><br>
+  You agree to all of it when you tick the box on the sign-up form. We keep a record of
+  the date and the version you agreed to. If it changes in a way that affects you, you
+  will be asked to agree again.
 </div>
 
 <h2>1 · What Donut Overlays is</h2>
@@ -95,8 +99,9 @@ footer{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--line);
 <ul>
   <li>One account is for one streamer. Do not share your login or your overlay link.</li>
   <li>Keep your password to yourself. You are responsible for what happens on your account.</li>
-  <li>You must be old enough to enter a contract where you live, or have a parent or
-      guardian agree on your behalf.</li>
+  <li><strong>Age.</strong> You must be 18 or older to subscribe. If you are under 18, a
+      parent or guardian has to read these terms, agree to them, and be the one paying —
+      it is their card and their agreement. Ticking the box says one of those is true.</li>
   <li>We can suspend an account that is being shared, resold, or used to break the law or
       another platform's rules.</li>
 </ul>
@@ -176,10 +181,16 @@ footer{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--line);
   streaming platform changing something, or planned maintenance.
 </p>
 <p>
-  The software is provided as it is. To the extent the law allows, we are not liable for
-  lost income, lost viewers, or anything that happens during a stream. If we are found
-  liable for something, our total liability is capped at what you paid us in the previous
-  12 months.
+  The software is provided as it is, with no warranty of any kind. To the extent the law
+  allows, we are not liable for lost income, lost viewers, lost followers, or anything
+  that happens during a stream. If we are found liable for something, our total liability
+  is capped at what you paid us in the previous 12 months.
+</p>
+<p>
+  <strong>Events you run are yours.</strong> You decide what game you run, who can join,
+  what they pay in, and what they get. If a viewer, a server, a platform or anyone else
+  brings a claim against us because of an event you ran, you agree to cover our costs in
+  dealing with it. We supply the scoreboard; the event is yours.
 </p>
 
 <h2>9 · Your data</h2>
@@ -192,6 +203,11 @@ footer{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--line);
   <li>Your <strong>overlay settings</strong> — colours, text size, and any background image
       you upload.</li>
   <li>Your <strong>Minecraft username</strong>, if you put it in a review.</li>
+  <li>A <strong>count of visits to this site</strong>. Your browser makes up a random id
+      for itself and keeps it, which lets us count people rather than page loads. It says
+      "same browser as before" and nothing else — no name, no location, no IP address,
+      and it is not shared with anyone or used for advertising. If you are logged in when
+      you visit, the visit is linked to your account.</li>
 </ul>
 <h3>What we do not keep</h3>
 <ul>
@@ -205,7 +221,9 @@ footer{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--line);
   Three companies, each only for the part they do: <strong>Stripe</strong> (payments),
   <strong>MongoDB Atlas</strong> (database hosting), <strong>Render</strong> (website
   hosting), and an email provider for the handful of emails listed below. We do not sell
-  your data, and there is no advertising or tracking on this site.
+  your data. There is no advertising on this site, and no third-party analytics or
+  advertising trackers — the visit count described above is our own, stays on our own
+  server, and goes nowhere else.
 </p>
 <h3>Emails we send</h3>
 <p>
@@ -220,8 +238,15 @@ footer{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--line);
 
 <h2>10 · Changes to these terms</h2>
 <p>
-  If we change anything that affects you, we will email you before it takes effect. Small
-  wording fixes just appear here with a new date at the top.
+  If we change anything that affects you, we will email you before it takes effect, and
+  you will be asked to agree to the new version the next time you open the site. Until
+  you do, you can still log in and use what you are already paying for, but you cannot
+  start or change a subscription. Small wording fixes just appear here with a new version
+  at the top.
+</p>
+<p>
+  Your acceptance is stored against your account as a date and a version number. You can
+  ask us what is on file for you at any time.
 </p>
 
 <h2>11 · Governing law</h2>
@@ -255,5 +280,6 @@ fetch('/api/config')
   .then(c => { if (c.discordInvite) document.getElementById('discordLink').href = c.discordInvite; })
   .catch(function(){});
 </script>
+<script src="/px.js" defer></script>
 </body>
 </html>
