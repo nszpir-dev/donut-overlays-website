@@ -341,6 +341,24 @@ section{padding:6rem 0;position:relative}
 .msg{font-size:.88rem;margin-top:.6rem;min-height:1.2rem}
 .msg.bad{color:#ff8f8f}
 .msg.good{color:var(--teal)}
+/* Picking which overlay the single plan covers. Big targets, because
+   this gets picked on a phone as often as a desktop. */
+.picks{display:grid;gap:.6rem}
+.pick{display:flex;gap:.85rem;align-items:flex-start;text-align:left;width:100%;
+  padding:.85rem 1rem;border:1px solid var(--line);border-radius:.5rem;
+  background:#070d18;color:var(--text);cursor:pointer;font:inherit}
+.pick:hover{border-color:var(--teal)}
+/* Selected state uses --teal, which this stylesheet actually defines.
+   It was written with a --green that does not exist here, so the colour
+   silently fell back and a chosen option looked unchosen. */
+.pick.on{border-color:var(--teal);background:#08201f}
+.pick .dot{width:1.1rem;height:1.1rem;border-radius:50%;border:2px solid var(--line);
+  flex:none;margin-top:.15rem}
+.pick.on .dot{border-color:var(--teal);background:var(--teal);
+  box-shadow:inset 0 0 0 3px #08201f}
+.pick b{display:block;font-size:1.02rem}
+.pick span{display:block;color:var(--muted);font-size:.88rem;margin-top:.1rem;line-height:1.4}
+
 /* The agreement tick box. Starts empty on purpose — a box that is
    already ticked is not somebody agreeing to anything. */
 .agree{display:flex;gap:.6rem;align-items:flex-start;margin:0 0 1rem;
@@ -694,6 +712,27 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 
 <!-- Shown to accounts made before there was a box to tick, and to everyone
      again if the terms are ever changed in a way that affects them. -->
+<!-- The single-overlay plan covers one game, so which one has to be an
+     actual decision. It used to silently default to the elimination board,
+     which meant anyone who wanted the auction paid for the wrong thing. -->
+<div class="sheet" id="pickSheet">
+  <div class="sheet-inner narrow">
+    <div class="sheet-head"><h3>Which overlay do you want?</h3><button id="pickClose" aria-label="Close">×</button></div>
+    <div class="sheet-body single">
+      <div>
+        <p style="color:var(--muted);margin:-.2rem 0 1.1rem;font-size:.95rem">
+          The $8 plan covers one overlay. You can switch to a different one whenever you like,
+          from your account — you are not stuck with this.
+        </p>
+        <div id="pickList" class="picks"></div>
+        <button class="btn btn-gold" id="pickGo" style="width:100%;margin-top:1rem">Continue to checkout</button>
+        <div class="msg" id="pickMsg"></div>
+        <div class="switch">Want all three? <a id="pickAll">Take the $12 plan instead</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="sheet" id="termsSheet">
   <div class="sheet-inner narrow">
     <div class="sheet-head"><h3>One quick thing</h3></div>
@@ -1387,11 +1426,56 @@ function paintGate(){
 }
 
 let pendingPlan = null;
+let pendingGame = null;
 
-/* runs after both gates (Discord + logged in) are satisfied */
+/* ---------------- which overlay, for the single plan ---------------- */
+const GAMES = [
+  { id:'board',   name:'Donut Royale',  blurb:'The elimination board. Heads on a grid, knocked out one at a time until somebody is left.' },
+  { id:'auction', name:'Donut Auction', blurb:'Live item auctions. Highest bid before the clock runs out takes it.' },
+  { id:'money',   name:'Money Game',    blurb:'You seed a pot, biggest single payment before the timer takes it.' },
+];
+
+function openPick(){
+  const list = document.getElementById('pickList');
+  list.innerHTML = GAMES.map(g => `
+    <button type="button" class="pick" data-game="${g.id}">
+      <span class="dot"></span>
+      <span><b>${g.name}</b><span>${g.blurb}</span></span>
+    </button>`).join('');
+  list.querySelectorAll('.pick').forEach(b => b.onclick = () => {
+    pendingGame = b.dataset.game;
+    list.querySelectorAll('.pick').forEach(x => x.classList.toggle('on', x === b));
+    document.getElementById('pickMsg').textContent = '';
+  });
+  /* Nothing preselected on purpose. A highlighted first option is how the
+     old version quietly sold everybody the elimination board. */
+  pendingGame = null;
+  document.getElementById('pickMsg').textContent = '';
+  document.getElementById('pickMsg').className = 'msg';
+  document.getElementById('pickSheet').classList.add('open');
+}
+document.getElementById('pickClose').onclick = () =>
+  document.getElementById('pickSheet').classList.remove('open');
+document.getElementById('pickGo').onclick = () => {
+  if(!pendingGame){
+    const m = document.getElementById('pickMsg');
+    m.className = 'msg bad'; m.textContent = 'Pick one to carry on.';
+    return;
+  }
+  document.getElementById('pickSheet').classList.remove('open');
+  proceedToCheckout();
+};
+document.getElementById('pickAll').onclick = () => {
+  document.getElementById('pickSheet').classList.remove('open');
+  pendingPlan = 'all'; pendingGame = null;
+  proceedToCheckout();
+};
+
+/* runs after all the gates (Discord + logged in + overlay picked) */
 function proceedToCheckout(){
   if(!joinedDiscord()) return; // discord sheet already handles re-entry
   if(!me){ openAuth('login'); return; } // authGo success calls this again
+  if(pendingPlan === 'single' && !pendingGame){ openPick(); return; }
   startCheckout(pendingPlan);
 }
 
@@ -1400,7 +1484,7 @@ async function startCheckout(plan){
     const r = await fetch(API + '/api/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader() },
-      body: JSON.stringify({ plan }),
+      body: JSON.stringify(plan === 'single' ? { plan, game: pendingGame } : { plan }),
     });
     const data = await r.json();
     /* The server refuses to bill anyone without an acceptance on file.
@@ -1418,6 +1502,7 @@ async function startCheckout(plan){
 document.querySelectorAll('[data-plan]').forEach(b => b.addEventListener('click', e => {
   e.preventDefault();
   pendingPlan = b.dataset.plan;
+  pendingGame = null;             // a fresh choice every time, never a leftover
   if(!joinedDiscord()){
     document.getElementById('discordSheet').classList.add('open');
     return;
@@ -1566,14 +1651,80 @@ async function paintSetup(){
       </div>`);
   });
 
+  /* Single-plan customers need a way to change their mind. Without this
+     the choice made at checkout was permanent, which is not what the
+     pricing says. */
+  if(data.plan === 'single'){
+    rows.push(`
+      <div class="linkrow" style="align-items:flex-start">
+        <div class="plat">Switch</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.88rem;color:var(--muted);margin-bottom:.55rem">
+            Your plan covers one overlay at a time. Changing it swaps your link over straight away.
+          </div>
+          <div id="swapList" class="picks"></div>
+          <div class="msg" id="swapMsg"></div>
+        </div>
+      </div>`);
+  }
+
   box.innerHTML = rows.join('');
+
+  if(data.plan === 'single'){
+    const list = document.getElementById('swapList');
+    list.innerHTML = GAMES.map(g => `
+      <button type="button" class="pick ${g.id === data.choice ? 'on' : ''}" data-game="${g.id}">
+        <span class="dot"></span>
+        <span><b>${g.name}</b><span>${g.blurb}</span></span>
+      </button>`).join('');
+    list.querySelectorAll('.pick').forEach(b => b.onclick = async () => {
+      if(b.classList.contains('on')) return;         // already on this one
+      const msg = document.getElementById('swapMsg');
+      msg.className = 'msg'; msg.textContent = 'Switching…';
+      try {
+        const r = await fetch(API + '/api/choose-overlay', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader() },
+          body: JSON.stringify({ game: b.dataset.game }),
+        });
+        const d = await r.json();
+        if(!r.ok) throw new Error(d.error || 'could not switch');
+        /* Redraw FIRST, then say so. paintSetup replaces this whole box,
+           which threw away the confirmation the moment it was written. */
+        await paintSetup();
+        const after = document.getElementById('swapMsg');
+        if(after){
+          after.className = 'msg good';
+          after.textContent = 'Switched. Your new link is above — swap it into LIVE Studio or OBS.';
+        }
+      } catch(e){
+        msg.className = 'msg bad'; msg.textContent = e.message;
+      }
+    });
+  }
   box.insertAdjacentHTML('beforeend',
-    `<p style="color:var(--muted);font-size:.88rem;margin-top:1rem">
-       Unzip it anywhere, run <b>START-DONUT-OVERLAYS.bat</b>, sign in, and pick which
-       overlay you're running. Leave that window open while you stream — it also prints
-       your link and control panel address each time.
-       ${data.plan === 'single' ? ' Your plan covers one overlay at a time — switch which one from your account.' : ''}
-     </p>`);
+    /* The unblock step is first because skipping it is what makes Windows
+       refuse to run the launcher at all — and the message it shows says
+       nothing about zips, so nobody works it out on their own. */
+    `<div style="color:var(--muted);font-size:.88rem;margin-top:1.1rem;
+        background:#0c1322;border:1px solid var(--line);border-left:3px solid var(--gold);
+        border-radius:.5rem;padding:.9rem 1.1rem">
+       <b style="color:var(--gold)">Setting it up on Windows — in this order:</b>
+       <ol style="margin:.5rem 0 0 1.1rem;padding:0;line-height:1.7">
+         <li><b style="color:#a9c6ee">Right-click the zip → Properties → tick Unblock → OK.</b>
+             Do this <em>before</em> unzipping. Skip it and Windows blocks the launcher with a
+             "Smart App Control" warning.</li>
+         <li>Right-click the zip again → <b style="color:#a9c6ee">Extract All</b>.
+             Don't run anything from inside the zip window — those files are temporary.</li>
+         <li>Open the folder and run <b style="color:#a9c6ee">START-DONUT-OVERLAYS.bat</b>,
+             sign in, and pick your overlay.</li>
+       </ol>
+       <p style="margin:.7rem 0 0">
+         Leave that black window open while you stream — closing it stops the overlay. It
+         prints your link and control panel address every time it starts.
+         ${data.plan === 'single' ? ' Your plan covers one overlay at a time — switch which one from your account.' : ''}
+       </p>
+     </div>`);
   bindCopy();
 }
 
