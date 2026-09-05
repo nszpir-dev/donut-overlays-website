@@ -456,6 +456,19 @@ app.post('/api/checkout', auth, async (req, res) => {
       return res.status(403).json({ error: 'please accept the terms first', needsTerms: true });
     }
 
+    /* Which overlay a single-plan customer picked, chosen on the site
+       before they were sent to Stripe. Stored now rather than after the
+       webhook, so it is already right the first time they open their
+       links — the old code silently left everyone on the board. */
+    if (plan === 'single') {
+      const game = String(req.body.game || '');
+      if (!relay.GAMES.includes(game)) {
+        return res.status(400).json({ error: 'pick which overlay you want first' });
+      }
+      user.overlayChoice = game;
+      await user.save();
+    }
+
     // Someone who already has (or has already used) a subscription on this
     // account does not get a second free trial.
     const alreadyUsedTrial = !!user.stripeSubscriptionId;
