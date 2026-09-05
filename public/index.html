@@ -584,7 +584,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
           <li>Any one overlay you choose</li>
           <li>Every platform: TikTok, Twitch, YouTube</li>
           <li>Full colour and layout control</li>
-          <li class="no">Switching games mid-month</li>
+          <li>Switch which overlay any time</li>
         </ul>
         <a href="#" class="btn btn-ghost" data-plan="single">Start free trial</a>
         <p class="gate-note"></p>
@@ -603,6 +603,16 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
         <p class="gate-note"></p>
       </div>
     </div>
+    <!-- Prepaid and gift cards are refused by their own bank at signup, because
+         a subscription has to save the card for later and most of them do not
+         allow that. Saying so here is cheaper than losing the signup to a
+         decline message that explains nothing. -->
+    <p class="fineprint">
+      <strong style="color:var(--gold)">Use a normal debit or credit card.</strong>
+      Prepaid cards, gift cards and most kids' cards get refused by their own bank when
+      you set up a subscription — it will just say "declined" without telling you why.
+      Nothing is charged during the 7 days either way.
+    </p>
     <p class="fineprint">Your overlays are served from our end, not stored on your computer. That is what keeps them fast, and it means a cancelled plan stops working straight away rather than lingering.</p>
   </div>
 </section>
@@ -725,7 +735,11 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
           from your account — you are not stuck with this.
         </p>
         <div id="pickList" class="picks"></div>
-        <button class="btn btn-gold" id="pickGo" style="width:100%;margin-top:1rem">Continue to checkout</button>
+        <p style="color:var(--muted);font-size:.84rem;margin-top:.9rem;line-height:1.45">
+          Card tip: prepaid and gift cards usually get refused by their own bank on
+          subscriptions. A normal debit or credit card works.
+        </p>
+        <button class="btn btn-gold" id="pickGo" style="width:100%;margin-top:.7rem">Continue to checkout</button>
         <div class="msg" id="pickMsg"></div>
         <div class="switch">Want all three? <a id="pickAll">Take the $12 plan instead</a></div>
       </div>
