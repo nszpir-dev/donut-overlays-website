@@ -439,6 +439,30 @@ app.post('/api/accept-terms', auth, async (req, res) => {
   res.json({ ok: true, termsVersion: TERMS_VERSION });
 });
 
+/* Read an overlay choice off a request body. Accepts the new `games`
+   array and the old single `game` string, because a browser sitting on a
+   cached copy of the page will still be posting the old shape for a while
+   after a deploy. Returns null if there is nothing usable — the caller
+   turns that into a "pick some first" message rather than a silent
+   default, which is how everyone ended up on the board last time. */
+function readPicks(body) {
+  const raw = Array.isArray(body.games) ? body.games
+            : body.game ? [body.game]
+            : [];
+  const out = [];
+  for (const g of raw) {
+    /* Must already BE a string. Coercing with String() would let an object
+       with a toString talk its way through — JSON cannot send one today,
+       but the check costs nothing and the rule is easier to read. */
+    if (typeof g === 'string' && relay.GAMES.includes(g) && !out.includes(g)) out.push(g);
+  }
+  if (!out.length) return null;
+  /* Too many is a rejection, not a silent trim: quietly dropping the
+     overlay somebody meant to pick is worse than making them choose. */
+  if (out.length > relay.SINGLE_PICKS) return null;
+  return out;
+}
+
 // ---- checkout ----
 app.post('/api/checkout', auth, async (req, res) => {
   if (!stripe) return res.status(503).json({ error: 'checkout is not set up on the server yet' });
@@ -456,16 +480,17 @@ app.post('/api/checkout', auth, async (req, res) => {
       return res.status(403).json({ error: 'please accept the terms first', needsTerms: true });
     }
 
-    /* Which overlay a single-plan customer picked, chosen on the site
+    /* Which overlays a single-plan customer picked, chosen on the site
        before they were sent to Stripe. Stored now rather than after the
        webhook, so it is already right the first time they open their
        links — the old code silently left everyone on the board. */
     if (plan === 'single') {
-      const game = String(req.body.game || '');
-      if (!relay.GAMES.includes(game)) {
-        return res.status(400).json({ error: 'pick which overlay you want first' });
+      const picks = readPicks(req.body);
+      if (!picks) {
+        return res.status(400).json({ error: `pick up to ${relay.SINGLE_PICKS} overlays first` });
       }
-      user.overlayChoice = game;
+      user.overlayChoices = picks;
+      user.overlayChoice = picks[0];      // keep the old field in step
       await user.save();
     }
 
@@ -495,12 +520,12 @@ app.post('/api/checkout', auth, async (req, res) => {
 // ---------------------------------------------------------------------
 // Overlays: the permanent links, and the pages themselves.
 // ---------------------------------------------------------------------
-const GAME_FILES = { board: 'board.html', auction: 'auction.html', money: 'money.html' };
-const GAME_NAMES = { board: 'Elimination board', auction: 'Live auction', money: 'Money game' };
+const GAME_FILES = { board: 'board.html', auction: 'auction.html', money: 'money.html', lastcall: 'lastcall.html' };
+const GAME_NAMES = { board: 'Elimination board', auction: 'Live auction', money: 'Money game', lastcall: 'Last Call' };
 /* Each game's relay listens on its own port, so the control panel address
    differs per game. Showing one fixed port sent anyone running the auction
    or money game to a dead page. */
-const GAME_PORTS = { board: 8090, auction: 8091, money: 8092 };
+const GAME_PORTS = { board: 8090, auction: 8091, money: 8092, lastcall: 8093 };
 
 /* Made once and never changed, so a link pasted into OBS keeps working
    for the life of the account. */
@@ -523,6 +548,8 @@ app.get('/api/links', auth, async (req, res) => {
     plan: user.plan,
     games,
     choice: user.overlayChoice,
+    choices: relay.picksOf(user),
+    maxPicks: relay.SINGLE_PICKS,
     /* role=display strips the operator controls, bg=transparent drops the
        background so it sits over gameplay. Both are flags the overlay
        already understands — the local version got them from its /display
@@ -580,16 +607,22 @@ app.put('/api/look', auth, async (req, res) => {
   }
 });
 
-/* Someone on the single-overlay plan swapping which one they use. */
+/* Someone on the cheaper plan changing which overlays they use. */
 app.post('/api/choose-overlay', auth, async (req, res) => {
-  const game = String(req.body.game || '');
-  if (!relay.GAMES.includes(game)) return res.status(400).json({ error: 'unknown overlay' });
   if (req.user.plan !== 'single') {
     return res.status(400).json({ error: 'your plan already includes every overlay' });
   }
-  req.user.overlayChoice = game;
+  const picks = readPicks(req.body);
+  if (!picks) {
+    return res.status(400).json({
+      error: `pick between 1 and ${relay.SINGLE_PICKS} overlays`,
+    });
+  }
+  req.user.overlayChoices = picks;
+  req.user.overlayChoice = picks[0];
+  req.user.markModified('overlayChoices');
   await req.user.save();
-  res.json({ ok: true, choice: game });
+  res.json({ ok: true, choice: picks[0], choices: picks });
 });
 
 /* The page OBS / LIVE Studio actually loads. This is the whole reason
@@ -612,7 +645,7 @@ app.get('/o/:token/:game', async (req, res) => {
   if (!relay.allowedGames(user).includes(game)) {
     return res.status(403).send(notice(
       'Your plan does not include this overlay.',
-      'The single-overlay plan covers one game at a time. Switch which one, or move to the all-three plan, on the website.'
+      `The $8 plan covers ${relay.SINGLE_PICKS} overlays at a time. Change which ones, or move to the $12 plan, on the website.`
     ));
   }
 

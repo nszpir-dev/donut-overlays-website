@@ -23,7 +23,7 @@ const { WebSocketServer } = require('ws');
 const jwt = require('jsonwebtoken');
 const { User } = require('./models');
 
-const GAMES = ['board', 'auction', 'money'];
+const GAMES = ['board', 'auction', 'money', 'lastcall'];
 
 /* past_due gets in: their card failed but Stripe is still retrying, and
    cutting a live stream dead over a temporary billing hiccup would be a
@@ -32,10 +32,32 @@ function entitled(user) {
   return user && ['trialing', 'active', 'past_due'].includes(user.status);
 }
 
+/* How many overlays the cheap plan covers. One number, read everywhere,
+   so raising it again later is a one-line change and the website, the
+   relay and the hosted overlay can never disagree about it. */
+const SINGLE_PICKS = 2;
+
+/* Turn whatever is on the account into a clean list of at most
+   SINGLE_PICKS real games. Accepts the old single overlayChoice string so
+   accounts created before the plan grew keep working untouched. */
+function picksOf(user) {
+  const raw = Array.isArray(user.overlayChoices) && user.overlayChoices.length
+    ? user.overlayChoices
+    : [user.overlayChoice];
+  const out = [];
+  for (const g of raw) {
+    if (GAMES.includes(g) && !out.includes(g)) out.push(g);
+    if (out.length === SINGLE_PICKS) break;
+  }
+  /* Never hand back an empty list for a paying customer — a corrupted
+     field would silently lock them out of everything mid-stream. */
+  return out.length ? out : ['board'];
+}
+
 function allowedGames(user) {
   if (!entitled(user)) return [];
   if (user.plan === 'all') return GAMES.slice();
-  if (user.plan === 'single') return [GAMES.includes(user.overlayChoice) ? user.overlayChoice : 'board'];
+  if (user.plan === 'single') return picksOf(user);
   return [];
 }
 
@@ -188,4 +210,4 @@ async function recheckLive() {
   }
 }
 
-module.exports = { setup, entitled, allowedGames, GAMES };
+module.exports = { setup, entitled, allowedGames, picksOf, GAMES, SINGLE_PICKS };

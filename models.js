@@ -22,8 +22,13 @@ const userSchema = new mongoose.Schema({
   // Stays the same for the life of the account so they paste it once.
   overlayToken: { type: String, unique: true, sparse: true, index: true },
 
-  // Which single overlay a "single" plan customer picked.
+  /* Which overlays a "single" plan customer picked. The plan used to cover
+     exactly one, so every existing account has overlayChoice set and this
+     array empty. allowedGames() reads the array first and falls back to the
+     old field, which means nobody's link breaks on deploy and the array
+     fills itself in the first time they touch the picker. */
   overlayChoice: { type: String, default: 'board' },
+  overlayChoices: { type: [String], default: [] },
 
   /* Password reset. Only the HASH of the token is stored, so a leaked
      database still cannot be used to take over an account — same reasoning
@@ -50,7 +55,7 @@ const userSchema = new mongoose.Schema({
 
   /* How their overlays look on stream. Set on the website, read by the
      hosted overlay page. Shape: { board:{accent,scale,bgImage,bgOpacity},
-     auction:{accent,scale}, money:{accent,scale} } */
+     auction:{accent,scale}, money:{accent,scale}, lastcall:{accent,scale} } */
   look: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
 });
 

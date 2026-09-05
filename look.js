@@ -11,7 +11,7 @@
  * own; and it means the rules can be tested without standing up Express,
  * Mongo and Stripe first.
  */
-const GAMES = ['board', 'auction', 'money'];
+const GAMES = ['board', 'auction', 'money', 'lastcall'];
 
 const SCALES = [1, 1.2, 1.45];
 const isHex = v => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
@@ -67,17 +67,39 @@ function lookScript(game, look) {
 var L = ${safeJson(look)}, G = ${safeJson(game)}, root = document.documentElement;
 
 /* --- accent colour ---
-   The board drives everything off --accent; the two card overlays use
-   --gold for the same job. Setting the wrong one would recolour the
-   winner badge rather than the theme. */
+   Each overlay hangs its theme off a different variable, so the same
+   picked colour has to be written to a different place per game. Setting
+   the wrong one recolours a winner badge instead of the theme.
+     board    -> --accent (+ the rgb form it uses for shadows)
+     auction  -> --gold
+     money    -> --gold
+     lastcall -> --calm and its two shades: the clock, the card border,
+                 the live dot and the call-to-action button all run off it,
+                 while --gold stays gold for the winner so the round
+                 still ends on a colour change. */
+function rgbOf(hex){
+  var n = hex.slice(1);
+  return [parseInt(n.slice(0,2),16), parseInt(n.slice(2,4),16), parseInt(n.slice(4,6),16)];
+}
+/* k > 1 lightens toward white, k < 1 darkens toward black. Plain
+   arithmetic on the channels — no colour function, because the browser
+   inside OBS may not have one. */
+function shade(hex, k){
+  var c = rgbOf(hex).map(function(v){
+    var x = k >= 1 ? v + (255 - v) * (k - 1) : v * k;
+    return Math.max(0, Math.min(255, Math.round(x)));
+  });
+  return '#' + c.map(function(v){ return ('0' + v.toString(16)).slice(-2); }).join('');
+}
 if (L.accent) {
   if (G === 'board') {
-    var n = L.accent.slice(1);
     root.style.setProperty('--accent', L.accent);
-    root.style.setProperty('--accent-rgb', [
-      parseInt(n.slice(0,2),16), parseInt(n.slice(2,4),16), parseInt(n.slice(4,6),16)
-    ].join(','));
+    root.style.setProperty('--accent-rgb', rgbOf(L.accent).join(','));
     root.style.setProperty('--emerald', L.accent);
+  } else if (G === 'lastcall') {
+    root.style.setProperty('--calm', L.accent);
+    root.style.setProperty('--calm-1', shade(L.accent, 1.35));
+    root.style.setProperty('--calm-2', shade(L.accent, 0.78));
   } else {
     root.style.setProperty('--gold', L.accent);
   }
