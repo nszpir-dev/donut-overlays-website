@@ -182,12 +182,15 @@ section{padding:6rem 0;position:relative}
 .sec-head p{color:var(--muted);margin-top:.9rem;line-height:1.7}
 
 /* ---------- games ---------- */
-.games{display:grid;grid-template-columns:repeat(3,1fr);gap:1.6rem}
-@media(max-width:900px){.games{grid-template-columns:1fr}}
+/* Four games now. Two rows of two reads better than a squeezed row of
+   four, and the cards keep a sensible width all the way down to a phone. */
+.games{display:grid;grid-template-columns:repeat(2,1fr);gap:1.6rem 2rem}
+@media(max-width:760px){.games{grid-template-columns:1fr}}
 .game{display:flex;flex-direction:column;border-top:2px solid var(--line);padding-top:1.1rem}
 .game:nth-child(1){border-top-color:var(--teal)}
 .game:nth-child(2){border-top-color:var(--gold)}
 .game:nth-child(3){border-top-color:var(--violet)}
+.game:nth-child(4){border-top-color:#35e0ff}
 .game .shot{height:180px;display:flex;align-items:center;justify-content:flex-start}
 .game .body{padding:.9rem 0 0;display:flex;flex-direction:column;gap:.7rem;flex:1}
 .game h3{font-size:2rem}
@@ -206,6 +209,8 @@ section{padding:6rem 0;position:relative}
 .mini .who{font-family:'Bebas Neue',sans-serif;font-size:1.3rem}
 .mini .grid3{display:grid;grid-template-columns:repeat(4,1fr);gap:.2rem;margin-top:.3rem}
 .mini .grid3 img{width:100%;aspect-ratio:1;border-radius:.15rem;image-rendering:pixelated}
+.mini .drainbar{height:.3rem;border-radius:.2rem;background:#1d2a3d;overflow:hidden;margin:.35rem 0 .1rem}
+.mini .drainbar i{display:block;height:100%;border-radius:.2rem}
 
 /* ---------- steps ---------- */
 .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:2rem}
@@ -341,8 +346,11 @@ section{padding:6rem 0;position:relative}
 .msg{font-size:.88rem;margin-top:.6rem;min-height:1.2rem}
 .msg.bad{color:#ff8f8f}
 .msg.good{color:var(--teal)}
-/* Picking which overlay the single plan covers. Big targets, because
+/* Picking which overlays the $8 plan covers. Big targets, because
    this gets picked on a phone as often as a desktop. */
+.pickcount{margin-top:.75rem;font-size:.88rem;color:var(--muted);
+  font-weight:700;letter-spacing:.04em}
+.pickcount.done{color:var(--teal)}
 .picks{display:grid;gap:.6rem}
 .pick{display:flex;gap:.85rem;align-items:flex-start;text-align:left;width:100%;
   padding:.85rem 1rem;border:1px solid var(--line);border-radius:.5rem;
@@ -500,7 +508,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 <section id="games">
   <div class="wrap">
     <div class="sec-head">
-      <h2>Three games, <em>one setup</em></h2>
+      <h2>Four games, <em>one setup</em></h2>
       <p>Each one reads your Minecraft chat directly, so payments land on screen without you typing anything.</p>
     </div>
     <div class="games">
@@ -534,6 +542,17 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
           <div class="row">
             <button class="btn btn-ghost" data-customize="money">Customise</button>
             <button class="btn btn-ghost" data-links="money">Get links</button>
+          </div>
+        </div>
+      </div>
+      <div class="game">
+        <div class="shot"><div class="mini" id="pv-lastcall"></div></div>
+        <div class="body">
+          <h3>Last Call</h3>
+          <p>Everyone pays into one pot, and every payment puts a ten second clock back to full. Whoever paid last when it finally runs out takes everything.</p>
+          <div class="row">
+            <button class="btn btn-ghost" data-customize="lastcall">Customise</button>
+            <button class="btn btn-ghost" data-links="lastcall">Get links</button>
           </div>
         </div>
       </div>
@@ -577,24 +596,24 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
     </div>
     <div class="plans">
       <div class="plan">
-        <h3>Single</h3>
+        <h3>Pick two</h3>
         <div class="price" data-usd="8">$8<span>/month</span></div>
         <div class="approx" data-approx="8"></div>
         <ul>
-          <li>Any one overlay you choose</li>
+          <li>Any two of the four games</li>
           <li>Every platform: TikTok, Twitch, YouTube</li>
           <li>Full colour and layout control</li>
-          <li>Switch which overlay any time</li>
+          <li>Change which two any time</li>
         </ul>
         <a href="#" class="btn btn-ghost" data-plan="single">Start free trial</a>
         <p class="gate-note"></p>
       </div>
       <div class="plan best">
-        <h3>All three</h3>
+        <h3>Every game</h3>
         <div class="price" data-usd="12">$12<span>/month</span></div>
         <div class="approx" data-approx="12"></div>
         <ul>
-          <li>Elimination board, auction and money game</li>
+          <li>All four games — board, auction, money game, Last Call</li>
           <li>Every platform: TikTok, Twitch, YouTube</li>
           <li>Full colour and layout control</li>
           <li>New games added as they launch</li>
@@ -722,26 +741,27 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 
 <!-- Shown to accounts made before there was a box to tick, and to everyone
      again if the terms are ever changed in a way that affects them. -->
-<!-- The single-overlay plan covers one game, so which one has to be an
-     actual decision. It used to silently default to the elimination board,
-     which meant anyone who wanted the auction paid for the wrong thing. -->
+<!-- The $8 plan covers two games, so which two has to be an actual
+     decision. It used to silently default to the elimination board, which
+     meant anyone who wanted the auction paid for the wrong thing. -->
 <div class="sheet" id="pickSheet">
   <div class="sheet-inner narrow">
-    <div class="sheet-head"><h3>Which overlay do you want?</h3><button id="pickClose" aria-label="Close">×</button></div>
+    <div class="sheet-head"><h3>Pick your two overlays</h3><button id="pickClose" aria-label="Close">×</button></div>
     <div class="sheet-body single">
       <div>
         <p style="color:var(--muted);margin:-.2rem 0 1.1rem;font-size:.95rem">
-          The $8 plan covers one overlay. You can switch to a different one whenever you like,
+          The $8 plan covers any two. You can change which two whenever you like,
           from your account — you are not stuck with this.
         </p>
         <div id="pickList" class="picks"></div>
+        <div id="pickCount" class="pickcount"></div>
         <p style="color:var(--muted);font-size:.84rem;margin-top:.9rem;line-height:1.45">
           Card tip: prepaid and gift cards usually get refused by their own bank on
           subscriptions. A normal debit or credit card works.
         </p>
         <button class="btn btn-gold" id="pickGo" style="width:100%;margin-top:.7rem">Continue to checkout</button>
         <div class="msg" id="pickMsg"></div>
-        <div class="switch">Want all three? <a id="pickAll">Take the $12 plan instead</a></div>
+        <div class="switch">Want all four? <a id="pickAll">Take the $12 plan instead</a></div>
       </div>
     </div>
   </div>
@@ -906,6 +926,19 @@ function previewHTML(kind, opt){
       ${compact ? '' : `<div class="lbl" style="font-size:${fs(.5)};margin-top:.4rem">Outbid: ${n1} $12M</div>`}
     </div>`;
   }
+  if(kind === 'lastcall'){
+    /* Deliberately not the money game's card. Last Call leads with the
+       clock and the drain bar under it, which is the thing people watch. */
+    return `<div class="cardish" style="--pv-accent:${a}">
+      <div class="lbl" style="font-size:${fs(.55)}">Last Call</div>
+      <div class="big" style="font-size:${fs(2.6)};text-align:center">6.2</div>
+      <div class="lbl" style="font-size:${fs(.45)};text-align:center;margin-top:-.15rem">seconds left</div>
+      <div class="drainbar"><i style="width:62%;background:${a}"></i></div>
+      <div class="rowline"><img src="${head(n1,32)}" alt=""><span class="who" style="font-size:${fs(1.1)}">${n1}</span>
+        <span class="who" style="font-size:${fs(1)};margin-left:auto;color:#ffd76a">wins $57M</span></div>
+      ${compact ? '' : `<div class="lbl" style="font-size:${fs(.5)};margin-top:.4rem">Snatched back 4 times</div>`}
+    </div>`;
+  }
   return `<div class="cardish" style="--pv-accent:${a}">
     <div class="lbl" style="font-size:${fs(.55)}">Total pot</div>
     <div class="big" style="font-size:${fs(2.4)}">$11M</div>
@@ -919,16 +952,23 @@ const opts = {
   board:   { ...base, bgImage:'', bgOpacity:0.16 },   // '' = the stock chicken
   auction: { ...base, accent:'#f0b429' },
   money:   { ...base },
+  /* Matches the colour Last Call actually ships with, so the preview is
+     honest before anyone has picked anything. */
+  lastcall:{ ...base, accent:'#35e0ff' },
 };
+/* One list, used by the previews, the loader and the saver. Adding a game
+   in three separate places is how the customiser quietly stopped covering
+   Last Call in the first place. */
+const LOOK_GAMES = ['board','auction','money','lastcall'];
 const STOCK_ART = '/chicken.png';
 const paint = k => document.getElementById('pv-' + k).innerHTML = previewHTML(k, opts[k]);
-['board','auction','money'].forEach(paint);
+LOOK_GAMES.forEach(paint);
 
 
 /* ---------------- customiser ---------------- */
 const sheet = document.getElementById('sheet');
 const swatchWrap = document.getElementById('swatches');
-const COLOURS = ['#2ee66b','#f0b429','#2fb8f6','#ff4d9d','#b06bff','#ff6b3d'];
+const COLOURS = ['#2ee66b','#f0b429','#35e0ff','#2fb8f6','#ff4d9d','#b06bff','#ff6b3d'];
 let editing = 'board';
 
 swatchWrap.innerHTML = COLOURS.map(c =>
@@ -947,7 +987,7 @@ async function loadLook(){
     const r = await fetch(API + '/api/look', { headers: authHeader() });
     if(!r.ok) return;
     const { look } = await r.json();
-    ['board','auction','money'].forEach(g => {
+    LOOK_GAMES.forEach(g => {
       const saved = (look && look[g]) || {};
       if(saved.accent) opts[g].accent = saved.accent;
       if(saved.scale)  opts[g].scale  = saved.scale;
@@ -956,7 +996,7 @@ async function loadLook(){
         opts.board.bgOpacity = typeof saved.bgOpacity === 'number' ? saved.bgOpacity : DEFAULT_ART_OPACITY;
       }
     });
-    ['board','auction','money'].forEach(paint);
+    LOOK_GAMES.forEach(paint);
   } catch(e){ /* offline: the controls still work, they just won't persist */ }
 }
 
@@ -973,12 +1013,12 @@ function saveLook(){
   /* Debounced: dragging through six colours should be one write, not six. */
   lookTimer = setTimeout(async () => {
     try {
-      const body = { look: {
-        board:   { accent: opts.board.accent,   scale: opts.board.scale,
-                   bgImage: opts.board.bgImage || '', bgOpacity: opts.board.bgOpacity },
-        auction: { accent: opts.auction.accent, scale: opts.auction.scale },
-        money:   { accent: opts.money.accent,   scale: opts.money.scale },
-      }};
+      const look = {};
+      LOOK_GAMES.forEach(g => { look[g] = { accent: opts[g].accent, scale: opts[g].scale }; });
+      /* Only the elimination board has a picture behind it. */
+      look.board.bgImage = opts.board.bgImage || '';
+      look.board.bgOpacity = opts.board.bgOpacity;
+      const body = { look };
       const r = await fetch(API + '/api/look', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeader() },
@@ -1022,7 +1062,8 @@ function refreshSheet(){
 document.querySelectorAll('[data-customize]').forEach(b => b.onclick = () => {
   editing = b.dataset.customize;
   document.getElementById('sheetTitle').textContent =
-    'Customise the ' + ({board:'elimination board', auction:'auction', money:'money game'})[editing];
+    'Customise ' + ({board:'the elimination board', auction:'the auction',
+                     money:'the money game', lastcall:'Last Call'})[editing];
   sheet.classList.add('open');
   refreshSheet();
 });
@@ -1200,7 +1241,7 @@ async function refreshMe(){
       el.textContent = 'Trial ends ' + shortDate(data.trialEnd);
     } else if(data.status === 'active'){
       el.classList.add('active');
-      el.textContent = data.plan === 'all' ? 'All overlays' : 'Single overlay';
+      el.textContent = data.plan === 'all' ? 'All overlays' : 'Two overlays';
     } else if(data.status === 'past_due'){
       el.classList.add('ended');
       el.textContent = 'Payment failed';
@@ -1440,30 +1481,67 @@ function paintGate(){
 }
 
 let pendingPlan = null;
-let pendingGame = null;
+let pendingGames = [];
 
-/* ---------------- which overlay, for the single plan ---------------- */
+/* How many the $8 plan covers. The server enforces this; the number here
+   only shapes the wording and stops the third click. */
+let MAX_PICKS = 2;
+
+/* ---------------- which overlays, for the $8 plan ---------------- */
 const GAMES = [
   { id:'board',   name:'Donut Royale',  blurb:'The elimination board. Heads on a grid, knocked out one at a time until somebody is left.' },
   { id:'auction', name:'Donut Auction', blurb:'Live item auctions. Highest bid before the clock runs out takes it.' },
   { id:'money',   name:'Money Game',    blurb:'You seed a pot, biggest single payment before the timer takes it.' },
+  { id:'lastcall',name:'Last Call',     blurb:'Everyone builds one pot. Every payment resets a 10 second clock \u2014 whoever paid last when it runs out takes the lot.' },
 ];
 
-function openPick(){
-  const list = document.getElementById('pickList');
+/* Draw a list of overlay buttons with `chosen` highlighted. Shared by the
+   checkout picker and the switcher in the account panel, so the two can
+   never drift apart. */
+function renderPicks(list, chosen){
   list.innerHTML = GAMES.map(g => `
-    <button type="button" class="pick" data-game="${g.id}">
+    <button type="button" class="pick${chosen.includes(g.id) ? ' on' : ''}" data-game="${g.id}">
       <span class="dot"></span>
       <span><b>${g.name}</b><span>${g.blurb}</span></span>
     </button>`).join('');
-  list.querySelectorAll('.pick').forEach(b => b.onclick = () => {
-    pendingGame = b.dataset.game;
-    list.querySelectorAll('.pick').forEach(x => x.classList.toggle('on', x === b));
-    document.getElementById('pickMsg').textContent = '';
-  });
+}
+
+/* Clicking an overlay adds it, clicking it again takes it away. Once two
+   are chosen a third click swaps out the one picked first rather than
+   refusing — being told "you already have two" and having to work out
+   which to untick first is a worse experience than it just doing the
+   obvious thing. */
+function togglePick(chosen, id){
+  const at = chosen.indexOf(id);
+  if(at !== -1){ chosen.splice(at, 1); return chosen; }
+  chosen.push(id);
+  while(chosen.length > MAX_PICKS) chosen.shift();
+  return chosen;
+}
+
+function paintPickCount(){
+  const left = MAX_PICKS - pendingGames.length;
+  const el = document.getElementById('pickCount');
+  el.textContent = left > 0
+    ? (pendingGames.length ? `Pick ${left} more` : `Pick ${MAX_PICKS}`)
+    : 'Both chosen — clicking another swaps one out';
+  el.classList.toggle('done', left === 0);
+}
+
+function openPick(){
+  const list = document.getElementById('pickList');
   /* Nothing preselected on purpose. A highlighted first option is how the
      old version quietly sold everybody the elimination board. */
-  pendingGame = null;
+  pendingGames = [];
+  renderPicks(list, pendingGames);
+  list.onclick = e => {
+    const b = e.target.closest('.pick'); if(!b) return;
+    togglePick(pendingGames, b.dataset.game);
+    renderPicks(list, pendingGames);
+    paintPickCount();
+    document.getElementById('pickMsg').textContent = '';
+  };
+  paintPickCount();
   document.getElementById('pickMsg').textContent = '';
   document.getElementById('pickMsg').className = 'msg';
   document.getElementById('pickSheet').classList.add('open');
@@ -1471,9 +1549,9 @@ function openPick(){
 document.getElementById('pickClose').onclick = () =>
   document.getElementById('pickSheet').classList.remove('open');
 document.getElementById('pickGo').onclick = () => {
-  if(!pendingGame){
+  if(!pendingGames.length){
     const m = document.getElementById('pickMsg');
-    m.className = 'msg bad'; m.textContent = 'Pick one to carry on.';
+    m.className = 'msg bad'; m.textContent = 'Pick at least one to carry on.';
     return;
   }
   document.getElementById('pickSheet').classList.remove('open');
@@ -1481,7 +1559,7 @@ document.getElementById('pickGo').onclick = () => {
 };
 document.getElementById('pickAll').onclick = () => {
   document.getElementById('pickSheet').classList.remove('open');
-  pendingPlan = 'all'; pendingGame = null;
+  pendingPlan = 'all'; pendingGames = [];
   proceedToCheckout();
 };
 
@@ -1489,7 +1567,7 @@ document.getElementById('pickAll').onclick = () => {
 function proceedToCheckout(){
   if(!joinedDiscord()) return; // discord sheet already handles re-entry
   if(!me){ openAuth('login'); return; } // authGo success calls this again
-  if(pendingPlan === 'single' && !pendingGame){ openPick(); return; }
+  if(pendingPlan === 'single' && !pendingGames.length){ openPick(); return; }
   startCheckout(pendingPlan);
 }
 
@@ -1498,7 +1576,7 @@ async function startCheckout(plan){
     const r = await fetch(API + '/api/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader() },
-      body: JSON.stringify(plan === 'single' ? { plan, game: pendingGame } : { plan }),
+      body: JSON.stringify(plan === 'single' ? { plan, games: pendingGames } : { plan }),
     });
     const data = await r.json();
     /* The server refuses to bill anyone without an acceptance on file.
@@ -1516,7 +1594,7 @@ async function startCheckout(plan){
 document.querySelectorAll('[data-plan]').forEach(b => b.addEventListener('click', e => {
   e.preventDefault();
   pendingPlan = b.dataset.plan;
-  pendingGame = null;             // a fresh choice every time, never a leftover
+  pendingGames = [];              // a fresh choice every time, never a leftover
   if(!joinedDiscord()){
     document.getElementById('discordSheet').classList.add('open');
     return;
@@ -1674,7 +1752,8 @@ async function paintSetup(){
         <div class="plat">Switch</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:.88rem;color:var(--muted);margin-bottom:.55rem">
-            Your plan covers one overlay at a time. Changing it swaps your link over straight away.
+            Your plan covers ${data.maxPicks || 2} overlays at a time. Click one to add it,
+            click a highlighted one to drop it. Your links above update straight away.
           </div>
           <div id="swapList" class="picks"></div>
           <div class="msg" id="swapMsg"></div>
@@ -1685,36 +1764,46 @@ async function paintSetup(){
   box.innerHTML = rows.join('');
 
   if(data.plan === 'single'){
+    MAX_PICKS = data.maxPicks || MAX_PICKS;
     const list = document.getElementById('swapList');
-    list.innerHTML = GAMES.map(g => `
-      <button type="button" class="pick ${g.id === data.choice ? 'on' : ''}" data-game="${g.id}">
-        <span class="dot"></span>
-        <span><b>${g.name}</b><span>${g.blurb}</span></span>
-      </button>`).join('');
-    list.querySelectorAll('.pick').forEach(b => b.onclick = async () => {
-      if(b.classList.contains('on')) return;         // already on this one
+    /* Trust the server's list, not the old single `choice` field — an
+       account that has picked two would otherwise show only one lit up. */
+    const chosen = (data.choices && data.choices.length ? data.choices : [data.choice]).slice();
+    renderPicks(list, chosen);
+    list.onclick = async e => {
+      const b = e.target.closest('.pick'); if(!b) return;
       const msg = document.getElementById('swapMsg');
-      msg.className = 'msg'; msg.textContent = 'Switching…';
+      const id = b.dataset.game;
+      /* Dropping the last one would leave them with no overlay at all,
+         and the server would refuse it anyway. Say why instead of
+         letting the click do nothing. */
+      if(chosen.length === 1 && chosen[0] === id){
+        msg.className = 'msg bad';
+        msg.textContent = 'You need at least one. Click a different overlay to swap to it.';
+        return;
+      }
+      const next = togglePick(chosen.slice(), id);
+      msg.className = 'msg'; msg.textContent = 'Saving…';
       try {
         const r = await fetch(API + '/api/choose-overlay', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeader() },
-          body: JSON.stringify({ game: b.dataset.game }),
+          body: JSON.stringify({ games: next }),
         });
         const d = await r.json();
-        if(!r.ok) throw new Error(d.error || 'could not switch');
+        if(!r.ok) throw new Error(d.error || 'could not change that');
         /* Redraw FIRST, then say so. paintSetup replaces this whole box,
            which threw away the confirmation the moment it was written. */
         await paintSetup();
         const after = document.getElementById('swapMsg');
         if(after){
           after.className = 'msg good';
-          after.textContent = 'Switched. Your new link is above — swap it into LIVE Studio or OBS.';
+          after.textContent = 'Saved. Your links above are up to date — copy them into LIVE Studio or OBS.';
         }
       } catch(e){
         msg.className = 'msg bad'; msg.textContent = e.message;
       }
-    });
+    };
   }
   box.insertAdjacentHTML('beforeend',
     /* The unblock step is first because skipping it is what makes Windows
@@ -1736,7 +1825,7 @@ async function paintSetup(){
        <p style="margin:.7rem 0 0">
          Leave that black window open while you stream — closing it stops the overlay. It
          prints your link and control panel address every time it starts.
-         ${data.plan === 'single' ? ' Your plan covers one overlay at a time — switch which one from your account.' : ''}
+         ${data.plan === 'single' ? ' Your plan covers two overlays at a time — change which two from your account.' : ''}
        </p>
      </div>`);
   bindCopy();
