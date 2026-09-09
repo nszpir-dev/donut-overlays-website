@@ -32,33 +32,68 @@ function entitled(user) {
   return user && ['trialing', 'active', 'past_due'].includes(user.status);
 }
 
-/* How many overlays the cheap plan covers. One number, read everywhere,
-   so raising it again later is a one-line change and the website, the
-   relay and the hosted overlay can never disagree about it. */
-const SINGLE_PICKS = 2;
+/* What each thing you can buy covers. One table, read by the website, the
+   server and the relay, so they can never disagree about how many
+   overlays a purchase is worth. */
+const OPTIONS = {
+  /* picks: null means the option covers every overlay, so there is
+     nothing to choose and nothing to carry in the checkout metadata. */
+  perm1:   { picks: 1,    usd: 12, once: true,  label: 'One overlay, forever' },
+  permall: { picks: null, usd: 25, once: true,  label: 'All four overlays, forever' },
+  sub:     { picks: null, usd: 5,  once: false, label: 'Everything, monthly' },
+};
 
-/* Turn whatever is on the account into a clean list of at most
-   SINGLE_PICKS real games. Accepts the old single overlayChoice string so
-   accounts created before the plan grew keep working untouched. */
-function picksOf(user) {
-  const raw = Array.isArray(user.overlayChoices) && user.overlayChoices.length
-    ? user.overlayChoices
-    : [user.overlayChoice];
+/* Which overlays a completed purchase should grant. An option with no
+   picks covers the lot, so it does not depend on the browser having sent
+   a list — a missing metadata field would otherwise grant nothing to
+   somebody who just paid $25. */
+function gamesFor(option, picked) {
+  const spec = OPTIONS[option];
+  if (!spec) return [];
+  if (spec.picks == null) return GAMES.slice();
+  return (picked || []).filter(g => GAMES.includes(g)).slice(0, spec.picks);
+}
+
+/* Overlays somebody owns outright. Deliberately does NOT look at their
+   subscription status: a cancelled card must never take away a thing
+   that was already paid for. */
+function permOf(user) {
   const out = [];
-  for (const g of raw) {
+  for (const g of (user.perm || [])) {
     if (GAMES.includes(g) && !out.includes(g)) out.push(g);
-    if (out.length === SINGLE_PICKS) break;
   }
-  /* Never hand back an empty list for a paying customer — a corrupted
-     field would silently lock them out of everything mid-stream. */
-  return out.length ? out : ['board'];
+  return out;
+}
+
+/* Overlays their SUBSCRIPTION covers, if it is currently live. The old
+   two-tier plans are still honoured: 'single' accounts made before the
+   change keep the ones they chose, everything else gets the lot. */
+function subGames(user) {
+  if (!entitled(user)) return [];
+  if (user.plan === 'single') {
+    const raw = Array.isArray(user.overlayChoices) && user.overlayChoices.length
+      ? user.overlayChoices : [user.overlayChoice];
+    const out = [];
+    for (const g of raw) if (GAMES.includes(g) && !out.includes(g)) out.push(g);
+    return out.length ? out.slice(0, 2) : ['board'];
+  }
+  return GAMES.slice();
 }
 
 function allowedGames(user) {
-  if (!entitled(user)) return [];
-  if (user.plan === 'all') return GAMES.slice();
-  if (user.plan === 'single') return picksOf(user);
-  return [];
+  if (!user) return [];
+  const out = permOf(user);
+  for (const g of subGames(user)) if (!out.includes(g)) out.push(g);
+  /* Order them the way the site lists them, so somebody who bought two
+     overlays a month apart does not see them in a random order. */
+  return GAMES.filter(g => out.includes(g));
+}
+
+/* Does this account have anything at all? Used to decide whether to show
+   the setup panel. Owning one overlay outright counts, even with no
+   subscription and never having had one. */
+function hasAnything(user) {
+  return allowedGames(user).length > 0;
 }
 
 /**
@@ -210,4 +245,4 @@ async function recheckLive() {
   }
 }
 
-module.exports = { setup, entitled, allowedGames, picksOf, GAMES, SINGLE_PICKS };
+module.exports = { setup, entitled, allowedGames, permOf, subGames, hasAnything, gamesFor, OPTIONS, GAMES };

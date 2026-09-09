@@ -175,3 +175,74 @@ npm start
 and open `http://localhost:8080`. (Your PC has normal internet access,
 so `npm install` will work fine there even though it can't run inside
 this chat session.)
+
+---
+
+# Adding a fifth overlay (and beyond)
+
+Nothing breaks when the catalogue grows. Almost everything reads the game
+list rather than a hardcoded four: entitlement, the customiser, the admin
+page, the overlay links and the one-overlay picker all widen on their own.
+There are two jobs — a code checklist, and one pricing decision.
+
+## The checklist: add the game to these five lists
+
+1. `relay.js` — `GAMES`. This is the master list; everything else keys off it.
+2. `server.js` — `GAME_FILES`, `GAME_NAMES`, `GAME_PORTS`. Give it a port
+   nothing else uses (the existing ones run 8090–8093).
+3. `look.js` — `GAMES`, so it can be customised. Add an accent mapping in
+   `lookScript` if the new overlay's theme colour is not `--gold`.
+4. `public/index.html` — `LOOK_GAMES`, the `GAMES` array (id, name, blurb),
+   an `opts` entry with its default accent, a `previewHTML` branch, and a
+   game card in the `#games` section.
+5. `overlays/` — the overlay page itself, plus the relay and page in the
+   launcher folder.
+
+Then update the copy that counts games out loud: the `#games` heading
+("Four games, one setup"), the monthly plan's bullets, and section 1 of
+`public/terms.html`.
+
+## The one thing that must never change
+
+**A purchase is a snapshot.** `relay.gamesFor()` records the games that
+existed at the moment somebody paid, and stores them on `user.perm`.
+Adding a game to `GAMES` therefore does NOT hand it to everyone who has
+already bought — which is exactly right, and what the terms promise.
+
+Do not "fix" this by granting `GAMES` dynamically at read time. That would
+silently give every past buyer every future game for free, forever, and
+there would be no way to walk it back.
+
+## The pricing decision
+
+`perm1` ("one overlay, $12") never needs to change — picking one game out
+of ten is the same product as picking one out of four.
+
+The `permall` tier is the one that goes stale. At four games, $25 is about
+$6 a game. At eight games it is about $3, so the same money buys twice as
+much and the monthly looks worse by comparison.
+
+**At game five, switch it from "all of them" to a fixed-size bundle:**
+"any three, forever, $25". That fixes it permanently:
+
+- The label never goes stale — "any three" is true at four games or forty.
+- Your exposure per sale is capped no matter how big the catalogue gets.
+- The subscription gets *better* every time you ship a game, without you
+  touching a single price. At ten games, $5/month for all ten against $25
+  for three is a genuinely strong argument for subscribing.
+
+Mechanically it is a small change: give the option `picks: 3` in the
+`OPTIONS` table in `relay.js` instead of `picks: null`, and the picker,
+the checkout count check and the webhook grant all follow automatically —
+that path is already built and tested, it is how `perm1` works.
+
+If you would rather keep selling "everything", raise the price with the
+catalogue at roughly $6 a game and expect to revisit it every launch.
+
+## A note on early buyers
+
+When game five lands, everyone who paid $25 for "all four" owns four, not
+five. That is what they agreed to. But while you still have few customers,
+granting them the new one anyway costs you almost nothing and buys real
+goodwill — add the game id to their `perm` array and tell them you did it.
+Once you have hundreds of them, stop.

@@ -9,7 +9,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Stripe = require('stripe');
 
-const { User, Review, Visitor, DayStat } = require('./models');
+const { User, Review, Visitor, DayStat, Purchase } = require('./models');
 const relay = require('./relay');
 const mail = require('./mailer');
 const look = require('./look');
@@ -21,8 +21,12 @@ const {
   JWT_SECRET,
   STRIPE_SECRET_KEY,
   STRIPE_WEBHOOK_SECRET,
-  STRIPE_PRICE_SINGLE,
-  STRIPE_PRICE_ALL,
+  /* The three things you can buy. PERM1 and PERMALL are one-time prices;
+     SUB is the monthly one. The old STRIPE_PRICE_SINGLE and
+     STRIPE_PRICE_ALL are deliberately NOT read any more — see below. */
+  STRIPE_PRICE_PERM1,
+  STRIPE_PRICE_PERMALL,
+  STRIPE_PRICE_SUB,
   PUBLIC_URL = 'http://localhost:8080',
   DISCORD_INVITE = '',
   DISCORD_NOTIFY_WEBHOOK_URL = '',
@@ -31,13 +35,29 @@ const {
 } = process.env;
 
 // ---- sanity checks (fail loud at boot rather than acting broken later) ----
-const required = { MONGODB_URI, JWT_SECRET, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_SINGLE, STRIPE_PRICE_ALL, ADMIN_PASSWORD };
+const required = { MONGODB_URI, JWT_SECRET, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, ADMIN_PASSWORD };
 for (const [k, v] of Object.entries(required)) {
   if (!v) console.warn(`[startup] Warning: ${k} is not set. That feature will not work until it is.`);
 }
 
 const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
-const PRICE_IDS = { single: STRIPE_PRICE_SINGLE, all: STRIPE_PRICE_ALL };
+/* No fallbacks here, on purpose. An earlier version let the monthly fall
+   back to the old $12 all-overlays price when STRIPE_PRICE_SUB was
+   missing, which meant a deploy that got ahead of the environment
+   variables would advertise $5/month on the page and charge $12/month at
+   the till. A dead button that says so is far better than a live button
+   that takes the wrong amount. */
+const PRICE_IDS = {
+  perm1:   STRIPE_PRICE_PERM1,
+  permall: STRIPE_PRICE_PERMALL,
+  sub:     STRIPE_PRICE_SUB,
+};
+/* Warn per option rather than per variable, so the message names the
+   button on the site that is dead rather than the letters that are
+   missing. */
+for (const [k, v] of Object.entries(PRICE_IDS)) {
+  if (!v) console.warn(`[startup] Warning: no Stripe price for "${k}" — that option cannot be bought yet.`);
+}
 const TRIAL_DAYS = 7;
 
 /* The version of the terms people are agreeing to. Bump this ONLY when
@@ -45,7 +65,7 @@ const TRIAL_DAYS = 7;
    asked to accept again the next time they open the site, and the old
    acceptance stays on their record. It must match the date printed at
    the top of public/terms.html. */
-const TERMS_VERSION = '2026-09-04';
+const TERMS_VERSION = '2026-09-08';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -73,15 +93,44 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
         const user = await User.findById(userId);
         if (!user) break;
         user.stripeCustomerId = session.customer;
-        user.stripeSubscriptionId = session.subscription;
-        user.plan = session.metadata && session.metadata.plan ? session.metadata.plan : user.plan;
+        /* Only a subscription checkout has one. A one-time purchase must
+           not blank out the subscription id of somebody who has both. */
+        if (session.subscription) user.stripeSubscriptionId = session.subscription;
+
+        const meta = session.metadata || {};
+        const option = meta.option || meta.plan || null;
+        const spec = option ? relay.OPTIONS[option] : null;
+
+        /* The overlays they paid for. Taken from the session Stripe just
+           confirmed rather than from anything the browser can still
+           change, and widened to everything when the option covers the
+           lot — an all-four purchase carries no list. */
+        const picked = String(meta.games || '').split(',').map(s => s.trim());
+        const bought = option ? relay.gamesFor(option, picked) : [];
+
+        if (spec && spec.once) {
+          /* Granted forever. Added to whatever they already own, never
+             replacing it — buying a second overlay must not take away
+             the first. */
+          const owned = new Set(user.perm || []);
+          for (const g of bought) owned.add(g);
+          user.perm = relay.GAMES.filter(g => owned.has(g));
+          user.markModified('perm');
+        } else if (option) {
+          user.plan = option;
+        }
         await user.save();
+
+        await recordPurchase(user, option, bought, session);
+
         // subscription.created (below) fills in status/trialEnd; but in case it
         // races, pull it directly here too.
         if (session.subscription) {
           const sub = await stripe.subscriptions.retrieve(session.subscription);
           await applySubscriptionToUser(user, sub);
           await notifyNewTrial(user, sub);
+        } else if (spec && spec.once) {
+          await notifyPurchase(user, spec, bought);
         }
         break;
       }
@@ -151,6 +200,50 @@ async function applySubscriptionToUser(user, sub) {
   const periodEnd = periodEndOf(sub);
   user.currentPeriodEnd = periodEnd ? new Date(periodEnd * 1000) : user.currentPeriodEnd;
   await user.save();
+}
+
+/* One row per completed payment. Stripe retries a webhook it thinks
+   failed, so this has to be safe to run twice: the unique session id
+   turns the second attempt into a duplicate-key error, which is caught
+   and ignored rather than producing a second row of imaginary revenue. */
+async function recordPurchase(user, option, games, session) {
+  const spec = option ? relay.OPTIONS[option] : null;
+  if (!spec) return;
+  try {
+    await Purchase.create({
+      userId: user._id,
+      email: user.email,
+      kind: option,
+      games,
+      /* What Stripe actually collected, in whole dollars, falling back to
+         the list price if the session did not carry a total (a fully
+         discounted checkout can report zero, and zero is correct then). */
+      amountUsd: typeof session.amount_total === 'number'
+        ? Math.round(session.amount_total / 100)
+        : spec.usd,
+      stripeSessionId: session.id,
+    });
+  } catch (err) {
+    if (err && err.code === 11000) return;      // already recorded
+    console.error('[purchase] could not record', err.message);
+  }
+}
+
+async function notifyPurchase(user, spec, games) {
+  if (!DISCORD_NOTIFY_WEBHOOK_URL) return;
+  const names = games.map(g => GAME_NAMES[g] || g).join(', ');
+  const body = {
+    content: `🍩 **Overlay bought outright**\n**${user.email}** — ${spec.label} ($${spec.usd})\n${names}`,
+  };
+  try {
+    await fetch(DISCORD_NOTIFY_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    console.error('[discord notify] failed', err.message);
+  }
 }
 
 async function notifyNewTrial(user, sub) {
@@ -420,6 +513,11 @@ app.get('/api/me', auth, (req, res) => {
     email: u.email,
     plan: u.plan,
     status: u.status,
+    /* Overlays owned outright. Separate from the subscription on purpose:
+       the page has to be able to say "you own two of these" to somebody
+       with no subscription at all. */
+    perm: relay.permOf(u),
+    subGames: relay.subGames(u),
     trialEnd: u.trialEnd,
     currentPeriodEnd: u.currentPeriodEnd,
     /* true when this person has not accepted the terms as they stand
@@ -439,13 +537,14 @@ app.post('/api/accept-terms', auth, async (req, res) => {
   res.json({ ok: true, termsVersion: TERMS_VERSION });
 });
 
-/* Read an overlay choice off a request body. Accepts the new `games`
-   array and the old single `game` string, because a browser sitting on a
-   cached copy of the page will still be posting the old shape for a while
-   after a deploy. Returns null if there is nothing usable — the caller
-   turns that into a "pick some first" message rather than a silent
-   default, which is how everyone ended up on the board last time. */
-function readPicks(body) {
+/* Read the overlays somebody picked off a request body, and check the
+   count is right for what they are buying. Accepts the new `games` array
+   and the old single `game` string, because a browser sitting on a cached
+   copy of the page will still be posting the old shape for a while after
+   a deploy. Returns null if there is nothing usable — the caller turns
+   that into a "pick some first" message rather than a silent default,
+   which is how everyone ended up on the board last time. */
+function readPicks(body, want) {
   const raw = Array.isArray(body.games) ? body.games
             : body.game ? [body.game]
             : [];
@@ -459,16 +558,19 @@ function readPicks(body) {
   if (!out.length) return null;
   /* Too many is a rejection, not a silent trim: quietly dropping the
      overlay somebody meant to pick is worse than making them choose. */
-  if (out.length > relay.SINGLE_PICKS) return null;
+  if (want != null && out.length > want) return null;
   return out;
 }
 
 // ---- checkout ----
 app.post('/api/checkout', auth, async (req, res) => {
   if (!stripe) return res.status(503).json({ error: 'checkout is not set up on the server yet' });
-  const plan = req.body.plan;
-  const priceId = PRICE_IDS[plan];
-  if (!priceId) return res.status(400).json({ error: 'unknown plan' });
+  /* `option` is the new name; `plan` is what older cached pages send. */
+  const option = req.body.option || req.body.plan;
+  const spec = relay.OPTIONS[option];
+  const priceId = PRICE_IDS[option];
+  if (!spec) return res.status(400).json({ error: 'unknown option' });
+  if (!priceId) return res.status(503).json({ error: 'that option is not set up for payment yet' });
 
   try {
     const user = req.user;
@@ -480,18 +582,44 @@ app.post('/api/checkout', auth, async (req, res) => {
       return res.status(403).json({ error: 'please accept the terms first', needsTerms: true });
     }
 
-    /* Which overlays a single-plan customer picked, chosen on the site
-       before they were sent to Stripe. Stored now rather than after the
-       webhook, so it is already right the first time they open their
-       links — the old code silently left everyone on the board. */
-    if (plan === 'single') {
-      const picks = readPicks(req.body);
-      if (!picks) {
-        return res.status(400).json({ error: `pick up to ${relay.SINGLE_PICKS} overlays first` });
+    /* Which overlays they picked, chosen on the site before they were
+       sent to Stripe. Carried in the session metadata so the webhook can
+       grant exactly those and nothing else — putting them on the user
+       record here instead would let somebody start a checkout, change
+       the picks, and pay for the first set while owning the second. */
+    let picks = [];
+    if (spec.picks != null) {
+      picks = readPicks(req.body, spec.picks) || [];
+      if (picks.length !== spec.picks) {
+        return res.status(400).json({
+          error: `pick ${spec.picks} overlay${spec.picks === 1 ? '' : 's'} first`,
+        });
       }
-      user.overlayChoices = picks;
-      user.overlayChoice = picks[0];      // keep the old field in step
-      await user.save();
+    }
+
+    /* Nobody should be able to pay for something they already own. For a
+       pick-your-own option that means the overlays they chose; for the
+       all-four option it means already owning all four. Checked against
+       what the purchase would actually grant, so the rule cannot drift
+       apart from the grant. */
+    if (spec.once) {
+      const owned = relay.permOf(user);
+      const would = relay.gamesFor(option, picks);
+      const dupes = would.filter(g => owned.includes(g));
+      if (dupes.length === would.length) {
+        return res.status(400).json({
+          error: would.length === 1
+            ? `you already own ${GAME_NAMES[would[0]] || would[0]}`
+            : 'you already own all of these',
+        });
+      }
+      if (dupes.length && spec.picks != null) {
+        return res.status(400).json({
+          error: `you already own ${dupes.map(g => GAME_NAMES[g] || g).join(' and ')}`,
+        });
+      }
+      /* Buying all four while owning one or two is fine — they are
+         topping up, and the extra overlays are worth the price. */
     }
 
     // Someone who already has (or has already used) a subscription on this
@@ -499,13 +627,23 @@ app.post('/api/checkout', auth, async (req, res) => {
     const alreadyUsedTrial = !!user.stripeSubscriptionId;
 
     const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
+      /* One-time purchases and the subscription are different Stripe
+         modes. Sending a one-time price in subscription mode fails with
+         an error nobody would understand from the site. */
+      mode: spec.once ? 'payment' : 'subscription',
       customer_email: user.stripeCustomerId ? undefined : user.email,
       customer: user.stripeCustomerId || undefined,
       client_reference_id: user._id.toString(),
       line_items: [{ price: priceId, quantity: 1 }],
-      subscription_data: alreadyUsedTrial ? undefined : { trial_period_days: TRIAL_DAYS },
-      metadata: { plan, userId: user._id.toString() },
+      subscription_data: spec.once || alreadyUsedTrial
+        ? undefined
+        : { trial_period_days: TRIAL_DAYS },
+      metadata: {
+        option,
+        userId: user._id.toString(),
+        /* A comma-joined string: Stripe metadata values are strings. */
+        games: picks.join(','),
+      },
       allow_promotion_codes: true,
       success_url: `${PUBLIC_URL}/?checkout=success`,
       cancel_url: `${PUBLIC_URL}/?checkout=cancelled`,
@@ -546,10 +684,12 @@ app.get('/api/links', auth, async (req, res) => {
   res.json({
     active: true,
     plan: user.plan,
+    status: user.status,
     games,
-    choice: user.overlayChoice,
-    choices: relay.picksOf(user),
-    maxPicks: relay.SINGLE_PICKS,
+    /* Which of these they own forever, and which are only theirs while
+       the subscription runs. The page uses it to label each link. */
+    perm: relay.permOf(user),
+    subOnly: relay.subGames(user).filter(g => !relay.permOf(user).includes(g)),
     /* role=display strips the operator controls, bg=transparent drops the
        background so it sits over gameplay. Both are flags the overlay
        already understands — the local version got them from its /display
@@ -571,10 +711,13 @@ app.get('/api/links', auth, async (req, res) => {
 app.get('/download/:token/donut-overlays-launcher.zip', async (req, res) => {
   const user = await User.findOne({ overlayToken: req.params.token });
   if (!user) return res.status(404).send(notice('That download link is not recognised.'));
-  if (!relay.entitled(user)) {
+  /* Owning an overlay outright is enough. Gating the download on a live
+     subscription would have locked somebody who paid once out of the
+     software their purchase needs to run. */
+  if (!relay.hasAnything(user)) {
     return res.status(402).send(notice(
-      'This subscription is not active.',
-      'Start it again at ' + PUBLIC_URL + ' and the download will work straight away.'
+      'There is nothing on this account yet.',
+      'Buy an overlay at ' + PUBLIC_URL + ' and the download will work straight away.'
     ));
   }
   const file = path.join(__dirname, 'launcher', 'donut-overlays-launcher.zip');
@@ -607,15 +750,19 @@ app.put('/api/look', auth, async (req, res) => {
   }
 });
 
-/* Someone on the cheaper plan changing which overlays they use. */
+/* Only for accounts still on the old two-overlay subscription. Nothing
+   you can buy today is switchable: an overlay bought outright is yours
+   and stays yours, and the monthly covers all of them anyway. Letting a
+   $5 purchase be swapped around would be a way to own all four for $5. */
+const LEGACY_PICKS = 2;
 app.post('/api/choose-overlay', auth, async (req, res) => {
   if (req.user.plan !== 'single') {
-    return res.status(400).json({ error: 'your plan already includes every overlay' });
+    return res.status(400).json({ error: 'there is nothing to switch on your account' });
   }
-  const picks = readPicks(req.body);
+  const picks = readPicks(req.body, LEGACY_PICKS);
   if (!picks) {
     return res.status(400).json({
-      error: `pick between 1 and ${relay.SINGLE_PICKS} overlays`,
+      error: `pick between 1 and ${LEGACY_PICKS} overlays`,
     });
   }
   req.user.overlayChoices = picks;
@@ -636,16 +783,16 @@ app.get('/o/:token/:game', async (req, res) => {
   const user = await User.findOne({ overlayToken: token });
   if (!user) return res.status(404).send(notice('This overlay link is not recognised.'));
 
-  if (!relay.entitled(user)) {
+  if (!relay.hasAnything(user)) {
     return res.status(402).send(notice(
-      'This subscription is not active.',
-      'Start it again at ' + PUBLIC_URL + ' and this link will start working immediately — it never changes.'
+      'There is nothing on this account yet.',
+      'Buy an overlay at ' + PUBLIC_URL + ' and this link will start working immediately — it never changes.'
     ));
   }
   if (!relay.allowedGames(user).includes(game)) {
     return res.status(403).send(notice(
       'Your plan does not include this overlay.',
-      `The $8 plan covers ${relay.SINGLE_PICKS} overlays at a time. Change which ones, or move to the $12 plan, on the website.`
+      'You have not bought this one. Buy it outright, or take the monthly which covers every overlay, on the website.'
     ));
   }
 
@@ -805,17 +952,53 @@ app.get('/admin', requireAdmin, async (req, res) => {
   const active = count('active');
   const canceled = count('canceled');
   const problem = count('past_due') + count('unpaid');
-  const noPlan = users.filter(u => !u.status || u.status === 'none').length;
 
-  // What the active subscriptions are worth per month, at list price.
-  // Trials are not counted — nobody has paid for those yet.
-  const PRICE = { single: 8, all: 12 };
+  /* What the live subscriptions are worth per month, at list price.
+     Trials are not counted — nobody has paid for those yet. The old $8
+     and $12 tiers are still priced correctly for anyone still on one. */
+  const PRICE = { single: 8, all: 12, sub: relay.OPTIONS.sub.usd };
   const mrr = users
     .filter(u => u.status === 'active')
     .reduce((sum, u) => sum + (PRICE[u.plan] || 0), 0);
   const trialValue = users
     .filter(u => u.status === 'trialing')
     .reduce((sum, u) => sum + (PRICE[u.plan] || 0), 0);
+
+  /* Every payment ever taken, subscriptions and one-off purchases alike.
+     This used to be worked out from who currently had a subscription,
+     which meant a one-time purchase was invisible and a customer who
+     cancelled erased their own history from the page. */
+  const purchases = await Purchase.find({}).sort({ createdAt: -1 }).limit(500).lean();
+  const sumOf = f => purchases.filter(f).reduce((n, p) => n + (p.amountUsd || 0), 0);
+  /* Anything that is not the monthly. Listed by name rather than by a
+     rule, so a future option cannot quietly slip out of the totals. */
+  const ONE_OFF_KINDS = ['perm1', 'permall', 'perm3'];
+  const isOneOff = p => ONE_OFF_KINDS.includes(p.kind);
+  const oneOff = purchases.filter(isOneOff);
+  const monthAgo = new Date(Date.now() - 30 * 864e5);
+  const takenEver = sumOf(() => true);
+  const taken30 = sumOf(p => new Date(p.createdAt) >= monthAgo);
+  const permOwners = users.filter(u => (u.perm || []).length).length;
+
+  const KIND_NAME = {
+    perm1: 'One overlay, forever',
+    permall: 'All four, forever',
+    perm3: 'Three overlays, forever',   // never sold, kept so old rows read right
+    sub: 'Monthly',
+    single: 'Monthly (old $8)',
+    all: 'Monthly (old $12)',
+  };
+  const purchaseRows = purchases.length ? purchases.map(p => `
+    <tr>
+      <td>${fmtDate(p.createdAt)}</td>
+      <td>${esc(p.email || '')}</td>
+      <td>${esc(KIND_NAME[p.kind] || p.kind)}</td>
+      <td>${p.games && p.games.length
+            ? p.games.map(g => esc(GAME_NAMES[g] || g)).join(', ')
+            : '<span class="muted">everything</span>'}</td>
+      <td><strong>$${p.amountUsd || 0}</strong></td>
+    </tr>`).join('')
+    : '<tr><td colspan="5" class="muted">Nothing bought yet. Purchases appear here the moment Stripe confirms them.</td></tr>';
 
   const tile = (label, value, cls, sub) => `
     <div class="tile ${cls || ''}">
@@ -829,6 +1012,9 @@ app.get('/admin', requireAdmin, async (req, res) => {
       <td>${esc(u.email)}</td>
       <td><span class="pill ${esc(u.status)}">${esc(u.status || 'none')}</span></td>
       <td>${esc(u.plan || '—')}</td>
+      <td>${(u.perm || []).length
+            ? (u.perm || []).map(g => esc(GAME_NAMES[g] || g)).join('<br>')
+            : '<span class="muted">—</span>'}</td>
       <td>${fmtDate(u.trialStart)}</td>
       <td>${fmtDate(u.trialEnd)}</td>
       <td>${fmtDate(u.currentPeriodEnd)}</td>
@@ -854,13 +1040,29 @@ app.get('/admin', requireAdmin, async (req, res) => {
       No IP addresses are stored. <a href="/admin/visitors">Day by day →</a>
     </p>
 
+    <h3 class="sec">Money</h3>
+    <div class="tiles">
+      ${tile('Taken, all time', '$' + takenEver, 'gold', purchases.length + ' payment' + (purchases.length === 1 ? '' : 's'))}
+      ${tile('Taken, last 30 days', '$' + taken30, 'green')}
+      ${tile('Bought outright', oneOff.length, '', '$' + sumOf(isOneOff) + ' from ' + permOwners + ' account' + (permOwners === 1 ? '' : 's'))}
+      ${tile('Subscriptions running', active, 'green', '$' + mrr + '/mo')}
+    </div>
+    <p class="muted">
+      One-time purchases and subscriptions, every payment Stripe has confirmed.
+      A cancelled subscription stays in this list — the money still came in.
+    </p>
+    <table>
+      <thead><tr><th>When</th><th>Who</th><th>What</th><th>Overlays</th><th>Paid</th></tr></thead>
+      <tbody>${purchaseRows}</tbody>
+    </table>
+
     <h3 class="sec">Accounts</h3>
     <div class="tiles">
       ${tile('On free trial', trialing, 'gold', trialValue ? '$' + trialValue + '/mo if they all convert' : '')}
       ${tile('Paying now', active, 'green', '$' + mrr + '/mo')}
       ${tile('Cancelled', canceled, 'red')}
       ${tile('Payment problems', problem, problem ? 'red' : '')}
-      ${tile('Signed up, no plan', noPlan)}
+      ${tile('Owns overlays outright', permOwners, permOwners ? 'gold' : '', 'keeps working with no subscription')}
       ${tile('Accounts total', users.length)}
     </div>
     <p class="muted">
@@ -870,7 +1072,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
        : 'Everyone has accepted the terms.'}
     </p>
     <table>
-      <thead><tr><th>Email</th><th>Status</th><th>Plan</th><th>Trial started</th><th>Trial ends</th><th>Renews / ended</th><th>Signed up</th><th>Terms accepted</th></tr></thead>
+      <thead><tr><th>Email</th><th>Status</th><th>Plan</th><th>Owns forever</th><th>Trial started</th><th>Trial ends</th><th>Renews / ended</th><th>Signed up</th><th>Terms accepted</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="8" class="muted">No accounts yet.</td></tr>'}</tbody>
     </table>
     <script>

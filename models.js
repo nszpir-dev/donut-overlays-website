@@ -30,6 +30,12 @@ const userSchema = new mongoose.Schema({
   overlayChoice: { type: String, default: 'board' },
   overlayChoices: { type: [String], default: [] },
 
+  /* Overlays bought outright. These do NOT expire and are never removed
+     by a cancelled or failed subscription — somebody who paid once owns
+     the thing, and taking it back because a later card failed would be
+     the single worst bug this site could have. */
+  perm: { type: [String], default: [] },
+
   /* Password reset. Only the HASH of the token is stored, so a leaked
      database still cannot be used to take over an account — same reasoning
      as never storing the password itself. */
@@ -89,7 +95,27 @@ const dayStatSchema = new mongoose.Schema({
   newVisitors: { type: Number, default: 0 },   // never seen before that day
 }, { versionKey: false });
 
+/* Every completed purchase, one row each. The admin page used to work
+   this out by looking at who currently had a subscription, which meant a
+   one-time payment was invisible and a cancelled customer erased their
+   own history. Money that came in is a fact; it gets its own record. */
+const purchaseSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
+  email: { type: String, default: '' },
+  /* 'perm1' | 'perm3' | 'sub' */
+  kind: { type: String, required: true },
+  games: { type: [String], default: [] },
+  /* Whole US dollars, stored as charged rather than looked up later —
+     a price change must never rewrite what somebody actually paid. */
+  amountUsd: { type: Number, default: 0 },
+  /* Stripe's session id, unique so a webhook Stripe retries three times
+     cannot record the same payment three times. */
+  stripeSessionId: { type: String, unique: true, sparse: true },
+  createdAt: { type: Date, default: Date.now, index: true },
+});
+
 module.exports = {
+  Purchase: mongoose.model('Purchase', purchaseSchema),
   User: mongoose.model('User', userSchema),
   Review: mongoose.model('Review', reviewSchema),
   Visitor: mongoose.model('Visitor', visitorSchema),
