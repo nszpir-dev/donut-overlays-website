@@ -236,6 +236,9 @@ section{padding:6rem 0;position:relative}
 @media(max-width:700px){.linkrow{flex-wrap:wrap}.linkrow .plat{width:auto}}
 
 /* ---------- pricing ---------- */
+.plans.three{grid-template-columns:repeat(3,1fr);max-width:1060px}
+@media(max-width:900px){.plans.three{grid-template-columns:1fr;max-width:520px}}
+@media(max-width:900px){.plans.three .plan + .plan{border-left:none;border-top:1px solid var(--line)}}
 .plans{display:grid;grid-template-columns:1fr 1fr;max-width:880px;
   border:1px solid var(--line);border-radius:1rem;overflow:hidden;background:var(--panel);backdrop-filter:blur(8px)}
 @media(max-width:800px){.plans{grid-template-columns:1fr}}
@@ -346,8 +349,8 @@ section{padding:6rem 0;position:relative}
 .msg{font-size:.88rem;margin-top:.6rem;min-height:1.2rem}
 .msg.bad{color:#ff8f8f}
 .msg.good{color:var(--teal)}
-/* Picking which overlays the $8 plan covers. Big targets, because
-   this gets picked on a phone as often as a desktop. */
+/* Picking which overlays somebody is buying. Big targets, because this
+   gets picked on a phone as often as a desktop. */
 .pickcount{margin-top:.75rem;font-size:.88rem;color:var(--muted);
   font-weight:700;letter-spacing:.04em}
 .pickcount.done{color:var(--teal)}
@@ -362,6 +365,10 @@ section{padding:6rem 0;position:relative}
 .pick.on{border-color:var(--teal);background:#08201f}
 .pick .dot{width:1.1rem;height:1.1rem;border-radius:50%;border:2px solid var(--line);
   flex:none;margin-top:.15rem}
+.pick.owned{opacity:.5;cursor:default}
+.pick.owned:hover{border-color:var(--line)}
+.pick .tag{font-style:normal;font-size:.7rem;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--gold);margin-left:.5rem}
 .pick.on .dot{border-color:var(--teal);background:var(--teal);
   box-shadow:inset 0 0 0 3px #08201f}
 .pick b{display:block;font-size:1.02rem}
@@ -483,10 +490,10 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
         <a href="#pricing" class="btn btn-gold">Start your 7 day trial</a>
         <a href="#games" class="btn btn-ghost">See the overlays</a>
       </div>
-      <p class="trial-note">Works with TikTok LIVE Studio, Twitch and YouTube.</p>
+      <p class="trial-note">$5 a month, or buy the overlays outright. Works with TikTok LIVE Studio, Twitch and YouTube.</p>
       <div class="counts">
         <div><b>0.1s</b><span>payment to screen</span></div>
-        <div><b>3</b><span>games included</span></div>
+        <div><b>4</b><span>games to choose from</span></div>
         <div><b>5 min</b><span>to set up</span></div>
       </div>
     </div>
@@ -591,34 +598,47 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 <section id="pricing">
   <div class="wrap">
     <div class="sec-head">
-      <h2>Seven days free, <em>then pick a plan</em></h2>
-      <p>Most streamers make the monthly cost back in a single round. Cancel whenever — the overlays simply stop loading.</p>
+      <h2>Pay monthly, <em>or buy it outright</em></h2>
+      <p>Start on the monthly — seven days free, cancel whenever. Or pay once and own the overlays outright, with nothing recurring and nothing to cancel. Five months of the monthly costs more than buying the lot.</p>
     </div>
-    <div class="plans">
-      <div class="plan">
-        <h3>Pick two</h3>
-        <div class="price" data-usd="8">$8<span>/month</span></div>
-        <div class="approx" data-approx="8"></div>
+    <div class="plans three">
+      <div class="plan best">
+        <h3>Monthly</h3>
+        <div class="price" data-usd="5" data-every="/month">$5<span>/month</span></div>
+        <div class="approx" data-approx="5"></div>
         <ul>
-          <li>Any two of the four games</li>
-          <li>Every platform: TikTok, Twitch, YouTube</li>
-          <li>Full colour and layout control</li>
-          <li>Change which two any time</li>
+          <li>All four games while it runs</li>
+          <li>Every new game the day it launches</li>
+          <li>Seven days free — nothing charged</li>
+          <li>Cancel whenever, from the site</li>
         </ul>
-        <a href="#" class="btn btn-ghost" data-plan="single">Start free trial</a>
+        <a href="#" class="btn btn-gold" data-option="sub">Start free trial</a>
         <p class="gate-note"></p>
       </div>
-      <div class="plan best">
-        <h3>Every game</h3>
-        <div class="price" data-usd="12">$12<span>/month</span></div>
+      <div class="plan">
+        <h3>One overlay</h3>
+        <div class="price" data-usd="12">$12<span>once</span></div>
         <div class="approx" data-approx="12"></div>
         <ul>
-          <li>All four games — board, auction, money game, Last Call</li>
-          <li>Every platform: TikTok, Twitch, YouTube</li>
-          <li>Full colour and layout control</li>
-          <li>New games added as they launch</li>
+          <li>Pick any one game — yours forever</li>
+          <li>One payment, nothing recurring</li>
+          <li>Keeps working with no subscription</li>
+          <li class="no">Games we add later are not included</li>
         </ul>
-        <a href="#" class="btn btn-gold" data-plan="all">Start free trial</a>
+        <a href="#" class="btn btn-ghost" data-option="perm1">Buy one overlay</a>
+        <p class="gate-note"></p>
+      </div>
+      <div class="plan">
+        <h3>All four</h3>
+        <div class="price" data-usd="25">$25<span>once</span></div>
+        <div class="approx" data-approx="25"></div>
+        <ul>
+          <li>All four games we have today — yours forever</li>
+          <li>One payment, nothing recurring</li>
+          <li>Cheaper than five months of the monthly</li>
+          <li class="no">Games we add later are not included</li>
+        </ul>
+        <a href="#" class="btn btn-ghost" data-option="permall">Buy all four</a>
         <p class="gate-note"></p>
       </div>
     </div>
@@ -627,12 +647,14 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
          allow that. Saying so here is cheaper than losing the signup to a
          decline message that explains nothing. -->
     <p class="fineprint">
-      <strong style="color:var(--gold)">Use a normal debit or credit card.</strong>
-      Prepaid cards, gift cards and most kids' cards get refused by their own bank when
-      you set up a subscription — it will just say "declined" without telling you why.
-      Nothing is charged during the 7 days either way.
+      <strong style="color:var(--gold)">Buying outright works with almost any card.</strong>
+      It is the <em>monthly</em> that trips people up: prepaid cards, gift cards and most kids'
+      cards get refused by their own bank when you set up a subscription, and it will just say
+      "declined" without telling you why. If that happens to you, buy an overlay outright instead —
+      a one-off payment does not need the card saved.
+      The monthly gives you seven days free before anything is charged.
     </p>
-    <p class="fineprint">Your overlays are served from our end, not stored on your computer. That is what keeps them fast, and it means a cancelled plan stops working straight away rather than lingering.</p>
+    <p class="fineprint">Your overlays are served from our end, not stored on your computer. That is what keeps them fast. An overlay you bought outright keeps working for as long as the site runs; a cancelled monthly stops working straight away rather than lingering.</p>
   </div>
 </section>
 
@@ -741,27 +763,21 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 
 <!-- Shown to accounts made before there was a box to tick, and to everyone
      again if the terms are ever changed in a way that affects them. -->
-<!-- The $8 plan covers two games, so which two has to be an actual
-     decision. It used to silently default to the elimination board, which
-     meant anyone who wanted the auction paid for the wrong thing. -->
+<!-- Buying overlays outright means choosing which ones is a permanent
+     decision, so it has to be an actual decision. It used to silently
+     default to the elimination board, which meant anyone who wanted the
+     auction paid for the wrong thing. -->
 <div class="sheet" id="pickSheet">
   <div class="sheet-inner narrow">
-    <div class="sheet-head"><h3>Pick your two overlays</h3><button id="pickClose" aria-label="Close">×</button></div>
+    <div class="sheet-head"><h3 id="pickTitle">Which overlay do you want?</h3><button id="pickClose" aria-label="Close">×</button></div>
     <div class="sheet-body single">
       <div>
-        <p style="color:var(--muted);margin:-.2rem 0 1.1rem;font-size:.95rem">
-          The $8 plan covers any two. You can change which two whenever you like,
-          from your account — you are not stuck with this.
-        </p>
+        <p id="pickBlurb" style="color:var(--muted);margin:-.2rem 0 1.1rem;font-size:.95rem"></p>
         <div id="pickList" class="picks"></div>
         <div id="pickCount" class="pickcount"></div>
-        <p style="color:var(--muted);font-size:.84rem;margin-top:.9rem;line-height:1.45">
-          Card tip: prepaid and gift cards usually get refused by their own bank on
-          subscriptions. A normal debit or credit card works.
-        </p>
-        <button class="btn btn-gold" id="pickGo" style="width:100%;margin-top:.7rem">Continue to checkout</button>
+        <button class="btn btn-gold" id="pickGo" style="width:100%;margin-top:.9rem">Continue to checkout</button>
         <div class="msg" id="pickMsg"></div>
-        <div class="switch">Want all four? <a id="pickAll">Take the $12 plan instead</a></div>
+        <div class="switch">Want all four? <a id="pickAll">Buy the lot for $25</a></div>
       </div>
     </div>
   </div>
@@ -1138,10 +1154,15 @@ function showPrices(code){
   document.querySelectorAll('[data-usd]').forEach(el => {
     const usd = Number(el.dataset.usd);
     const val = code === 'USD' ? usd : Math.round(usd * rate);
-    el.innerHTML = sym + val + '<span>/month</span>';
+    /* The suffix comes from the element, not from here. This used to
+       hardcode "/month", which silently relabelled the two one-time
+       purchases as subscriptions the moment the page loaded — the worst
+       possible thing for this page to be wrong about. */
+    const suffix = el.dataset.every || 'once';
+    el.innerHTML = sym + val + '<span>' + suffix + '</span>';
   });
   document.querySelectorAll('[data-approx]').forEach(el => {
-    el.textContent = code === 'USD' ? '' : 'about ' + code + ', billed as $' + el.dataset.approx + ' USD';
+    el.textContent = code === 'USD' ? '' : 'about ' + code + ', charged as $' + el.dataset.approx + ' USD';
   });
   try { localStorage.setItem('cur', code); } catch(e){}
 }
@@ -1208,7 +1229,7 @@ const shortDate = d => new Date(d).toLocaleDateString(undefined, { month:'short'
 
 /* The header button is "Start free trial" for a stranger, but that reads as
    nonsense to someone already trialing — they get "Manage plan" instead. */
-function setCta(status){
+function setCta(status, perm){
   const cta = document.getElementById('headerCta');
   if(!cta) return;
   const subscribed = status === 'trialing' || status === 'active' || status === 'past_due';
@@ -1217,7 +1238,10 @@ function setCta(status){
     cta.href = '#';
     cta.onclick = e => { e.preventDefault(); openPortal(); };
   } else {
-    cta.textContent = 'Start free trial';
+    /* Somebody who bought overlays outright has no plan to manage and no
+       trial to start. Sending them to a "Start free trial" button they
+       have already moved past is confusing — offer them more games. */
+    cta.textContent = (perm && perm.length) ? 'Get more overlays' : 'Start free trial';
     cta.href = '#pricing';
     cta.onclick = null;
   }
@@ -1231,25 +1255,34 @@ async function refreshMe(){
     const r = await fetch(API + '/api/me', { headers: authHeader() });
     if(!r.ok) return; // expired token etc — leave the email showing
     const data = await r.json();
-    setCta(data.status);
+    setCta(data.status, data.perm);
+    /* Kept on `me` so the picker can grey out what they already own. */
+    me.perm = data.perm || [];
     paintSetup();   // turn the example links into their real ones
     if(data.needsTerms) askForTerms();
     const el = document.getElementById('acctState');
     if(!el) return;
     el.className = 'state';
+    const owned = (data.perm || []).length;
     if(data.status === 'trialing' && data.trialEnd){
       el.textContent = 'Trial ends ' + shortDate(data.trialEnd);
     } else if(data.status === 'active'){
       el.classList.add('active');
-      el.textContent = data.plan === 'all' ? 'All overlays' : 'Two overlays';
+      el.textContent = data.plan === 'single' ? 'Two overlays' : 'All overlays';
     } else if(data.status === 'past_due'){
       el.classList.add('ended');
       el.textContent = 'Payment failed';
+    } else if(owned){
+      /* Owned overlays outlive a cancelled subscription, so this comes
+         before the cancelled branch — telling somebody who owns two
+         games that they have nothing would be simply wrong. */
+      el.classList.add('active');
+      el.textContent = owned === 1 ? '1 overlay owned' : owned + ' overlays owned';
     } else if(data.status === 'canceled'){
       el.classList.add('ended');
       el.textContent = 'Plan cancelled';
     } else {
-      el.textContent = 'No plan yet';
+      el.textContent = 'Nothing yet';
     }
   } catch(e){ /* server not reachable — leave the email showing */ }
 }
@@ -1483,11 +1516,18 @@ function paintGate(){
 let pendingPlan = null;
 let pendingGames = [];
 
-/* How many the $8 plan covers. The server enforces this; the number here
-   only shapes the wording and stops the third click. */
-let MAX_PICKS = 2;
+/* What each thing you can buy covers. Mirrors the same table on the
+   server, which is the one that actually enforces it — these numbers
+   only shape the wording and stop the extra click. `picks: null` means
+   the option covers every overlay, so there is nothing to choose. */
+const OPTIONS = {
+  perm1:   { picks: 1,    label: 'one overlay' },
+  permall: { picks: null, label: 'all four' },
+  sub:     { picks: null, label: 'every overlay' },
+};
+let MAX_PICKS = 1;
 
-/* ---------------- which overlays, for the $8 plan ---------------- */
+/* ---------------- which overlays, when you are buying some ---------------- */
 const GAMES = [
   { id:'board',   name:'Donut Royale',  blurb:'The elimination board. Heads on a grid, knocked out one at a time until somebody is left.' },
   { id:'auction', name:'Donut Auction', blurb:'Live item auctions. Highest bid before the clock runs out takes it.' },
@@ -1498,12 +1538,17 @@ const GAMES = [
 /* Draw a list of overlay buttons with `chosen` highlighted. Shared by the
    checkout picker and the switcher in the account panel, so the two can
    never drift apart. */
-function renderPicks(list, chosen){
-  list.innerHTML = GAMES.map(g => `
-    <button type="button" class="pick${chosen.includes(g.id) ? ' on' : ''}" data-game="${g.id}">
+function renderPicks(list, chosen, owned){
+  owned = owned || [];
+  list.innerHTML = GAMES.map(g => {
+    const have = owned.includes(g.id);
+    return `
+    <button type="button" class="pick${chosen.includes(g.id) ? ' on' : ''}${have ? ' owned' : ''}"
+            data-game="${g.id}"${have ? ' disabled' : ''}>
       <span class="dot"></span>
-      <span><b>${g.name}</b><span>${g.blurb}</span></span>
-    </button>`).join('');
+      <span><b>${g.name}${have ? ' <em class="tag">you own this</em>' : ''}</b><span>${g.blurb}</span></span>
+    </button>`;
+  }).join('');
 }
 
 /* Clicking an overlay adds it, clicking it again takes it away. Once two
@@ -1522,22 +1567,38 @@ function togglePick(chosen, id){
 function paintPickCount(){
   const left = MAX_PICKS - pendingGames.length;
   const el = document.getElementById('pickCount');
+  if(!el) return;
   el.textContent = left > 0
     ? (pendingGames.length ? `Pick ${left} more` : `Pick ${MAX_PICKS}`)
-    : 'Both chosen — clicking another swaps one out';
+    : (MAX_PICKS === 1
+        ? 'Chosen — clicking another swaps it'
+        : 'All chosen — clicking another swaps one out');
   el.classList.toggle('done', left === 0);
 }
 
 function openPick(){
+  const spec = OPTIONS[pendingPlan] || { picks: 1 };
+  MAX_PICKS = spec.picks || 1;
+  /* The sheet is used for a one-overlay purchase and a three-overlay
+     purchase, so the wording has to come from the option rather than
+     being baked into the html. */
+  document.getElementById('pickTitle').textContent =
+    MAX_PICKS === 1 ? 'Which overlay do you want?' : `Pick your ${MAX_PICKS} overlays`;
+  document.getElementById('pickBlurb').textContent =
+    MAX_PICKS === 1
+      ? 'Whichever you choose is yours for good. There is no subscription and nothing to cancel.'
+      : `All ${MAX_PICKS} are yours for good. There is no subscription and nothing to cancel.`;
+  /* Overlays they already bought are not for sale twice. */
+  const owned = (me && me.perm) || [];
   const list = document.getElementById('pickList');
   /* Nothing preselected on purpose. A highlighted first option is how the
      old version quietly sold everybody the elimination board. */
   pendingGames = [];
-  renderPicks(list, pendingGames);
+  renderPicks(list, pendingGames, owned);
   list.onclick = e => {
-    const b = e.target.closest('.pick'); if(!b) return;
+    const b = e.target.closest('.pick'); if(!b || b.disabled) return;
     togglePick(pendingGames, b.dataset.game);
-    renderPicks(list, pendingGames);
+    renderPicks(list, pendingGames, owned);
     paintPickCount();
     document.getElementById('pickMsg').textContent = '';
   };
@@ -1549,9 +1610,16 @@ function openPick(){
 document.getElementById('pickClose').onclick = () =>
   document.getElementById('pickSheet').classList.remove('open');
 document.getElementById('pickGo').onclick = () => {
-  if(!pendingGames.length){
+  /* The exact number, not "at least one". These are bought outright, so
+     paying the three-overlay price having chosen two would quietly cost
+     somebody a game they never got. */
+  if(pendingGames.length !== MAX_PICKS){
     const m = document.getElementById('pickMsg');
-    m.className = 'msg bad'; m.textContent = 'Pick at least one to carry on.';
+    const short = MAX_PICKS - pendingGames.length;
+    m.className = 'msg bad';
+    m.textContent = short > 0
+      ? `Pick ${short} more to carry on — you are paying for ${MAX_PICKS}.`
+      : `Pick ${MAX_PICKS} to carry on.`;
     return;
   }
   document.getElementById('pickSheet').classList.remove('open');
@@ -1559,7 +1627,7 @@ document.getElementById('pickGo').onclick = () => {
 };
 document.getElementById('pickAll').onclick = () => {
   document.getElementById('pickSheet').classList.remove('open');
-  pendingPlan = 'all'; pendingGames = [];
+  pendingPlan = 'permall'; pendingGames = [];
   proceedToCheckout();
 };
 
@@ -1567,21 +1635,23 @@ document.getElementById('pickAll').onclick = () => {
 function proceedToCheckout(){
   if(!joinedDiscord()) return; // discord sheet already handles re-entry
   if(!me){ openAuth('login'); return; } // authGo success calls this again
-  if(pendingPlan === 'single' && !pendingGames.length){ openPick(); return; }
+  const spec = OPTIONS[pendingPlan];
+  if(spec && spec.picks && pendingGames.length !== spec.picks){ openPick(); return; }
   startCheckout(pendingPlan);
 }
 
-async function startCheckout(plan){
+async function startCheckout(option){
+  const spec = OPTIONS[option] || {};
   try {
     const r = await fetch(API + '/api/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader() },
-      body: JSON.stringify(plan === 'single' ? { plan, games: pendingGames } : { plan }),
+      body: JSON.stringify(spec.picks ? { option, games: pendingGames } : { option }),
     });
     const data = await r.json();
     /* The server refuses to bill anyone without an acceptance on file.
-       Ask for it, remembering the plan so they land back here after. */
-    if(r.status === 403 && data.needsTerms){ pendingPlan = plan; askForTerms(); return; }
+       Ask for it, remembering the option so they land back here after. */
+    if(r.status === 403 && data.needsTerms){ pendingPlan = option; askForTerms(); return; }
     pendingPlan = null;
     if(!r.ok) throw new Error(data.error || 'could not start checkout');
     location.href = data.url;
@@ -1591,9 +1661,9 @@ async function startCheckout(plan){
       : e.message);
   }
 }
-document.querySelectorAll('[data-plan]').forEach(b => b.addEventListener('click', e => {
+document.querySelectorAll('[data-option]').forEach(b => b.addEventListener('click', e => {
   e.preventDefault();
-  pendingPlan = b.dataset.plan;
+  pendingPlan = b.dataset.option;
   pendingGames = [];              // a fresh choice every time, never a leftover
   if(!joinedDiscord()){
     document.getElementById('discordSheet').classList.add('open');
@@ -1729,10 +1799,21 @@ async function paintSetup(){
   /* Each game gets its own control panel address, because each relay
      listens on its own port. One shared address was simply wrong for
      two of the three games. */
+  /* Owned outright versus covered by the monthly. Worth saying on each
+     row: somebody about to cancel needs to know which of these keeps
+     working afterwards and which does not. */
+  const owned = data.perm || [];
   data.links.forEach((l, i) => {
+    const mine = owned.includes(l.game);
     rows.push(`
       <div class="linkrow">
-        <div class="plat" style="padding-left:1.2rem;font-weight:700;color:var(--teal)">${l.name}</div>
+        <div class="plat" style="padding-left:1.2rem;font-weight:700;color:var(--teal)">
+          ${l.name}
+          <div style="font-weight:400;font-size:.74rem;letter-spacing:.06em;margin-top:.15rem;
+                      color:${mine ? 'var(--gold)' : 'var(--muted)'}">
+            ${mine ? 'yours forever' : 'with your monthly'}
+          </div>
+        </div>
         <div style="flex:1;min-width:0">
           <code id="ln${i}" style="display:block">${l.url}</code>
           <div style="font-size:.8rem;color:var(--muted);margin-top:.3rem">
@@ -1743,16 +1824,33 @@ async function paintSetup(){
       </div>`);
   });
 
-  /* Single-plan customers need a way to change their mind. Without this
-     the choice made at checkout was permanent, which is not what the
-     pricing says. */
-  if(data.plan === 'single'){
+  /* What they have not got yet, so buying the rest is one click away
+     rather than a scroll back up to the pricing table. */
+  const missing = GAMES.filter(g => !data.games.includes(g.id));
+  if(missing.length){
+    rows.push(`
+      <div class="linkrow" style="align-items:flex-start">
+        <div class="plat">Not yours yet</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.88rem;color:var(--muted)">
+            ${missing.map(g => g.name).join(', ')} —
+            <a href="#pricing" style="color:var(--teal)">buy ${missing.length === 1 ? 'it' : 'them'} outright</a>
+            or take the $5 monthly for the lot.
+          </div>
+        </div>
+      </div>`);
+  }
+
+  /* Only for accounts still on the old two-overlay subscription. Nothing
+     sold today is switchable — an overlay bought outright is owned, and
+     the monthly covers all of them. */
+  if(data.plan === 'single' && data.status !== 'canceled'){
     rows.push(`
       <div class="linkrow" style="align-items:flex-start">
         <div class="plat">Switch</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:.88rem;color:var(--muted);margin-bottom:.55rem">
-            Your plan covers ${data.maxPicks || 2} overlays at a time. Click one to add it,
+            Your old plan covers 2 overlays at a time. Click one to add it,
             click a highlighted one to drop it. Your links above update straight away.
           </div>
           <div id="swapList" class="picks"></div>
@@ -1763,12 +1861,15 @@ async function paintSetup(){
 
   box.innerHTML = rows.join('');
 
-  if(data.plan === 'single'){
-    MAX_PICKS = data.maxPicks || MAX_PICKS;
-    const list = document.getElementById('swapList');
+  /* Guarded the same way as the block that draws it above — without the
+     matching condition this looked up an element that is not there. */
+  const swapEl = document.getElementById('swapList');
+  if(swapEl){
+    MAX_PICKS = 2;
+    const list = swapEl;
     /* Trust the server's list, not the old single `choice` field — an
        account that has picked two would otherwise show only one lit up. */
-    const chosen = (data.choices && data.choices.length ? data.choices : [data.choice]).slice();
+    const chosen = (data.subOnly && data.subOnly.length ? data.subOnly : [data.choice]).slice();
     renderPicks(list, chosen);
     list.onclick = async e => {
       const b = e.target.closest('.pick'); if(!b) return;
@@ -1825,7 +1926,7 @@ async function paintSetup(){
        <p style="margin:.7rem 0 0">
          Leave that black window open while you stream — closing it stops the overlay. It
          prints your link and control panel address every time it starts.
-         ${data.plan === 'single' ? ' Your plan covers two overlays at a time — change which two from your account.' : ''}
+         ${data.plan === 'single' ? ' Your old plan covers two overlays at a time — change which two from your account.' : ''}
        </p>
      </div>`);
   bindCopy();
