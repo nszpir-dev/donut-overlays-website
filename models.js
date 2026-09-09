@@ -36,6 +36,12 @@ const userSchema = new mongoose.Schema({
      the single worst bug this site could have. */
   perm: { type: [String], default: [] },
 
+  /* When each of those was granted, keyed by game id. Kept alongside the
+     list rather than replacing it, so every existing account and every
+     line of code that reads `perm` as a plain list keeps working — an
+     entry with no date here simply shows as an unknown age. */
+  permSince: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+
   /* Password reset. Only the HASH of the token is stored, so a leaked
      database still cannot be used to take over an account — same reasoning
      as never storing the password itself. */

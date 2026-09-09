@@ -109,13 +109,11 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
         const bought = option ? relay.gamesFor(option, picked) : [];
 
         if (spec && spec.once) {
-          /* Granted forever. Added to whatever they already own, never
-             replacing it — buying a second overlay must not take away
-             the first. */
-          const owned = new Set(user.perm || []);
-          for (const g of bought) owned.add(g);
-          user.perm = relay.GAMES.filter(g => owned.has(g));
-          user.markModified('perm');
+          /* Granted forever, and stamped with today's date so you can see
+             later how long they have had it. Added to whatever they
+             already own, never replacing it — buying a second overlay
+             must not take away the first. */
+          setPerm(user, bought, false);
         } else if (option) {
           user.plan = option;
         }
@@ -202,6 +200,69 @@ async function applySubscriptionToUser(user, sub) {
   await user.save();
 }
 
+/* Add or remove overlays on an account, keeping the grant dates in step.
+   Both the Stripe webhook and the admin page go through here so the two
+   can never disagree about what owning something means.
+
+   An overlay somebody already has is left completely alone — its original
+   grant date survives, so buying a second overlay does not silently reset
+   how long you have had the first. */
+function setPerm(user, games, revoke) {
+  const owned = new Set(user.perm || []);
+  const since = Object.assign({}, user.permSince || {});
+  let changed = false;
+  for (const g of games) {
+    if (!relay.GAMES.includes(g)) continue;
+    if (revoke) {
+      if (owned.delete(g)) { delete since[g]; changed = true; }
+    } else if (!owned.has(g)) {
+      owned.add(g);
+      since[g] = new Date();
+      changed = true;
+    }
+  }
+  user.perm = relay.GAMES.filter(g => owned.has(g));
+  /* Never leave a date behind for something they no longer have. */
+  for (const g of Object.keys(since)) if (!owned.has(g)) delete since[g];
+  user.permSince = since;
+  user.markModified('perm');
+  user.markModified('permSince');
+  return changed;
+}
+
+/* "3 days", "2 months" — how long somebody has had something, in the
+   roughest unit that still tells you what you want to know. */
+function humanAge(from) {
+  if (!from) return 'unknown';
+  const ms = Date.now() - new Date(from).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return 'unknown';
+  const mins = Math.floor(ms / 60000);
+  if (mins < 60) return mins <= 1 ? 'just now' : mins + ' minutes';
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours === 1 ? '1 hour' : hours + ' hours';
+  const days = Math.floor(hours / 24);
+  if (days < 60) return days === 1 ? '1 day' : days + ' days';
+  /* Months up to a year, then years. Switching at two years instead left
+     "1 year" almost unreachable and reported 400 days as "13 months". */
+  if (days < 365) {
+    const months = Math.max(2, Math.floor(days / 30.44));
+    return months + ' months';
+  }
+  const years = Math.floor(days / 365.25);
+  return years === 1 ? '1 year' : years + ' years';
+}
+
+/* What an account owns, each with how long they have had it. */
+function ownedList(user) {
+  const since = user.permSince || {};
+  return relay.permOf(user).map(g => ({
+    game: g,
+    name: GAME_NAMES[g] || g,
+    since: since[g] || null,
+    age: humanAge(since[g]),
+  }));
+}
+
 /* One row per completed payment. Stripe retries a webhook it thinks
    failed, so this has to be safe to run twice: the unique session id
    turns the second attempt into a duplicate-key error, which is caught
@@ -267,6 +328,9 @@ async function notifyNewTrial(user, sub) {
 // Everything else is normal JSON.
 // ---------------------------------------------------------------------
 app.use(express.json());
+/* The admin pages post plain HTML forms, which arrive urlencoded rather
+   than as JSON. Limited hard because nothing here needs to be big. */
+app.use(express.urlencoded({ extended: false, limit: '16kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 function signToken(user) {
@@ -972,7 +1036,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
   const sumOf = f => purchases.filter(f).reduce((n, p) => n + (p.amountUsd || 0), 0);
   /* Anything that is not the monthly. Listed by name rather than by a
      rule, so a future option cannot quietly slip out of the totals. */
-  const ONE_OFF_KINDS = ['perm1', 'permall', 'perm3'];
+  const ONE_OFF_KINDS = ['perm1', 'permall', 'perm3'];   // comps are NOT sales
   const isOneOff = p => ONE_OFF_KINDS.includes(p.kind);
   const oneOff = purchases.filter(isOneOff);
   const monthAgo = new Date(Date.now() - 30 * 864e5);
@@ -984,6 +1048,8 @@ app.get('/admin', requireAdmin, async (req, res) => {
     perm1: 'One overlay, forever',
     permall: 'All four, forever',
     perm3: 'Three overlays, forever',   // never sold, kept so old rows read right
+    comp: 'Given free',
+    revoke: 'Taken away',
     sub: 'Monthly',
     single: 'Monthly (old $8)',
     all: 'Monthly (old $12)',
@@ -1013,8 +1079,12 @@ app.get('/admin', requireAdmin, async (req, res) => {
       <td><span class="pill ${esc(u.status)}">${esc(u.status || 'none')}</span></td>
       <td>${esc(u.plan || '—')}</td>
       <td>${(u.perm || []).length
-            ? (u.perm || []).map(g => esc(GAME_NAMES[g] || g)).join('<br>')
-            : '<span class="muted">—</span>'}</td>
+            ? ownedList(u).map(o =>
+                `${esc(o.name)} <span class="muted">— ${esc(o.age)}</span>`).join('<br>')
+              + `<br><a href="/admin/grant?email=${encodeURIComponent(u.email)}"
+                   style="font-size:.8rem">manage</a>`
+            : `<a href="/admin/grant?email=${encodeURIComponent(u.email)}"
+                 class="muted" style="font-size:.8rem">give one</a>`}</td>
       <td>${fmtDate(u.trialStart)}</td>
       <td>${fmtDate(u.trialEnd)}</td>
       <td>${fmtDate(u.currentPeriodEnd)}</td>
@@ -1169,6 +1239,207 @@ app.post('/admin/reviews/:id/delete', requireAdmin, async (req, res) => {
   res.redirect('/admin/reviews');
 });
 
+/* ---------------- giving overlays away ----------------
+   Needed for three real jobs, and worth having a proper tool for rather
+   than editing the database by hand:
+
+     1. Your own account. You should not have to pay yourself to use
+        your own product, and faking a purchase would put fake money in
+        the revenue figures.
+     2. A customer whose payment went through but whose webhook did not.
+        That is the one failure that leaves somebody out of pocket, and
+        it needs a fix that takes seconds.
+     3. Comping a streamer a copy to get the thing in front of people.
+
+   Grants are recorded like purchases so the history is complete, but at
+   $0 and under their own name, so they never inflate what you earned. */
+async function applyGrant(email, games, revoke) {
+  const clean = String(email || '').trim().toLowerCase();
+  if (!clean) return { error: 'enter an email' };
+  const picks = (Array.isArray(games) ? games : games ? [games] : [])
+    .filter(g => relay.GAMES.includes(g));
+  if (!picks.length) return { error: 'tick at least one overlay' };
+
+  const user = await User.findOne({ email: clean });
+  if (!user) return { error: `no account here with the email ${clean}` };
+
+  /* Remember what they had, so a revoke can say how long they had it. */
+  const had = {};
+  for (const o of ownedList(user)) had[o.game] = o.age;
+
+  const changed = setPerm(user, picks, revoke);
+  await user.save();
+
+  /* Only worth a row if something actually changed — clicking Give twice
+     should not leave two identical entries in the history. */
+  if (changed) {
+    try {
+      await Purchase.create({
+        userId: user._id,
+        email: user.email,
+        kind: revoke ? 'revoke' : 'comp',
+        games: picks,
+        amountUsd: 0,
+      });
+    } catch (err) {
+      console.error('[grant] could not record', err.message);
+    }
+  }
+
+  const names = picks.map(g => GAME_NAMES[g] || g).join(', ');
+  /* On a revoke, say how long they had it — that is the number you want
+     in front of you when you are deciding whether to refund as well. */
+  const held = revoke
+    ? picks.filter(g => had[g]).map(g => `${GAME_NAMES[g] || g} (had it ${had[g]})`).join(', ')
+    : '';
+  return {
+    ok: revoke
+      ? `Took ${held || names} away from ${user.email}.`
+      : `Gave ${names} to ${user.email}, forever.`,
+    owned: ownedList(user),
+  };
+}
+
+function grantPage(msg, bad, email, owned, owners) {
+  const has = new Set((owned || []).map(o => o.game));
+  const boxes = relay.GAMES.map(g =>
+    `<label style="display:flex;align-items:center;gap:.5rem;margin:.4rem 0">
+       <input type="checkbox" name="games" value="${g}">
+       <span>${esc(GAME_NAMES[g] || g)}</span>
+       ${has.has(g) ? '<span class="pill active" style="font-size:.7rem">owns it</span>' : ''}
+     </label>`).join('');
+
+  /* What they have right now, and for how long. Shown only once an email
+     has actually been looked up, so a blank form does not pretend to
+     know anything. */
+  const owns = owned == null ? '' : (owned.length ? `
+    <h3 class="sec" style="margin-top:1.8rem">${esc(email)} owns</h3>
+    <table style="max-width:34rem">
+      <thead><tr><th>Overlay</th><th>Had it for</th><th>Since</th><th></th></tr></thead>
+      <tbody>${owned.map(o => `<tr>
+        <td>${esc(o.name)}</td>
+        <td><strong>${esc(o.age)}</strong></td>
+        <td class="muted">${o.since ? fmtDate(o.since) : '—'}</td>
+        <td>
+          <form method="post" action="/admin/grant" style="margin:0">
+            <input type="hidden" name="email" value="${esc(email)}">
+            <input type="hidden" name="games" value="${o.game}">
+            <button name="action" value="revoke"
+              style="border-color:#5a2626;color:#ff8f8f">Take it away</button>
+          </form>
+        </td>
+      </tr>`).join('')}</tbody>
+    </table>`
+    : `<p class="muted" style="margin-top:1.6rem">${esc(email)} does not own any overlays outright.</p>`);
+
+  return adminLayout('Give an overlay', `
+    ${msg ? `<p style="padding:.7rem 1rem;border-radius:.5rem;margin:0 0 1rem;
+        background:${bad ? '#3a1414' : '#0f3320'};color:${bad ? '#ff8f8f' : '#5be89a'}">${esc(msg)}</p>` : ''}
+    <p class="muted" style="max-width:44rem">
+      Grants an overlay to an account permanently, exactly as buying it would, and
+      takes it back whenever you want. Use it for your own account, for a customer
+      whose payment went through but who never got access, or to comp somebody a
+      copy. Everything here is recorded at $0, so it never counts as money you earned.
+    </p>
+    <form method="post" action="/admin/grant" style="margin-top:1.2rem;max-width:26rem">
+      <label style="display:block;font-size:.8rem;color:#93a6c4;text-transform:uppercase;
+                    letter-spacing:.05em">Account email</label>
+      <input name="email" value="${esc(email || '')}" autocomplete="off"
+             style="width:100%;margin:.3rem 0 .6rem;padding:.5rem .6rem;border-radius:.4rem;
+                    border:1px solid #22304a;background:#0b0f18;color:#eaf1ff;font:inherit">
+      <button name="action" value="look" style="margin-bottom:1rem">Look up this account</button>
+      <div style="font-size:.8rem;color:#93a6c4;text-transform:uppercase;letter-spacing:.05em">Overlays</div>
+      ${boxes}
+      <div style="margin-top:1.1rem;display:flex;gap:.6rem">
+        <button name="action" value="give" style="background:#0f3320;border-color:#1d6b41">Give these</button>
+        <button name="action" value="revoke">Take these away</button>
+      </div>
+    </form>
+    ${owns}
+    ${owners ? ownersTable(owners) : ''}`);
+}
+
+/* Everyone who owns an overlay outright, with their email and how long
+   they have had each one. Without this you had to know an email before
+   you could look anything up, which is no good when the question is
+   "who has what". */
+async function allOwners() {
+  const users = await User.find({ 'perm.0': { $exists: true } })
+    .sort({ email: 1 }).limit(500).lean();
+  return users.map(u => ({ email: u.email, owned: ownedList(u) }));
+}
+
+function ownersTable(owners) {
+  if (!owners.length) {
+    return `<p class="muted" style="margin-top:1.4rem">
+      Nobody owns an overlay outright yet. They appear here the moment somebody
+      buys one, or you give one away above.</p>`;
+  }
+  const rows = owners.map(o => `<tr>
+    <td><a href="/admin/grant?email=${encodeURIComponent(o.email)}">${esc(o.email)}</a></td>
+    <td>${o.owned.map(x => esc(x.name)).join('<br>')}</td>
+    <td>${o.owned.map(x => `<strong>${esc(x.age)}</strong>`).join('<br>')}</td>
+    <td class="muted">${o.owned.map(x => x.since ? esc(fmtDate(x.since)) : '—').join('<br>')}</td>
+  </tr>`).join('');
+  const total = owners.reduce((n, o) => n + o.owned.length, 0);
+  return `
+    <h3 class="sec" style="margin-top:2rem">Everyone who owns an overlay</h3>
+    <p class="muted" style="margin:.3rem 0 0">
+      ${owners.length} account${owners.length === 1 ? '' : 's'},
+      ${total} overlay${total === 1 ? '' : 's'} between them.
+      Click an email to manage that account.
+    </p>
+    <table>
+      <thead><tr><th>Email</th><th>Owns</th><th>Had it for</th><th>Since</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+/* Look an account up without changing anything. */
+async function lookUp(email) {
+  const clean = String(email || '').trim().toLowerCase();
+  if (!clean) return { error: 'enter an email' };
+  const user = await User.findOne({ email: clean });
+  if (!user) return { error: `no account here with the email ${clean}` };
+  return { owned: ownedList(user) };
+}
+
+app.get('/admin/grant', requireAdmin, async (req, res) => {
+  const owners = await allOwners();
+  /* Arriving from a "manage" link, with the email already filled in —
+     look it up straight away rather than making you press a button to
+     see what you came here to see. */
+  if (req.query.email) {
+    const r = await lookUp(req.query.email);
+    return res.send(r.error
+      ? grantPage(r.error, true, req.query.email, null, owners)
+      : grantPage(null, false, req.query.email, r.owned, owners));
+  }
+  res.send(grantPage(null, false, '', null, owners));
+});
+
+app.post('/admin/grant', requireAdmin, async (req, res) => {
+  const email = req.body.email;
+  try {
+    if (req.body.action === 'look') {
+      const r = await lookUp(email);
+      const owners = await allOwners();
+      return res.send(r.error
+        ? grantPage(r.error, true, email, null, owners)
+        : grantPage(null, false, email, r.owned, owners));
+    }
+    const r = await applyGrant(email, req.body.games, req.body.action === 'revoke');
+    /* Read the owners list AFTER the change, so the table below reflects
+       what you just did rather than what was true a moment ago. */
+    const owners = await allOwners();
+    if (r.error) return res.send(grantPage(r.error, true, email, null, owners));
+    res.send(grantPage(r.ok, false, email, r.owned, owners));
+  } catch (err) {
+    console.error('[grant] error', err);
+    res.send(grantPage('Something went wrong — check the server logs.', true, email, null, null));
+  }
+});
+
 function adminLayout(title, body) {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)} — Donut Overlays admin</title>
   <style>
@@ -1201,7 +1472,7 @@ function adminLayout(title, body) {
     button:hover{border-color:#19e3c8}
     h1{font-size:1.4rem}
   </style></head><body>
-  <nav><a href="/admin">Users &amp; trials</a><a href="/admin/visitors">Visitors</a><a href="/admin/reviews">Reviews</a><a href="/">← back to site</a></nav>
+  <nav><a href="/admin">Users &amp; trials</a><a href="/admin/visitors">Visitors</a><a href="/admin/grant">Give an overlay</a><a href="/admin/reviews">Reviews</a><a href="/">← back to site</a></nav>
   <h1>${esc(title)}</h1>
   ${body}
   </body></html>`;
