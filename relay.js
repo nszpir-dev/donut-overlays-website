@@ -95,6 +95,9 @@ function allowedGames(user) {
 function hasAnything(user) {
   return allowedGames(user).length > 0;
 }
+/* Same function under a short local name, so every gate in this file
+   reads the same and nobody has to remember which one is correct. */
+const relayHasAnything = hasAnything;
 
 /**
  * One hub per streamer. Holds their launcher connection, everyone
@@ -139,7 +142,11 @@ function setup(server, { jwtSecret }) {
         catch { return socket.destroy(); }
 
         const user = await User.findById(payload.uid);
-        if (!entitled(user)) return socket.destroy();
+        /* hasAnything, not entitled: somebody who bought an overlay
+           outright has no subscription at all, and gating the launcher on
+           one meant their software could never connect — the overlay page
+           worked and the thing feeding it did not. */
+        if (!relayHasAnything(user)) return socket.destroy();
 
         wss.handleUpgrade(req, socket, head, ws => {
           attachUplink(ws, user);
@@ -226,18 +233,23 @@ function attachViewer(ws, user, game) {
   });
 }
 
-/* Every few minutes, hang up on anyone whose subscription has since
-   lapsed. Without this a stream started during a trial would keep
-   running for as long as the browser stayed open. */
+/* Every few minutes, hang up on anyone who has nothing left. Without
+   this a stream started during a trial would keep running for as long as
+   the browser stayed open.
+
+   Checked against everything they have, not just the subscription — an
+   owned overlay must survive a cancellation, and cutting somebody off
+   mid-stream over a subscription they never had would be the worst
+   version of this bug. */
 async function recheckLive() {
   if (hubs.size === 0) return;
   for (const [userId, h] of hubs) {
     try {
       const user = await User.findById(userId);
-      if (entitled(user)) continue;
-      console.log('[relay] cutting off lapsed subscription', userId);
-      if (h.uplink) try { h.uplink.close(4001, 'subscription is no longer active'); } catch {}
-      for (const v of h.viewers) try { v.close(4001, 'subscription is no longer active'); } catch {}
+      if (relayHasAnything(user)) continue;
+      console.log('[relay] cutting off, nothing left on this account', userId);
+      if (h.uplink) try { h.uplink.close(4001, 'nothing active on this account'); } catch {}
+      for (const v of h.viewers) try { v.close(4001, 'nothing active on this account'); } catch {}
       hubs.delete(userId);
     } catch (err) {
       console.error('[relay] recheck failed', err.message);
