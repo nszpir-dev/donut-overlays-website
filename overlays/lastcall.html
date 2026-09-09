@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Last Call — the last person to pay wins</title>
+<title>Last Call — outbid the holder before the clock runs out</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@500;600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
@@ -183,7 +183,9 @@ body.clearbg #board{background:rgba(12,7,22,.6);border-color:rgba(58,42,92,.6)}
 .rb img{width:1rem;height:1rem;border-radius:.15rem;image-rendering:pixelated}
 .rb .n{font-size:.72rem;font-weight:700;color:var(--cream);max-width:6rem;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rb .a{display:none}
+/* The amount used to be hidden, because under the old rule it did not
+   matter who paid what. Now it decides everything, so it is shown. */
+.rb .a{font-size:.68rem;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
 
 #cta{
   text-align:center;font-size:.98rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
@@ -359,7 +361,7 @@ body.compact #credit .l2{font-size:1.42rem}
   </div>
 
   <div id="ladder">
-    <div id="ladderHead">Beaten to it</div>
+    <div id="ladderHead">In the pot, not holding it</div>
     <div id="ladderRows"></div>
   </div>
 
@@ -378,7 +380,7 @@ body.compact #credit .l2{font-size:1.42rem}
     <button id="opClose">✕ Close controls</button>
 
     <h3>1 · Run the round <span id="linkPill" class="pill-status bad">not connected</span></h3>
-    <p class="hint">You seed the pot, everyone pays in, and the biggest single payment when the clock stops takes the lot. Losing payments stay in the pot — that's what the winner wins.</p>
+    <p class="hint">You seed the pot and everyone pays in. To take the crown you have to pay <b>more than whoever is holding it</b>, and doing that snaps the clock back to full. Pay less and your money still joins the pot, but the clock does not move. Whoever is holding it when the clock runs out takes the lot.</p>
     <div class="row">
       <div><label>You put in to start</label><input id="fSeed" value="1000000"></div>
       <div><label>Opening clock (sec)</label><input id="fOpen" value="30"></div>
@@ -493,7 +495,7 @@ const now = () => Date.now();
 let M = {
   phase:'idle', seed:1000000, minPay:0, cutPct:0, openSec:30, resetSec:10, saves:0,
   endsAt:0, paused:false, pausedLeft:0,
-  pot:0, leader:null, bids:[], late:[], kept:0, rejected:[], vouches:6,
+  pot:0, leader:null, bids:[], late:[], kept:0, rejected:[], short:[], toBeat:0, vouches:6,
   uiScale:1.15, layout:'compact', cardW:19
 };
 let ign = 'mrchicken75', ws = null, serverMode = false;
@@ -514,6 +516,16 @@ function money(n){
   if(n >= 1e6)  return '$' + trim(n/1e6) + 'M';
   if(n >= 1e3)  return '$' + trim(n/1e3) + 'K';
   return '$' + n;
+}
+/* The smallest tidy figure that is definitely MORE than n.
+   money() rounds to two decimals, so a holder on 30,454,000 displays as
+   "$30.45M" — and somebody who paid exactly $30.45M trusting that number
+   would fall short and, under this game's rule, not get it back. Rounding
+   the requirement UP means the number on screen always wins. */
+function needMoney(n){
+  n = Math.floor(n || 0);
+  const step = n >= 1e12 ? 1e10 : n >= 1e9 ? 1e7 : n >= 1e6 ? 1e4 : n >= 1e3 ? 100 : 1;
+  return money(Math.floor(n / step) * step + step);
 }
 const clock = ms => {
   const s = Math.max(0, Math.ceil(ms/1000));
@@ -554,7 +566,8 @@ function localOpen(seed, minPay, openSec, resetSec){
   if(openSec) M.openSec = openSec;
   if(resetSec) M.resetSec = resetSec;
   M.phase = 'live'; M.pot = M.seed;
-  M.leader = null; M.bids = []; M.late = []; M.kept = 0; M.rejected = []; M.saves = 0;
+  M.leader = null; M.bids = []; M.late = []; M.kept = 0; M.rejected = [];
+  M.short = []; M.toBeat = 0; M.saves = 0;
   M.paused = false; M.pausedLeft = 0;
   M.endsAt = now() + (M.openSec || 30) * 1000;
   log(`round open · pot ${money(M.pot)}`); render();
@@ -571,23 +584,36 @@ function localPay(name, amount){
     M.rejected.push({name, amount, why:'under minimum'});
     log(`${name} ${money(amount)} — under the minimum, clock not reset`); return render();
   }
+  /* Everything paid goes into the pot, winning or not. */
   M.pot += amount;
-  M.bids.unshift({name, amount, at: now()});
-  if(M.bids.length > 15) M.bids.pop();
-  /* last payer wins, whatever the size — and the clock goes back to full */
+  /* You only take it off the holder by paying MORE than they did.
+     Anything else buys nothing — no crown and no clock reset, or a
+     stream of tiny payments would hold the round open forever. */
+  const bar = M.leader ? M.leader.amount : 0;
+  const took = amount > bar;
+  M.bids.unshift({name, amount, at: now(), took});
+  if(M.bids.length > 25) M.bids.pop();
+  if(!took){
+    M.short = M.short || [];
+    M.short.unshift({name, amount, at: now()});
+    if(M.short.length > 20) M.short.pop();
+    log(`${name} ${money(amount)} — into the pot, ${money(bar)} still holds it`);
+    return render();
+  }
   M.leader = {name, amount, at: now()};
+  M.toBeat = amount;
   M.saves = (M.saves || 0) + 1;
   M.paused = false; M.pausedLeft = 0;
   /* never shortens the clock — see the relay for why */
   M.endsAt = Math.max(M.endsAt, now() + (M.resetSec || 10) * 1000);
-  log(`${name} ${money(amount)} — clock back to ${M.resetSec || 10}s`);
+  log(`${name} ${money(amount)} — clock back to ${M.resetSec || 10}s, next must beat ${money(amount)}`);
   snapClock();
   render();
 }
 function localEnd(){ M.phase = 'done'; M.endsAt = 0; log('round over'); render(); }
 function localReset(){
   M = Object.assign({}, M, {phase:'idle', pot:0, leader:null, bids:[], late:[], kept:0,
-    rejected:[], endsAt:0, paused:false, pausedLeft:0, saves:0});
+    rejected:[], short:[], toBeat:0, endsAt:0, paused:false, pausedLeft:0, saves:0});
   log('cleared'); render();
 }
 function localPause(){
@@ -656,9 +682,12 @@ function render(){
   } else if(M.paused){
     cta.className = 'quiet'; cta.textContent = 'Paused';
   } else if(M.phase === 'live'){
+    /* The exact number, not "pay more". Somebody deciding in the last two
+       seconds cannot do arithmetic on a pot they can barely read, and a
+       payment that falls short is not coming back to them. */
     cta.textContent = M.leader
-      ? `Pay anything to take it off ${M.leader.name}`
-      : 'Any payment takes the lead — and resets the clock';
+      ? `Pay ${needMoney(M.leader.amount)} or more to take it off ${M.leader.name}`
+      : 'First payment takes it — and resets the clock';
   } else {
     cta.className = 'quiet'; cta.textContent = 'Waiting for the next round';
   }
