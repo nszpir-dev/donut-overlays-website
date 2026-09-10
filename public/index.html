@@ -733,6 +733,15 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
       <div>
         <p id="authIntro" class="hidden" style="color:var(--muted);font-size:.93rem;margin:-.2rem 0 1rem"></p>
         <div class="field" id="fieldEmail"><label>Email</label><input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></div>
+        <div class="field hidden" id="fieldIgn">
+          <label>Your Minecraft username</label>
+          <input id="authIgn" autocomplete="off" spellcheck="false" placeholder="e.g. mrchicken75">
+          <div style="font-size:.8rem;color:var(--muted);margin-top:.35rem;line-height:1.45">
+            Exactly as it appears in Donut chat. <b style="color:var(--gold)">On Bedrock,
+            start it with a full stop</b> — <code style="color:#a9c6ee">.yourname</code> —
+            because that is how the server writes it. You can change this any time.
+          </div>
+        </div>
         <div class="field" id="fieldPass">
           <label id="authPassLabel">Password</label>
           <div class="pw-wrap">
@@ -1351,6 +1360,12 @@ function openAuth(mode){
 
   /* The tick box only belongs on sign up, and it is cleared every time
      the box opens so nobody ever finds it already ticked for them. */
+  /* Only on sign up. It is what the launcher matches payments against, so
+     asking once here beats a support message later. */
+  const ignField = document.getElementById('fieldIgn');
+  ignField.classList.toggle('hidden', mode !== 'signup');
+  if(mode !== 'signup') document.getElementById('authIgn').value = '';
+
   const agree = document.getElementById('fieldAgree');
   agree.classList.toggle('hidden', mode !== 'signup');
   agree.classList.remove('miss');
@@ -1386,6 +1401,22 @@ document.getElementById('authGo').onclick = async () => {
   const needsPass  = authMode !== 'forgot';
 
   if(needsEmail && !email){ msg.className = 'msg bad'; msg.textContent = 'Put your email in.'; return; }
+  /* Checked here, between email and password, because that is where the
+     box sits on the form — pointing at the third empty field while the
+     second is also empty just makes people fill things twice. */
+  if(authMode === 'signup'){
+    const ign = document.getElementById('authIgn').value.trim();
+    if(!ign){
+      msg.className = 'msg bad';
+      msg.textContent = 'Put your Minecraft username in — the overlays need it to spot your payments.';
+      return;
+    }
+    if(!/^[.*]?[A-Za-z0-9_]{3,16}$/.test(ign)){
+      msg.className = 'msg bad';
+      msg.textContent = 'That does not look like a Minecraft username. 3 to 16 letters, numbers or underscores — Bedrock players start with a full stop.';
+      return;
+    }
+  }
   if(needsPass && !password){ msg.className = 'msg bad'; msg.textContent = 'Put a password in.'; return; }
   if(needsPass && password.length < 8){
     msg.className = 'msg bad'; msg.textContent = 'Password needs at least 8 characters.'; return;
@@ -1432,7 +1463,8 @@ document.getElementById('authGo').onclick = async () => {
     const r = await fetch(API + '/api/' + (authMode === 'login' ? 'login' : 'signup'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(authMode === 'signup'
-        ? { email, password, acceptTerms: true }
+        ? { email, password, acceptTerms: true,
+            ign: document.getElementById('authIgn').value.trim() }
         : { email, password }),
     });
     const data = await r.json();
@@ -1778,6 +1810,29 @@ async function paintSetup(){
     'Step 1 downloads the app that reads your Minecraft chat. Step 2 is the address you add as a browser source — it works the same in TikTok LIVE Studio, OBS, Streamlabs or anything else, and it never changes, so you only ever paste it once.';
 
   const rows = [];
+  /* First, before the download, because everything below it is useless if
+     this is wrong: the launcher matches payments against this name, and a
+     mismatch reads real money as somebody else's and ignores it. */
+  rows.push(`
+    <div class="linkrow" style="align-items:flex-start">
+      <div class="plat">Your name</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+          <input id="ignBox" value="${(data.ign || '').replace(/"/g, '&quot;')}"
+                 autocomplete="off" spellcheck="false" placeholder="your Minecraft username"
+                 style="flex:1;min-width:12rem;padding:.5rem .6rem;border-radius:.4rem;
+                        border:1px solid var(--line);background:#070d18;color:var(--text);font:inherit">
+          <button id="ignSave" style="padding:.5rem .9rem">Save</button>
+        </div>
+        <div style="font-size:.8rem;color:var(--muted);margin-top:.4rem;line-height:1.45">
+          Exactly as it appears in Donut chat — this is how the overlay knows a payment is
+          yours. <b style="color:var(--gold)">On Bedrock, start it with a full stop</b>
+          (<code style="color:#a9c6ee">.yourname</code>). Change it whenever you rename;
+          the launcher picks it up next time it starts.
+        </div>
+        <div class="msg" id="ignMsg"></div>
+      </div>
+    </div>`);
   rows.push(`
     <div class="linkrow">
       <div class="plat">1 · Download</div>
@@ -1817,7 +1872,13 @@ async function paintSetup(){
         <div style="flex:1;min-width:0">
           <code id="ln${i}" style="display:block">${l.url}</code>
           <div style="font-size:.8rem;color:var(--muted);margin-top:.3rem">
-            Your controls while it runs: <b style="color:#a9c6ee">${l.panel}</b>
+            ${l.panelLive
+              ? `Your controls, running right now:
+                 <b style="color:var(--teal)">${l.panel}</b>`
+              : `Your controls once the launcher is open:
+                 <b style="color:#a9c6ee">${l.panel}</b>
+                 <span style="color:#63748c">— the launcher opens this for you, and shows
+                 the exact address if it has to use a different port</span>`}
           </div>
         </div>
         <button data-copy="ln${i}">Copy</button>
@@ -1863,6 +1924,38 @@ async function paintSetup(){
 
   /* Guarded the same way as the block that draws it above — without the
      matching condition this looked up an element that is not there. */
+  /* Saving the name. Deliberately its own small form rather than part of
+     a bigger settings page — it is the single most common thing to get
+     wrong, so it lives where people are already looking. */
+  const ignSave = document.getElementById('ignSave');
+  if(ignSave){
+    ignSave.onclick = async () => {
+      const box = document.getElementById('ignBox');
+      const m = document.getElementById('ignMsg');
+      const val = box.value.trim();
+      if(!/^[.*]?[A-Za-z0-9_]{3,16}$/.test(val)){
+        m.className = 'msg bad';
+        m.textContent = '3 to 16 letters, numbers or underscores. Bedrock players start with a full stop.';
+        return;
+      }
+      m.className = 'msg'; m.textContent = 'Saving…';
+      try {
+        const r = await fetch(API + '/api/ign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader() },
+          body: JSON.stringify({ ign: val }),
+        });
+        const d = await r.json();
+        if(!r.ok) throw new Error(d.error || 'could not save that');
+        m.className = 'msg good';
+        m.textContent = 'Saved as ' + d.ign + '. Restart the launcher and it will use this.';
+      } catch(e){
+        m.className = 'msg bad';
+        m.textContent = e.message === 'Failed to fetch' ? 'Could not reach the server.' : e.message;
+      }
+    };
+  }
+
   const swapEl = document.getElementById('swapList');
   if(swapEl){
     MAX_PICKS = 2;
@@ -1924,8 +2017,11 @@ async function paintSetup(){
              sign in, and pick your overlay.</li>
        </ol>
        <p style="margin:.7rem 0 0">
-         Leave that black window open while you stream — closing it stops the overlay. It
-         prints your link and control panel address every time it starts.
+         Leave that black window open while you stream — closing it stops the overlay.
+         It opens your control panel automatically and prints the address every time it
+         starts. If another program on your PC is already using its usual port it quietly
+         moves to a different one and says so, so trust the address in that window over
+         the one above.
          ${data.plan === 'single' ? ' Your old plan covers two overlays at a time — change which two from your account.' : ''}
        </p>
      </div>`);
