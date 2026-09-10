@@ -154,7 +154,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
         if (!user || (user.sent && user.sent.trialEnding)) break;
         const ends = sub.trial_end
           ? new Date(sub.trial_end * 1000).toLocaleDateString('en-US',
-              { weekday: 'long', month: 'long', day: 'numeric' })
+              { timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric' })
           : 'in three days';
         const res = await mail.trialEnding(user.email, ends, user.plan);
         if (res.sent) {
@@ -309,9 +309,9 @@ async function notifyPurchase(user, spec, games) {
 
 async function notifyNewTrial(user, sub) {
   if (!DISCORD_NOTIFY_WEBHOOK_URL) return;
-  const ends = user.trialEnd ? user.trialEnd.toDateString() : 'unknown';
+  const ends = user.trialEnd ? fmtDate(user.trialEnd) : 'unknown';
   const body = {
-    content: `🍩 **New free trial started**\n**${user.email}** — plan: \`${user.plan}\`\nStarted: ${new Date().toDateString()}\nEnds: ${ends}`,
+    content: `🍩 **New free trial started**\n**${user.email}** — plan: \`${user.plan}\`\nStarted: ${fmtDate(new Date())}\nEnds: ${ends}`,
   };
   try {
     await fetch(DISCORD_NOTIFY_WEBHOOK_URL, {
@@ -988,22 +988,228 @@ app.post('/api/reviews', auth, async (req, res) => {
 // Admin — simple HTTP Basic Auth in front of a couple of server-rendered
 // pages. No separate login system; just one shared password.
 // ---------------------------------------------------------------------
-function requireAdmin(req, res, next) {
+/* ---------------- admin sign in ----------------
+   This used to be HTTP Basic, which meant the browser's own grey box
+   appeared over the page — no branding, no way to style it, and it looks
+   like the site is asking for somebody else's password. Now it is a real
+   page and a signed cookie.
+
+   The cookie is a JWT signed with the same secret as everything else, so
+   it cannot be forged, and it carries nothing but "this browser signed
+   in" and when. */
+const ADMIN_COOKIE = 'do_admin';
+const ADMIN_DAYS = 30;
+
+function readCookie(req, name) {
+  const raw = req.headers.cookie || '';
+  for (const part of raw.split(';')) {
+    const i = part.indexOf('=');
+    if (i < 0) continue;
+    if (part.slice(0, i).trim() === name) {
+      try { return decodeURIComponent(part.slice(i + 1).trim()); } catch { return null; }
+    }
+  }
+  return null;
+}
+
+function isAdmin(req) {
+  const raw = readCookie(req, ADMIN_COOKIE);
+  if (raw && JWT_SECRET) {
+    try {
+      const p = jwt.verify(raw, JWT_SECRET);
+      if (p && p.adm === true) return true;
+    } catch { /* expired or tampered with — fall through */ }
+  }
+  /* Basic is still accepted so anything scripted against the old scheme
+     keeps working. It is never REQUESTED, which is what stopped the
+     browser box appearing. */
   const header = req.headers.authorization || '';
   const [scheme, encoded] = header.split(' ');
-  if (scheme === 'Basic' && encoded) {
+  if (scheme === 'Basic' && encoded && ADMIN_PASSWORD) {
     const [user, pass] = Buffer.from(encoded, 'base64').toString().split(':');
-    if (user === ADMIN_USER && pass === ADMIN_PASSWORD && ADMIN_PASSWORD) return next();
+    if (user === ADMIN_USER && samePassword(pass, ADMIN_PASSWORD)) return true;
   }
-  res.set('WWW-Authenticate', 'Basic realm="donut overlays admin"');
-  return res.status(401).send('Auth required');
+  return false;
+}
+
+/* Compared byte by byte in constant time, so the time taken never leaks
+   how much of the password was right. */
+function samePassword(a, b) {
+  const x = Buffer.from(String(a || ''));
+  const y = Buffer.from(String(b || ''));
+  if (x.length !== y.length) {
+    /* Still do the work, so a wrong length is not faster than a wrong
+       password of the right length. */
+    crypto.timingSafeEqual(y, y);
+    return false;
+  }
+  return crypto.timingSafeEqual(x, y);
+}
+
+/* A handful of wrong guesses and this address waits. Small, in memory,
+   and enough to make guessing a password over the internet hopeless. */
+const adminTries = new Map();
+function tooManyTries(ip) {
+  const t = adminTries.get(ip);
+  if (!t) return 0;
+  if (Date.now() > t.until) { adminTries.delete(ip); return 0; }
+  return t.n >= 5 ? Math.ceil((t.until - Date.now()) / 1000) : 0;
+}
+function noteBadTry(ip) {
+  const t = adminTries.get(ip) || { n: 0, until: 0 };
+  t.n += 1;
+  /* Backs off: 5th wrong guess waits 30s, 6th a minute, and so on up to
+     fifteen minutes. */
+  t.until = Date.now() + Math.min(15 * 60e3, 30e3 * Math.pow(2, Math.max(0, t.n - 5)));
+  adminTries.set(ip, t);
+  if (adminTries.size > 500) adminTries.clear();   // never grows unbounded
+}
+
+function requireAdmin(req, res, next) {
+  if (isAdmin(req)) return next();
+  /* The live counter on the admin page polls with fetch. Redirecting that
+     to an HTML login page would hand JSON.parse a mouthful of markup, so
+     it gets a clean 401 and the page notices. */
+  if (/\.json$/.test(req.path)) {
+    return res.status(401).json({ error: 'not signed in' });
+  }
+  const back = encodeURIComponent(req.originalUrl || '/admin');
+  return res.redirect('/admin/login?next=' + back);
+}
+
+function adminLoginPage(msg, next) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in — Donut Overlays</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Karla:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--ink:#060912;--ink-2:#0c1322;--line:#22304a;--gold:#ffc93c;--gold-2:#ff9b2f;
+          --teal:#19e3c8;--violet:#8b5cff;--text:#eaf1ff;--muted:#93a6c4}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{min-height:100vh;background:var(--ink);color:var(--text);
+      font:16px/1.55 Karla,system-ui,sans-serif;
+      display:flex;align-items:center;justify-content:center;padding:1.5rem;
+      position:relative;overflow:hidden}
+    /* the same glow the front page uses, so this does not feel bolted on */
+    .glow{position:fixed;border-radius:50%;filter:blur(90px);opacity:.5;pointer-events:none}
+    .g1{width:34rem;height:34rem;background:rgba(139,92,255,.30);top:-12rem;left:-10rem}
+    .g2{width:30rem;height:30rem;background:rgba(25,227,200,.18);bottom:-12rem;right:-8rem}
+    .card{position:relative;width:100%;max-width:24rem;background:var(--ink-2);
+      border:1px solid var(--line);border-radius:.9rem;padding:2rem 1.8rem 1.8rem;
+      box-shadow:0 1.5rem 3rem rgba(0,0,0,.55)}
+    .mark{display:flex;align-items:center;gap:.55rem;font-weight:700;font-size:1.05rem;
+      margin-bottom:1.4rem}
+    .dot{width:.85rem;height:.85rem;border-radius:50%;
+      background:radial-gradient(circle at 30% 30%,#7dffdf,var(--teal));
+      box-shadow:0 0 .8rem rgba(25,227,200,.8)}
+    h1{font-family:'Bebas Neue',sans-serif;font-size:2.3rem;letter-spacing:.02em;
+      font-weight:400;line-height:1}
+    .sub{color:var(--muted);font-size:.92rem;margin:.35rem 0 1.5rem}
+    label{display:block;font-size:.78rem;font-weight:700;letter-spacing:.05em;
+      text-transform:uppercase;color:var(--muted);margin-bottom:.4rem}
+    input{width:100%;padding:.75rem .85rem;border-radius:.5rem;border:1px solid var(--line);
+      background:#070d18;color:var(--text);font:inherit}
+    input:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px rgba(25,227,200,.15)}
+    button{width:100%;margin-top:1.2rem;padding:.8rem;border:0;border-radius:.5rem;
+      background:linear-gradient(180deg,var(--gold),var(--gold-2));color:#241800;
+      font:inherit;font-weight:700;font-size:1rem;cursor:pointer}
+    button:hover{filter:brightness(1.07)}
+    .bad{margin-top:.9rem;padding:.6rem .8rem;border-radius:.5rem;
+      background:rgba(255,77,77,.12);border:1px solid rgba(255,77,77,.35);
+      color:#ff9f9f;font-size:.9rem}
+    .foot{margin-top:1.4rem;font-size:.82rem;color:var(--muted);text-align:center}
+    .foot a{color:var(--teal);text-decoration:none}
+  </style></head><body>
+  <div class="glow g1"></div><div class="glow g2"></div>
+  <form class="card" method="post" action="/admin/login">
+    <div class="mark"><span class="dot"></span> Donut Overlays</div>
+    <h1>Admin</h1>
+    <p class="sub">Only you can see what is behind here.</p>
+    <input type="hidden" name="next" value="${esc(next || '/admin')}">
+    <label for="pw">Password</label>
+    <input id="pw" name="password" type="password" autocomplete="current-password" autofocus>
+    <button type="submit">Sign in</button>
+    ${msg ? `<div class="bad">${esc(msg)}</div>` : ''}
+    <p class="foot"><a href="/">← back to the site</a></p>
+  </form></body></html>`;
+}
+
+app.get('/admin/login', (req, res) => {
+  if (isAdmin(req)) return res.redirect('/admin');
+  res.send(adminLoginPage(null, req.query.next));
+});
+
+app.post('/admin/login', (req, res) => {
+  const ip = req.ip || 'unknown';
+  const wait = tooManyTries(ip);
+  if (wait) {
+    return res.status(429).send(adminLoginPage(
+      `Too many tries. Wait ${wait} seconds and try again.`, req.body.next));
+  }
+  if (!ADMIN_PASSWORD) {
+    return res.send(adminLoginPage('No admin password is set on the server.', req.body.next));
+  }
+  if (!samePassword(req.body.password, ADMIN_PASSWORD)) {
+    noteBadTry(ip);
+    return res.status(401).send(adminLoginPage('That password is not right.', req.body.next));
+  }
+  adminTries.delete(ip);
+  const token = jwt.sign({ adm: true }, JWT_SECRET, { expiresIn: ADMIN_DAYS + 'd' });
+  res.cookie
+    ? res.cookie(ADMIN_COOKIE, token, cookieOpts(req))
+    : res.set('Set-Cookie', cookieString(ADMIN_COOKIE, token, req));
+  /* Only ever back to our own admin pages, so a crafted link cannot use
+     this form to bounce somebody somewhere else. */
+  const next = String(req.body.next || '/admin');
+  res.redirect(/^\/admin(\/|$|\?)/.test(next) ? next : '/admin');
+});
+
+app.post('/admin/logout', requireAdmin, (req, res) => {
+  res.set('Set-Cookie', cookieString(ADMIN_COOKIE, '', req, 0));
+  res.redirect('/admin/login');
+});
+
+function cookieOpts(req) {
+  return {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: req.secure || req.headers['x-forwarded-proto'] === 'https',
+    maxAge: ADMIN_DAYS * 864e5,
+    path: '/',
+  };
+}
+function cookieString(name, value, req, maxAge) {
+  const o = cookieOpts(req);
+  const age = maxAge === undefined ? o.maxAge / 1000 : maxAge;
+  return `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${age}; HttpOnly; SameSite=Lax`
+       + (o.secure ? '; Secure' : '');
 }
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+/* Everything on the admin pages is shown in Eastern time, because that is
+   the clock you actually run the business on. Node works out standard vs
+   daylight saving from the zone name, so this is right in both halves of
+   the year without anybody remembering to change it. */
+const TZ = 'America/Toronto';
+function tzLabel(d) {
+  /* "EST" or "EDT" for the date in question, taken from the formatter
+     rather than guessed, so a date in July says EDT and one in January
+     says EST. */
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: TZ, timeZoneName: 'short' })
+    .formatToParts(d);
+  const z = parts.find(p => p.type === 'timeZoneName');
+  return z ? z.value : 'ET';
+}
 function fmtDate(d) {
-  return d ? new Date(d).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' }) + ' UTC' : '—';
+  if (!d) return '—';
+  const when = new Date(d);
+  return when.toLocaleString('en-US', { timeZone: TZ, dateStyle: 'medium', timeStyle: 'short' })
+       + ' ' + tzLabel(when);
 }
 
 /* "3m", "2h 10m" — short enough to sit in a table cell. */
@@ -1199,6 +1405,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
          seconds would throw away wherever you had scrolled to. */
       setInterval(function(){
         fetch('/admin/live.json', { cache: 'no-store' })
+          .then(r => { if(r.status === 401) { location.href = '/admin/login'; throw 0; } return r; })
           .then(function(r){ return r.ok ? r.json() : null; })
           .then(function(d){
             if (!d) return;
@@ -1521,7 +1728,12 @@ function adminLayout(title, body) {
     button:hover{border-color:#19e3c8}
     h1{font-size:1.4rem}
   </style></head><body>
-  <nav><a href="/admin">Users &amp; trials</a><a href="/admin/visitors">Visitors</a><a href="/admin/grant">Give an overlay</a><a href="/admin/reviews">Reviews</a><a href="/">← back to site</a></nav>
+  <nav>
+    <a href="/admin">Users &amp; trials</a><a href="/admin/visitors">Visitors</a><a href="/admin/grant">Give an overlay</a><a href="/admin/reviews">Reviews</a><a href="/">← back to site</a>
+    <form method="post" action="/admin/logout" style="display:inline;margin-left:.4rem">
+      <button style="font-weight:700">Sign out</button>
+    </form>
+  </nav>
   <h1>${esc(title)}</h1>
   ${body}
   </body></html>`;
