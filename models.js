@@ -18,6 +18,16 @@ const userSchema = new mongoose.Schema({
   trialEnd: { type: Date, default: null },
   currentPeriodEnd: { type: Date, default: null },
 
+  /* Their Minecraft username, asked for at signup and changeable on the
+     site. The launcher reads it from here so nobody has to type it into
+     the control panel — getting it wrong means real payments are read as
+     somebody else's and silently ignored.
+
+     Bedrock players joining through Geyser have a prefix, usually a full
+     stop, and it is part of the name as it appears in chat. So it is
+     stored exactly as they typed it. */
+  ign: { type: String, default: '' },
+
   // The unguessable id that appears in their OBS / LIVE Studio link.
   // Stays the same for the life of the account so they paste it once.
   overlayToken: { type: String, unique: true, sparse: true, index: true },

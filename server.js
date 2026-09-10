@@ -462,6 +462,26 @@ app.post('/api/hit', async (req, res) => {
 });
 
 // ---- accounts ----
+/* A Minecraft username as it appears in chat.
+
+   Java names are 3-16 of letters, digits and underscore. Bedrock players
+   joining through Geyser carry a prefix — a full stop on most servers,
+   sometimes an asterisk — and that prefix IS part of their name in chat,
+   so it has to be allowed through rather than stripped. Getting this
+   wrong is not cosmetic: the launcher matches payments against this name,
+   and a mismatch means real money is read as somebody else's and ignored. */
+function cleanIgn(v) {
+  const raw = String(v == null ? '' : v).trim();
+  if (!raw) return { error: 'enter your Minecraft username' };
+  if (raw.length > 17) return { error: 'that is longer than a Minecraft username can be' };
+  const m = raw.match(/^([.*]?)([A-Za-z0-9_]{3,16})$/);
+  if (!m) {
+    return { error: 'a Minecraft username is 3 to 16 letters, numbers or underscores — ' +
+                    'Bedrock players start theirs with a full stop' };
+  }
+  return { ign: m[1] + m[2] };
+}
+
 app.post('/api/signup', async (req, res) => {
   try {
     const email = String(req.body.email || '').trim().toLowerCase();
@@ -473,13 +493,18 @@ app.post('/api/signup', async (req, res) => {
     if (req.body.acceptTerms !== true) {
       return res.status(400).json({ error: 'please tick the box to accept the terms' });
     }
+    /* Asked for at signup because the alternative is what actually
+       happened: somebody streams, real payments scroll past unread, and
+       nothing on screen explains why. */
+    const named = cleanIgn(req.body.ign);
+    if (named.error) return res.status(400).json({ error: named.error });
 
     const existing = await User.findOne({ email });
     if (existing) return res.status(409).json({ error: 'an account with that email already exists' });
 
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await User.create({
-      email, passwordHash,
+      email, passwordHash, ign: named.ign,
       terms: { acceptedAt: new Date(), version: TERMS_VERSION, where: 'signup' },
     });
     const token = signToken(user);
@@ -580,6 +605,7 @@ app.get('/api/me', auth, (req, res) => {
     /* Overlays owned outright. Separate from the subscription on purpose:
        the page has to be able to say "you own two of these" to somebody
        with no subscription at all. */
+    ign: u.ign || '',
     perm: relay.permOf(u),
     subGames: relay.subGames(u),
     trialEnd: u.trialEnd,
@@ -749,6 +775,9 @@ app.get('/api/links', auth, async (req, res) => {
     active: true,
     plan: user.plan,
     status: user.status,
+    /* The launcher reads this and tells its payment reader, so the name
+       is set once on the website and never typed into the panel. */
+    ign: user.ign || '',
     games,
     /* Which of these they own forever, and which are only theirs while
        the subscription runs. The page uses it to label each link. */
@@ -758,12 +787,21 @@ app.get('/api/links', auth, async (req, res) => {
        background so it sits over gameplay. Both are flags the overlay
        already understands — the local version got them from its /display
        path, which the token in ours pushes out of the way. */
-    links: games.map(g => ({
-      game: g,
-      name: GAME_NAMES[g],
-      url: `${PUBLIC_URL}/o/${token}/${g}?role=display&bg=transparent`,
-      panel: `http://localhost:${GAME_PORTS[g]}/`,
-    })),
+    links: games.map(g => {
+      /* If their launcher is connected right now it has told us the port
+         it actually bound to, which may not be the standard one when
+         something else on their PC had taken it. Prefer the real number;
+         fall back to the usual one when nothing is running, since then
+         there is nothing to correct. */
+      const live = relay.panelPort(user._id, g);
+      return {
+        game: g,
+        name: GAME_NAMES[g],
+        url: `${PUBLIC_URL}/o/${token}/${g}?role=display&bg=transparent`,
+        panel: `http://localhost:${live || GAME_PORTS[g]}/`,
+        panelLive: !!live,
+      };
+    }),
     download: `${PUBLIC_URL}/download/${token}/donut-overlays-launcher.zip`,
   });
 });
@@ -812,6 +850,17 @@ app.put('/api/look', auth, async (req, res) => {
     console.error('[look] error', err);
     res.status(500).json({ error: 'could not save that' });
   }
+});
+
+/* Changing the Minecraft username later — people rename, and Bedrock
+   players often get the prefix wrong the first time. The launcher picks
+   the new one up on its next poll, so nothing has to be restarted. */
+app.post('/api/ign', auth, async (req, res) => {
+  const named = cleanIgn(req.body.ign);
+  if (named.error) return res.status(400).json({ error: named.error });
+  req.user.ign = named.ign;
+  await req.user.save();
+  res.json({ ok: true, ign: req.user.ign });
 });
 
 /* Only for accounts still on the old two-overlay subscription. Nothing

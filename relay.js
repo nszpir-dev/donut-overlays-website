@@ -89,6 +89,16 @@ function allowedGames(user) {
   return GAMES.filter(g => out.includes(g));
 }
 
+/* The control panel port a running launcher reported for one game, or
+   null if none is connected. The website falls back to the standard port
+   when this is null, which is right: with nothing running there is
+   nothing to correct, and the usual number is the best guess. */
+function panelPort(userId, game) {
+  const h = hubs.get(String(userId));
+  const p = h && h.ports ? h.ports.get(game) : null;
+  return p || null;
+}
+
 /* Does this account have anything at all? Used to decide whether to show
    the setup panel. Owning one overlay outright counts, even with no
    subscription and never having had one. */
@@ -109,7 +119,7 @@ const hubs = new Map(); // userId -> { uplink, viewers:Set, last:Map<game,string
 function hubFor(userId) {
   let h = hubs.get(userId);
   if (!h) {
-    h = { uplink: null, viewers: new Set(), last: new Map() };
+    h = { uplink: null, viewers: new Set(), last: new Map(), ports: new Map() };
     hubs.set(userId, h);
   }
   return h;
@@ -196,6 +206,14 @@ function attachUplink(ws, user) {
     let m;
     try { m = JSON.parse(raw.toString()); } catch { return; }
     if (m.t !== 'up' || !m.game || !m.payload) return;
+
+    /* The launcher tells us which port it actually ended up on. It is
+       normally the standard one, but if something else on that PC had
+       taken it the launcher moved — and the account page was still
+       printing the old number, which answers somebody else's error page.
+       Range-checked because it arrives over the wire. */
+    const p = Number(m.port);
+    if (Number.isInteger(p) && p > 0 && p < 65536) h.ports.set(m.game, p);
     if (!allowedGames(user).includes(m.game)) return;
 
     let text;
@@ -257,4 +275,4 @@ async function recheckLive() {
   }
 }
 
-module.exports = { setup, entitled, allowedGames, permOf, subGames, hasAnything, gamesFor, OPTIONS, GAMES };
+module.exports = { setup, entitled, allowedGames, permOf, subGames, hasAnything, gamesFor, panelPort, OPTIONS, GAMES };
