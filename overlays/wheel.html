@@ -74,6 +74,24 @@ body.chroma{background:#00b140}
   position:absolute;left:50%;top:50%;z-index:2;
 }
 
+/* Registering the custom property is what lets it be ANIMATED. Without
+   this line the browser treats --c as an opaque string and jumps between
+   the keyframe colours instead of sliding through them. Everything in a
+   tile is drawn from --c, so animating the one value cycles the whole
+   thing — border, glow, bar and letter together. */
+@property --c{ syntax:'<color>'; inherits:true; initial-value:#19e3c8 }
+.tile.rainbow{ animation:hue 4s linear infinite }
+@keyframes hue{
+  0%  {--c:#ff4d4d}
+  16% {--c:#ff9b2f}
+  33% {--c:#ffe23c}
+  50% {--c:#5cff8f}
+  66% {--c:#19d8ff}
+  83% {--c:#b26bff}
+  100%{--c:#ff4d4d}
+}
+@media(prefers-reduced-motion: reduce){ .tile.rainbow{animation:none} }
+
 .tile{
   width:var(--tile);height:var(--tile);flex:none;
   border-radius:1.15rem;position:relative;overflow:hidden;
@@ -201,13 +219,30 @@ body.chroma{background:#00b140}
   z-index:4;display:flex;align-items:center;justify-content:center;
   pointer-events:none;
 }
+/* Between follows the badges at the top are the only other thing on
+   screen, and they say nothing a viewer needs. Out of the way. */
+#reelWrap.hush ~ #cap, body.waiting #top{opacity:0;transition:opacity .3s ease}
+body.waiting #top{pointer-events:none}
 #idle.hidden{display:none}
 #reelWrap.waiting .tile{filter:brightness(.72) saturate(1)}
-.donut{
-  width:13rem;height:13rem;display:block;
+.donut{ width:13rem;height:13rem;display:block }
+
+/* Waiting between follows. Smaller and slower than the moment itself, so
+   the pop reads as a change rather than as more of the same. */
+#idle.calm .donut{
+  width:9.5rem;height:9.5rem;
+  animation:donutWake .5s cubic-bezier(.2,1.3,.35,1) both,
+            donutIdle 3.4s ease-in-out .5s infinite;
+}
+@keyframes donutWake{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* Somebody followed. */
+#idle.pop .donut{
   animation:donutIn .62s cubic-bezier(.18,1.5,.32,1) both,
             donutIdle 2.6s ease-in-out .62s infinite;
 }
+#idle.pop .ring{animation:ringOut 1.1s cubic-bezier(.2,.7,.3,1) .18s 1 both}
+#idle.calm .ring{display:none}
 /* Spins in from nothing, overshoots its size, settles. */
 @keyframes donutIn{
   0%  {transform:scale(.15) rotate(-200deg);opacity:0}
@@ -230,7 +265,6 @@ body.chroma{background:#00b140}
 .ring{
   position:absolute;left:50%;top:50%;width:6rem;height:6rem;margin:-3rem 0 0 -3rem;
   border-radius:50%;border:.2rem solid var(--teal);opacity:0;pointer-events:none;
-  animation:ringOut 1.1s cubic-bezier(.2,.7,.3,1) .18s 1 both;
 }
 @keyframes ringOut{
   0%  {transform:scale(.3);opacity:.85}
@@ -259,6 +293,20 @@ body.chroma{background:#00b140}
 .badge .dot{width:.5rem;height:.5rem;border-radius:50%;background:var(--teal);box-shadow:0 0 .6rem var(--teal)}
 .badge.q .dot{background:var(--gold);box-shadow:0 0 .6rem var(--gold)}
 #title{font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:.14em;color:#fff}
+
+/* Shown only when the page cannot reach the launcher. An overlay that
+   is working and waiting and an overlay that never connected are both a
+   blank rectangle, and the second is what actually happens when the
+   address is wrong or the launcher is closed — so the broken one has to
+   say so. It costs nothing on stream because it is never there when
+   things are working. */
+#offline{
+  position:fixed;top:.6rem;left:.6rem;z-index:99;display:none;
+  background:rgba(58,20,20,.94);border:1px solid #7a2a2a;color:#ffb4b4;
+  padding:.35rem .7rem;border-radius:.4rem;
+  font-size:.8rem;font-weight:800;letter-spacing:.04em;
+}
+body.offline #offline{display:block}
 
 /* A burst behind the winning tile. One element, one animation. */
 #burst{
@@ -308,12 +356,7 @@ body:not(.panel) #stageTag{display:none}
 
 /* Loud on purpose. Forgetting this is on means a strip of prizes parked
    across the stream for an hour. */
-#pinWarn{
-  display:none;margin-top:.6rem;padding:.55rem .8rem;border-radius:.45rem;
-  background:#3a2a08;border:1px solid #6b5010;color:#ffd77a;
-  font-size:.88rem;font-weight:700;
-}
-body.pinned #pinWarn{display:block}
+
 .pwrap{width:min(1080px,100%);margin:0 auto;display:flex;flex-direction:column;gap:1rem}
 .phead{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}
 .phead h1{font-family:'Bebas Neue',sans-serif;font-size:2.1rem;letter-spacing:.04em}
@@ -344,6 +387,8 @@ table{width:100%;border-collapse:collapse}
 th{text-align:left;font-size:.72rem;letter-spacing:.13em;text-transform:uppercase;color:#8fa2c4;padding:.3rem .4rem;font-weight:800}
 td{padding:.3rem .4rem;vertical-align:middle;border-top:1px solid #162034}
 .swatch{width:1.6rem;height:1.6rem;border-radius:.3rem;border:1px solid #2b3a58;padding:0;cursor:pointer;background:none}
+.swatch.rb{background:conic-gradient(#ff4d4d,#ff9b2f,#ffe23c,#5cff8f,#19d8ff,#b26bff,#ff4d4d)}
+.rbtog{padding:.15rem .3rem;font-size:.9rem;line-height:1;vertical-align:middle;margin-left:.25rem}
 .thumb{width:2.4rem;height:2.4rem;border-radius:.35rem;object-fit:cover;background:#070d19;border:1px solid #24314c;display:block}
 .thumb.empty{display:flex;align-items:center;justify-content:center;font-size:.65rem;color:#546484}
 .pct{font-family:'Bebas Neue',sans-serif;font-size:1.25rem;color:#ffc93c;min-width:3.2rem;display:inline-block}
@@ -363,6 +408,8 @@ td{padding:.3rem .4rem;vertical-align:middle;border-top:1px solid #162034}
 <body>
 
 <!-- ============ what goes on stream ============ -->
+<div id="offline">Follow Reel — not connected to the launcher</div>
+
 <div id="stage">
   <div id="top">
     <span class="badge"><span class="dot"></span><span id="srcText">waiting</span></span>
@@ -442,10 +489,7 @@ td{padding:.3rem .4rem;vertical-align:middle;border-top:1px solid #162034}
         <!-- the overlay itself is moved in here by script -->
       </div>
       <div class="row" style="margin-top:.7rem">
-        <button class="btn" id="bPin">Hold it on screen</button>
-        <span class="wincount">for dragging it into place in OBS or LIVE Studio</span>
-      </div>
-      <div id="pinWarn">Held on screen. Your viewers can see it sitting there — turn this off before you go live.</div>
+
     </div>
 
     <div class="card">
@@ -555,8 +599,8 @@ function buildReel(){
     for(let i = 0; i < W.tiles.length; i++){
       const t = W.tiles[i];
       const d = document.createElement('div');
-      d.className = 'tile';
-      d.style.setProperty('--c', t.color || '#19e3c8');
+      d.className = 'tile' + (t.color === 'rainbow' ? ' rainbow' : '');
+      if(t.color !== 'rainbow') d.style.setProperty('--c', t.color || '#19e3c8');
       d.innerHTML = tileHTML(t);
       reel.append(d);
       cells.push({ node: d, tileIndex: i });
@@ -735,24 +779,40 @@ function render(){
   /* On stream: only while something is happening, unless it is being
      held on screen for positioning. In the panel: always, because a
      preview that vanishes is not a preview. */
-  el('stage').classList.toggle('on', DISPLAY ? (W.phase !== 'idle' || !!W.pinned) : true);
-  document.body.classList.toggle('pinned', !!W.pinned);
-  const pinBtn = el('bPin');
-  if(pinBtn) pinBtn.textContent = W.pinned ? 'Stop holding it on screen' : 'Hold it on screen';
-  /* The donut also stands in while the overlay is being positioned, so
-     there is something in the middle to line up against. */
-  const wantDonut = W.phase === 'intro' || (W.pinned && W.phase === 'idle');
+  /* Always on screen now, which makes everything simpler and fixes the
+     thing that actually bit: an overlay that is invisible when idle and
+     an overlay that never loaded look exactly alike in OBS, so there was
+     no way to place it or to know the address was right. What sits there
+     between follows is the donut on its own — small, still, and clearly
+     alive — and the strip only appears when there is a spin to show. */
+  el('stage').classList.add('on');
+
+  const waiting = W.phase === 'idle';
+  document.body.classList.toggle('waiting', waiting);
+  const wantDonut = waiting || W.phase === 'intro';
   const idleEl = el('idle');
+
   if(wantDonut){
-    /* Re-run the entrance from the top each time rather than leaving the
-       element in whatever state the last one finished in. */
-    if(idleEl.classList.contains('hidden') || idleEl.classList.contains('out')){
-      idleEl.classList.remove('hidden', 'out');
+    idleEl.classList.remove('hidden', 'out');
+    /* Waiting: it just floats. A follow: it pops, which is the moment
+       that says something is happening before anything else moves. The
+       pop is re-run each time rather than left in whatever state the last
+       one ended in. */
+    const mode = W.phase === 'intro' ? 'pop' : 'calm';
+    /* Asked as "is it already in the mode it should be in" rather than
+       "has the mode changed". On the very first frame neither class is
+       set yet and nothing has changed, so the change-based version left
+       the donut in no mode at all — full size, no animation, which is
+       neither of the two states it is supposed to have. */
+    if(!idleEl.classList.contains(mode)){
+      idleEl.classList.remove('pop', 'calm');
+      idleEl.classList.add(mode);
       restart(idleEl);
     }
   } else if(!idleEl.classList.contains('hidden') && !idleEl.classList.contains('out')){
     /* Let it leave rather than vanishing between two frames. */
     idleEl.classList.add('out');
+    idleEl.classList.remove('pop', 'calm');
     restart(idleEl);
     const mine = idleEl.dataset.gen = String(Number(idleEl.dataset.gen || 0) + 1);
     setTimeout(() => {
@@ -760,8 +820,8 @@ function render(){
     }, 340);
   }
 
-  /* The strip only exists once the donut is done with its moment. */
-  el('reelWrap').classList.toggle('hush', W.phase === 'intro');
+  /* The strip is only there for the spin itself. */
+  el('reelWrap').classList.toggle('hush', wantDonut);
 
   const q = W.queue.length;
   el('qBadge').style.display = q ? '' : 'none';
@@ -786,14 +846,9 @@ function render(){
     note.textContent = 'new follower';
     who.textContent = '@' + W.current.name;
     what.textContent = t ? (t.label || '—') : '—';
-  } else if(W.pinned || !DISPLAY){
-    /* Held for positioning, or the panel's preview: say why it is there
-       rather than leaving a blank strip nobody can explain. */
-    note.textContent = '';
-    who.textContent = W.pinned ? 'HOLDING IT ON SCREEN' : 'NOTHING ON STREAM RIGHT NOW';
-    what.textContent = '';
   } else {
-    /* Idle on stream. Nothing is showing, so nothing needs saying. */
+    /* Waiting. The donut is the whole message — a line of text under it
+       would be one more thing parked on the stream saying nothing. */
     note.textContent = ''; who.textContent = ''; what.textContent = '';
   }
 
@@ -832,7 +887,10 @@ function drawTileRows(){
       <td><input type="text" data-label="${i}" value="${escapeHtml(t.label || '')}" maxlength="24"></td>
       <td><input type="number" data-weight="${i}" value="${Number(t.weight) || 0}" min="0" max="1000" step="1"></td>
       <td><span class="pct">${pct.toFixed(1)}%</span></td>
-      <td class="hide-sm"><input type="color" class="swatch" data-color="${i}" value="${t.color || '#19e3c8'}"></td>
+      <td class="hide-sm">${t.color === 'rainbow'
+        ? `<button class="swatch rb" data-rb="${i}" title="rainbow — click for a plain colour"></button>`
+        : `<input type="color" class="swatch" data-color="${i}" value="${t.color || '#19e3c8'}">`}
+        <button class="btn sm rbtog" data-rb="${i}" title="rainbow">${t.color === 'rainbow' ? '●' : '🌈'}</button></td>
       <td><button class="btn warn sm" data-del="${i}">×</button></td>`;
     body.append(tr);
   });
@@ -930,12 +988,29 @@ function cmd(name, args){
   ws.send(JSON.stringify({ t:'cmd', name, args: args || {} }));
   return true;
 }
+let everLinked = false, offlineTimer = null;
 function setLink(ok){
   linked = ok;
+  if(ok){
+    everLinked = true;
+    document.body.classList.remove('offline');
+    if(offlineTimer){ clearTimeout(offlineTimer); offlineTimer = null; }
+  } else if(!offlineTimer){
+    /* A couple of seconds of grace. A browser source opened before the
+       launcher has finished starting is normal and fixes itself; saying
+       "not connected" for that half second would be the overlay crying
+       wolf at the start of every stream. */
+    offlineTimer = setTimeout(() => {
+      offlineTimer = null;
+      if(!linked) document.body.classList.add('offline');
+    }, 3000);
+  }
   const p = el('linkPill'); if(!p) return;
   p.className = 'pill-status ' + (ok ? 'ok' : 'bad');
   p.textContent = ok ? 'connected' : 'not connected';
 }
+
+
 function connect(){
   const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
   try { ws = new WebSocket(url); } catch { return setLink(false); }
@@ -977,6 +1052,18 @@ if(!DISPLAY){
   el('tileRows').addEventListener('click', e => {
     const pick = e.target.closest('[data-pick]');
     if(pick){ startEdit(); return pickImage(+pick.dataset.pick); }
+    const rb = e.target.closest('[data-rb]');
+    if(rb){
+      startEdit();
+      const i = +rb.dataset.rb;
+      /* Off goes back to the tile's place in the stock palette rather
+         than to one fixed colour, so turning it off twice on two rows
+         does not leave them identical. */
+      const colors = ['#19e3c8','#ffc93c','#8b5cff','#ff4d9d','#35e0ff','#7bf59f','#ff8a3d','#c77dff'];
+      editing[i].color = editing[i].color === 'rainbow' ? colors[i % colors.length] : 'rainbow';
+      drawTileRows();
+      return;
+    }
     const del = e.target.closest('[data-del]');
     if(del){ startEdit(); editing.splice(+del.dataset.del, 1); drawTileRows(); }
   });
@@ -1000,8 +1087,6 @@ if(!DISPLAY){
     editing = null;
     log('prizes saved');
   };
-
-  el('bPin').onclick = () => { if(!cmd('w.pin')) log('not connected'); };
 
   el('bTest').onclick = () => {
     const name = (el('fTest').value || 'test_viewer').trim();
