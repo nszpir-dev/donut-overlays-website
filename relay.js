@@ -126,12 +126,25 @@ const relayHasAnything = hasAnything;
  * currently watching, and the last state we saw so a browser source
  * that opens mid-round paints immediately instead of sitting blank.
  */
-const hubs = new Map(); // userId -> { uplink, viewers:Set, last:Map<game,string> }
+/* One connection per GAME, not per account.
+ *
+ * It used to be one per account, and the newest always won. That was
+ * right when every overlay read the same Minecraft chat and running two
+ * at once was a mistake worth stopping. The Follow Reel reads TikTok
+ * instead, so running it alongside a board is an ordinary thing to want —
+ * and under the old rule the second launcher silently knocked the first
+ * one's hosted link offline.
+ *
+ * Still exactly one launcher per game, though. Two windows both pushing
+ * the board would have the overlay flicking between two different rounds,
+ * so for a single game the newest still wins.
+ */
+const hubs = new Map(); // userId -> { links:Set<ws>, owners:Map<game,ws>, viewers:Set, last:Map<game,string> }
 
 function hubFor(userId) {
   let h = hubs.get(userId);
   if (!h) {
-    h = { uplink: null, viewers: new Set(), last: new Map(), ports: new Map() };
+    h = { links: new Set(), owners: new Map(), viewers: new Set(), last: new Map(), ports: new Map() };
     hubs.set(userId, h);
   }
   return h;
@@ -139,7 +152,7 @@ function hubFor(userId) {
 
 function dropHubIfEmpty(userId) {
   const h = hubs.get(userId);
-  if (h && !h.uplink && h.viewers.size === 0) hubs.delete(userId);
+  if (h && h.links.size === 0 && h.viewers.size === 0) hubs.delete(userId);
 }
 
 function setup(server, { jwtSecret }) {
@@ -201,13 +214,11 @@ function setup(server, { jwtSecret }) {
 function attachUplink(ws, user) {
   const id = user._id.toString();
   const h = hubFor(id);
-  if (h.uplink && h.uplink !== ws) {
-    // Second launcher for the same account — the newest wins, so a
-    // crashed-and-restarted launcher takes over cleanly.
-    try { h.uplink.close(4000, 'replaced by a newer launcher'); } catch {}
-  }
-  h.uplink = ws;
+  /* Which game this launcher is running is not known yet — it arrives
+     with the first push — so nothing is claimed here. */
+  h.links.add(ws);
   ws._userId = id;
+  ws._games = new Set();
   console.log(`[relay] launcher connected for ${user.email}`);
 
   /* Each game broadcasts a differently shaped message — the board sends
@@ -228,6 +239,20 @@ function attachUplink(ws, user) {
     if (Number.isInteger(p) && p > 0 && p < 65536) h.ports.set(m.game, p);
     if (!allowedGames(user).includes(m.game)) return;
 
+    /* Claim this game on the first push. Whoever pushed it last owns it,
+       so a launcher that crashed and was restarted takes its own game
+       back — while a launcher running a DIFFERENT game carries on
+       untouched, which is the whole point of the change. */
+    const owner = h.owners.get(m.game);
+    if (owner && owner !== ws) {
+      try { owner.close(4000, 'replaced by a newer launcher'); } catch {}
+    }
+    if (owner !== ws) {
+      h.owners.set(m.game, ws);
+      ws._games.add(m.game);
+      console.log(`[relay] ${user.email} is now pushing ${m.game}`);
+    }
+
     let text;
     try { text = JSON.stringify(m.payload); } catch { return; }
     h.last.set(m.game, text);
@@ -237,7 +262,11 @@ function attachUplink(ws, user) {
   });
 
   ws.on('close', () => {
-    if (h.uplink === ws) h.uplink = null;
+    h.links.delete(ws);
+    /* Only give up the games this socket actually held. Deleting by value
+       rather than clearing the map matters: another launcher may be
+       holding a different game on the same account right now. */
+    for (const [game, owner] of h.owners) if (owner === ws) h.owners.delete(game);
     console.log(`[relay] launcher disconnected for ${user.email}`);
     dropHubIfEmpty(id);
   });
@@ -278,7 +307,7 @@ async function recheckLive() {
       const user = await User.findById(userId);
       if (relayHasAnything(user)) continue;
       console.log('[relay] cutting off, nothing left on this account', userId);
-      if (h.uplink) try { h.uplink.close(4001, 'nothing active on this account'); } catch {}
+      for (const l of h.links) try { l.close(4001, 'nothing active on this account'); } catch {}
       for (const v of h.viewers) try { v.close(4001, 'nothing active on this account'); } catch {}
       hubs.delete(userId);
     } catch (err) {
