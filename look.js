@@ -100,6 +100,15 @@ if (L.accent) {
     root.style.setProperty('--calm', L.accent);
     root.style.setProperty('--calm-1', shade(L.accent, 1.35));
     root.style.setProperty('--calm-2', shade(L.accent, 0.78));
+  } else if (G === 'wheel') {
+    /* Two on this one. The reel hangs its pointer, its badges and its
+       glow off --teal and the prize it landed on off --gold, and setting
+       only one of them leaves half the overlay in the stock colour and
+       the other half in theirs, which looks like a mistake rather than a
+       theme. Prize tiles keep their own colours: those are set per prize
+       in the panel and are not the site's to overwrite. */
+    root.style.setProperty('--teal', L.accent);
+    root.style.setProperty('--gold', L.accent);
   } else {
     root.style.setProperty('--gold', L.accent);
   }
