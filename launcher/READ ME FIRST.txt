@@ -1,0 +1,129 @@
+DONUT OVERLAYS - HOW TO START IT
+================================
+
+If Windows said "Smart App Control blocked a file that may be unsafe",
+you are in the right place. Step 1 is what stops that happening.
+
+
+STEP 1 - UNBLOCK THE ZIP  (do this BEFORE unzipping)
+----------------------------------------------------
+Windows puts an invisible "came from the internet" mark on anything you
+download, and passes that mark on to every file you unzip out of it. That
+mark is what Windows blocks - not the program itself.
+
+  1. Find donut-overlays-launcher.zip in your Downloads folder.
+  2. Right-click it -> Properties.
+  3. At the bottom of the General tab, tick UNBLOCK, then click OK.
+     (If there is no Unblock box, Windows already trusts it - carry on.)
+
+Do this to the ZIP, before unzipping. It takes the mark off everything
+inside it in one go.
+
+ALREADY UNZIPPED? Delete the folder you unzipped, do the three steps
+above on the zip, then unzip it again. Unblocking the files one by one
+afterwards works too, but there are ten of them.
+
+
+STEP 2 - UNZIP IT PROPERLY
+--------------------------
+Right-click the zip -> EXTRACT ALL -> Extract.
+
+Do not just double-click the zip and run things from inside the window
+that opens. That window is not a real folder - Windows quietly copies the
+files into a temporary place that gets wiped, and the launcher cannot
+find the files it needs. If the address bar says AppData or Temp, that is
+what has happened. Extract properly and use the folder you get.
+
+
+STEP 3 - START IT
+-----------------
+Open the extracted donut-overlays folder and double-click:
+
+    START-DONUT-OVERLAYS.bat
+
+A black window opens. Sign in with your Donut Overlays email and
+password, then pick which overlay you want to run.
+
+Leave that black window open while you stream. Closing it stops the
+overlay. It also prints your overlay link and your control panel address
+every time it starts.
+
+
+IF IT ASKS FOR NODE.JS
+----------------------
+Node.js is the free, open-source thing that actually runs the overlays.
+It is made by the OpenJS Foundation, not by us, and it only needs
+installing once.
+
+On most Windows 11 PCs the launcher offers to install it for you - type
+Y and press Enter, say yes to the Windows permission box, and wait a
+couple of minutes. If it then says it cannot see Node yet, just
+double-click START-DONUT-OVERLAYS.bat again; it works the second time.
+
+If it cannot install it for you, it opens the download page. Click the
+big green LTS button, run the installer, click Next through everything,
+leave "Tools for Native Modules" UNTICKED, then start the launcher again.
+
+
+STILL BLOCKED?
+--------------
+If Windows still refuses after Step 1, right-click
+START-DONUT-OVERLAYS.bat -> Properties -> tick Unblock -> OK.
+
+Some people turn Smart App Control off entirely. We do not recommend it:
+on Windows 11 it CANNOT be switched back on again without reinstalling
+Windows. Ask us in the Discord first - there is almost always a simpler
+answer.
+
+
+NEED A HAND?
+------------
+Discord: discord.gg/UPyz79jcth
+Web:     donutoverlays.com
+
+
+YOUR MINECRAFT NAME
+-------------------
+The first time you run this it asks for your Minecraft username, and
+then remembers it, so it only asks once.
+
+Type it exactly as it appears in Donut chat. Bedrock players: start it
+with a full stop, like  .yourname
+
+This is what payments are matched against. If it is wrong, payments to
+you are read as somebody else's and ignored. To change it, either set it
+on your account page at donutoverlays.com, or open the file called
+your-minecraft-name.txt in this folder and edit it.
+
+
+FOLLOW REEL (the fifth overlay)
+-------------------------------
+A strip of prizes runs across the screen and stops on one. Every new
+follower gets a run, automatically, with their name on it. Two people
+following at once both get one — the second waits its turn.
+
+Set your prizes up in its control panel: what each tile says, a picture
+for it, and how often it should come up. The percentage next to each one
+is the real chance it will land there. Prizes are saved next to this file
+in wheel-prizes.json and survive restarting.
+
+Every win is written to wheel-wins.json, with the name and the time. That
+is the list of things you now owe people, so keep it.
+
+To have it watch TikTok for follows by itself, you need one extra piece.
+Open this folder in a terminal and run:
+
+    npm install tiktok-live-connector
+
+It is optional. Without it the reel still works — the control panel can
+run it, and so can anything that can make a web request:
+
+    POST http://localhost:8094/follow   with   {"name":"someone"}
+
+That address only accepts requests from your own PC and your own network.
+
+Be aware that the TikTok part is unofficial. TikTok does not offer a
+supported way to tell a program about a follow, so it uses the same feed
+the web player uses. It works, and it breaks whenever TikTok changes
+something — which is exactly why the address above exists as a way in
+that nobody else controls.

@@ -1,0 +1,16 @@
+{
+  "name": "donut-overlays-launcher",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Runs a Donut Overlays game on the streamer's PC and mirrors it to their permanent overlay link",
+  "main": "donut-relay.js",
+  "scripts": {
+    "start": "node donut-relay.js"
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

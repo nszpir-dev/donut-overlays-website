@@ -1,0 +1,68 @@
+[
+  {
+    "label": "LT5",
+    "weight": 20,
+    "color": "#633b3b",
+    "img": ""
+  },
+  {
+    "label": "HT5",
+    "weight": 16,
+    "color": "#75666b",
+    "img": ""
+  },
+  {
+    "label": "LT4",
+    "weight": 15,
+    "color": "#6291fe",
+    "img": ""
+  },
+  {
+    "label": "HT4",
+    "weight": 12,
+    "color": "#386aff",
+    "img": ""
+  },
+  {
+    "label": "LT3",
+    "weight": 12,
+    "color": "#ff9752",
+    "img": ""
+  },
+  {
+    "label": "HT3",
+    "weight": 8,
+    "color": "#fe7920",
+    "img": ""
+  },
+  {
+    "label": "LT2",
+    "weight": 6,
+    "color": "#d1d1d1",
+    "img": ""
+  },
+  {
+    "label": "HT2",
+    "weight": 5,
+    "color": "#bcbdb2",
+    "img": ""
+  },
+  {
+    "label": "LT1",
+    "weight": 3,
+    "color": "#ffe68a",
+    "img": ""
+  },
+  {
+    "label": "HT1",
+    "weight": 2,
+    "color": "#f9ba1a",
+    "img": ""
+  },
+  {
+    "label": "STORY SHOUTOUT",
+    "weight": 1,
+    "color": "#ff0000",
+    "img": ""
+  }
+]
