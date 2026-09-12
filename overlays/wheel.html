@@ -79,16 +79,46 @@ body.chroma{background:#00b140}
    the keyframe colours instead of sliding through them. Everything in a
    tile is drawn from --c, so animating the one value cycles the whole
    thing — border, glow, bar and letter together. */
-@property --c{ syntax:'<color>'; inherits:true; initial-value:#19e3c8 }
-.tile.rainbow{ animation:hue 4s linear infinite }
-@keyframes hue{
-  0%  {--c:#ff4d4d}
-  16% {--c:#ff9b2f}
-  33% {--c:#ffe23c}
-  50% {--c:#5cff8f}
-  66% {--c:#19d8ff}
-  83% {--c:#b26bff}
-  100%{--c:#ff4d4d}
+/* A rainbow tile is the whole spectrum at once, not one colour at a time.
+   Cycling a single hue was the wrong reading of "rainbow" — from across a
+   room it just looked like a tile that kept changing its mind. This is
+   every colour on the tile together, drifting slowly sideways so it is
+   alive without being busy.
+
+   Everything else in the tile is drawn from --c, so that is pinned to
+   white here: the glow, the border and the letter all want to be neutral
+   against a fill that is already doing the colour. */
+.tile.rainbow{
+  --c:#ffffff;
+  background:linear-gradient(112deg,
+    #ff3b3b 0%, #ff9b2f 14%, #ffe23c 28%, #5cff8f 42%,
+    #19d8ff 56%, #4f7bff 70%, #c77dff 84%, #ff3b3b 100%);
+  background-size:300% 100%;
+  border-color:rgba(255,255,255,.92);
+  animation:rbslide 6s linear infinite;
+}
+@keyframes rbslide{ to{background-position:300% 0} }
+
+/* The bar along the bottom and the lettering, on a fill this bright. */
+.tile.rainbow::after{
+  background:linear-gradient(90deg,#ff3b3b,#ffe23c,#5cff8f,#19d8ff,#c77dff);
+  box-shadow:0 0 1.6rem .2rem rgba(255,255,255,.55);
+}
+/* White on a fill that runs through yellow needs an outline, not a
+   shadow — a shadow only helps where the colour behind it happens to be
+   dark, and this one is every colour by design. Stroked the way the
+   reference art does it. */
+.tile.rainbow .name, .tile.rainbow .glyph{
+  color:#fff;
+  -webkit-text-stroke:.09em rgba(10,8,20,.92);
+  paint-order:stroke fill;
+  text-shadow:0 .12rem .35rem rgba(0,0,0,.75);
+}
+/* A band behind the label so the words sit on something steady while the
+   colours move under them. */
+.tile.rainbow .name{
+  background:rgba(12,10,24,.4);
+  border-radius:.3rem;padding:.05rem .45rem;
 }
 @media(prefers-reduced-motion: reduce){ .tile.rainbow{animation:none} }
 
@@ -300,6 +330,11 @@ body.waiting #top{pointer-events:none}
    address is wrong or the launcher is closed — so the broken one has to
    say so. It costs nothing on stream because it is never there when
    things are working. */
+#offline small{
+  display:block;font-weight:600;font-size:.72rem;letter-spacing:0;
+  color:#ffd9d9;opacity:.9;margin-top:.15rem;
+  max-width:32rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
 #offline{
   position:fixed;top:.6rem;left:.6rem;z-index:99;display:none;
   background:rgba(58,20,20,.94);border:1px solid #7a2a2a;color:#ffb4b4;
@@ -408,7 +443,7 @@ td{padding:.3rem .4rem;vertical-align:middle;border-top:1px solid #162034}
 <body>
 
 <!-- ============ what goes on stream ============ -->
-<div id="offline">Follow Reel — not connected to the launcher</div>
+<div id="offline">Follow Reel — not connected<small id="offlineWhy"></small></div>
 
 <div id="stage">
   <div id="top">
@@ -988,11 +1023,13 @@ function cmd(name, args){
   ws.send(JSON.stringify({ t:'cmd', name, args: args || {} }));
   return true;
 }
-let everLinked = false, offlineTimer = null;
+let everLinked = false, offlineTimer = null, lastWsUrl = '';
 function setLink(ok){
   linked = ok;
   if(ok){
     everLinked = true;
+    const why = el('offlineWhy');
+    if(why) why.textContent = '';
     document.body.classList.remove('offline');
     if(offlineTimer){ clearTimeout(offlineTimer); offlineTimer = null; }
   } else if(!offlineTimer){
@@ -1002,7 +1039,16 @@ function setLink(ok){
        wolf at the start of every stream. */
     offlineTimer = setTimeout(() => {
       offlineTimer = null;
-      if(!linked) document.body.classList.add('offline');
+      if(!linked){
+        document.body.classList.add('offline');
+        /* Say WHICH address failed. "Not connected" on its own sent us
+           round in circles for three goes — the same words cover a stale
+           browser source, a closed launcher, a moved port and a hosted
+           page that was never told where to look. The address it tried
+           separates all four at a glance. */
+        const why = el('offlineWhy');
+        if(why) why.textContent = 'tried ' + (lastWsUrl || '—');
+      }
     }, 3000);
   }
   const p = el('linkPill'); if(!p) return;
@@ -1012,7 +1058,24 @@ function setLink(ok){
 
 
 function connect(){
-  const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
+  /* Two completely different places this page can be served from, and it
+     has to talk to a different socket in each.
+
+       · from the launcher on this PC — the socket is the same address the
+         page came from, and it carries the state directly.
+       · from donutoverlays.com — the page is handed an address by the
+         site, because the bare domain has no idea whose reel to send.
+
+     The other four overlays have always read that injected address. This
+     one did not, which is exactly why the hosted link showed the donut
+     and then "not connected to the launcher": the page loaded fine and
+     then opened a socket to the front door with no token on it, which the
+     site drops on sight. */
+  const url = window.__OVERLAY_WS
+    || (location.protocol === 'file:'
+          ? 'ws://localhost:8094'
+          : location.origin.replace(/^http/, 'ws'));
+  lastWsUrl = url;
   try { ws = new WebSocket(url); } catch { return setLink(false); }
   ws.onopen = () => setLink(true);
   ws.onclose = () => { setLink(false); setTimeout(connect, 2000); };

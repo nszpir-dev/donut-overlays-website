@@ -1080,7 +1080,7 @@ function paintRoster(){
 }
 
 /* ---------- relay (sub-second sync + auto payments) ---------- */
-let ws = null, serverMode = false, wsUrl = qs.get('ws') || window.__OVERLAY_WS || location.origin.replace(/^http/,'ws');
+let ws = null, serverMode = false, wsUrl = window.__OVERLAY_WS || qs.get('ws') || location.origin.replace(/^http/,'ws');
 if(location.protocol === 'file:') wsUrl = 'ws://localhost:8090';
 /* When the relay is running it owns the game: the panel sends commands and
    every overlay just renders what comes back. With no relay the page runs
