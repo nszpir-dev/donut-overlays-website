@@ -91,6 +91,16 @@ body.clearbg #board{background:rgba(18,11,28,.55);border-color:rgba(138,106,21,.
   background:linear-gradient(90deg,#ffe08a,#f5c451 55%,#c98f18);
   transition:width .25s linear;
 }
+/* Only on screen during the live-delay window. The clock keeps counting
+   there now, and a red flashing number on its own reads like the auction
+   restarted rather than like the last few seconds to get a bid in. */
+#timetag{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:1.05rem;line-height:1;letter-spacing:.22em;white-space:nowrap;
+  color:#ff6b6b;text-shadow:0 0 .9rem rgba(255,66,66,.55);
+  height:0;opacity:0;overflow:hidden;
+}
+#clock.final #timetag{height:auto;opacity:1;animation:flash .5s steps(2) infinite}
 #clock.final #timetext{color:#ff6b6b;text-shadow:0 0 1.6rem rgba(255,66,66,.6);animation:flash .5s steps(2) infinite}
 #clock.final #timefill{background:linear-gradient(90deg,#ff6b6b,#8f0f0f)}
 #clock.warn #timetext{animation:tick .6s ease-in-out infinite}
@@ -186,6 +196,7 @@ body.compact #lotbar .chip i{font-size:.62rem;letter-spacing:.1em;margin:0}
 body.compact #item{font-size:2.1rem;text-align:center}
 body.compact #clock{order:2;flex-direction:row;align-items:center;gap:.5rem}
 body.compact #timetext{font-size:2.6rem}
+body.compact #timetag{font-size:.8rem;letter-spacing:.14em}
 body.compact #timebar{flex:1;height:.5rem}
 body.compact #lead{
   order:1;padding:.4rem .5rem .5rem;border-left:none;
@@ -304,6 +315,7 @@ body.compact #credit .l2{font-size:1.42rem}
   <div id="item">—</div>
 
   <div id="clock">
+    <div id="timetag">Final call</div>
     <div id="timetext">0:00</div>
     <div id="timebar"><div id="timefill"></div></div>
   </div>
@@ -436,7 +448,7 @@ const el = id => document.getElementById(id);
 const now = () => Date.now();
 
 let A = {
-  phase:'idle', item:'', minBid:1000000, endsAt:0, delaySec:5, inDelay:false,
+  phase:'idle', item:'', minBid:1000000, endsAt:0, lotMs:60000, delaySec:5, inDelay:false,
   delayEndsAt:0, paused:false, pausedLeft:0, high:null, bids:[], rejected:[], vouches:6,
   uiScale:1.15, layout:'compact', cardW:19
 };
@@ -506,7 +518,14 @@ function findItems(q){
 }
 
 /* ---------- drawing ---------- */
-let lotLength = 60;          // remembered so the bar knows what "full" means
+let lotLength = 60;          // only a fallback now; A.lotMs is the real thing
+
+/* What the time bar is a fraction of. The relay sends the lot's full
+   length, which is the only value that is right for every window — the
+   panel that opened the lot, an OBS source that connected halfway
+   through, and a phone opened after the fact all get the same answer.
+   The fallback is for an older relay that does not send it yet. */
+const lotSpan = () => Math.max(1000, (A && A.lotMs) || lotLength * 1000);
 
 /* ---------- end-of-game credit ----------
    One switch, driven by the same state the card is drawn from, so the
@@ -587,23 +606,37 @@ function render(){
 
 function paintClock(){
   const wrap = el('clock'), fill = el('timefill'), text = el('timetext');
-  let ms = 0;
-  if(A.paused) ms = A.pausedLeft || 0;
-  else if(A.phase === 'live' && !A.inDelay && A.endsAt) ms = Math.max(0, A.endsAt - now());
+  const live = A.phase === 'live';
 
-  if(A.phase === 'live' && !A.inDelay && A.endsAt){
-    const total = Math.max(1, lotLength * 1000);
-    fill.style.width = Math.min(100, (ms / total) * 100) + '%';
-  } else if(A.inDelay){
-    fill.style.width = '100%';
-  } else if(A.phase !== 'live'){
-    fill.style.width = '0%';
+  /* Two clocks can be running, never both: the lot's own countdown, and
+     the live-delay window that follows it. The delay used to print the
+     words FINAL CALL and no number at all, and the bar sat full — so at
+     the one moment in the whole auction when a viewer most needs to know
+     how long they have, the overlay told them nothing. It counts now, off
+     the same delayEndsAt the relay is closing against, so what is on
+     screen is what the auction is actually doing.
+
+     `span` is what the bar is a fraction OF, and it has to follow the
+     clock being shown or the bar would jump to a sliver the instant the
+     delay started. */
+  let ms = 0, span = 1;
+  if(live && A.inDelay){
+    span = Math.max(1, (A.delaySec || 0) * 1000);
+    ms = A.paused ? (A.pausedLeft || 0) : Math.max(0, (A.delayEndsAt || 0) - now());
+  } else if(A.paused){
+    span = lotSpan();
+    ms = A.pausedLeft || 0;
+  } else if(live && A.endsAt){
+    span = lotSpan();
+    ms = Math.max(0, A.endsAt - now());
   }
 
-  wrap.classList.toggle('final', A.inDelay);
-  wrap.classList.toggle('warn', !A.inDelay && ms > 0 && ms <= 10000);
+  fill.style.width = (live || A.paused) ? Math.min(100, (ms / span) * 100) + '%' : '0%';
+
+  wrap.classList.toggle('final', !!(live && A.inDelay));
+  wrap.classList.toggle('warn', live && !A.inDelay && ms > 0 && ms <= 10000);
   wrap.classList.toggle('done', A.phase === 'sold');
-  text.textContent = A.inDelay ? 'FINAL CALL' : clock(ms);
+  text.textContent = clock(ms);
   requestAnimationFrame(paintClock);
 }
 
@@ -612,6 +645,7 @@ function paintClock(){
    this page runs the auction itself so the buttons always do something. */
 function localOpen(item, minBid, sec){
   if(item) A.item = item;
+  A.lotMs = Math.max(1000, (sec || 60) * 1000);
   if(minBid != null) A.minBid = minBid;   // 0 is a real minimum
   A.phase = 'live'; A.high = null; A.bids = []; A.rejected = [];
   A.inDelay = false; A.delayEndsAt = 0; A.paused = false;
@@ -635,14 +669,21 @@ function localBid(name, amount){
 }
 function localClose(){ A.phase = 'sold'; A.inDelay = false; A.endsAt = 0; log('sold'); render(); }
 function localReset(){
-  A = {phase:'idle', item:'', minBid:A.minBid, endsAt:0, delaySec:A.delaySec, inDelay:false,
+  A = {phase:'idle', item:'', minBid:A.minBid, endsAt:0, lotMs:A.lotMs, delaySec:A.delaySec, inDelay:false,
        delayEndsAt:0, paused:false, pausedLeft:0, high:null, bids:[], rejected:[], vouches:A.vouches};
   log('cleared'); render();
 }
 function localPause(){
   A.paused = !A.paused;
-  if(A.paused){ A.pausedLeft = A.endsAt ? Math.max(0, A.endsAt - now()) : 0; A.endsAt = 0; }
-  else if(A.pausedLeft){ A.endsAt = now() + A.pausedLeft; A.pausedLeft = 0; }
+  if(A.paused){
+    const until = A.inDelay ? A.delayEndsAt : A.endsAt;
+    A.pausedLeft = until ? Math.max(0, until - now()) : 0;
+    A.endsAt = 0; A.delayEndsAt = 0;
+  } else if(A.pausedLeft){
+    if(A.inDelay){ A.endsAt = now(); A.delayEndsAt = now() + A.pausedLeft; }
+    else A.endsAt = now() + A.pausedLeft;
+    A.pausedLeft = 0;
+  }
   render();
 }
 setInterval(() => {
@@ -676,7 +717,8 @@ function connect(){
       serverMode = true; setLink(true);
       const wasIdle = A.phase !== 'live';
       A = m.a;
-      if(wasIdle && A.phase === 'live' && A.endsAt){
+      /* Only guess when the relay is too old to tell us. */
+      if(!A.lotMs && wasIdle && A.phase === 'live' && A.endsAt){
         lotLength = Math.max(1, Math.round((A.endsAt - now()) / 1000));
       }
       if(m.s && m.s.ign) ign = m.s.ign;
@@ -756,7 +798,11 @@ function bindPanel(){
   };
   document.querySelectorAll('[data-atime]').forEach(b => b.onclick = () => {
     const sec = Number(b.dataset.atime);
-    if(!cmd('a.addTime', {sec}) && A.endsAt){ A.endsAt = Math.max(now(), A.endsAt + sec*1000); render(); }
+    if(!cmd('a.addTime', {sec}) && A.endsAt){
+      A.endsAt = Math.max(now(), A.endsAt + sec*1000);
+      A.lotMs = Math.max(A.lotMs || 0, A.endsAt - now());   // let the bar refill
+      render();
+    }
   });
   el('bBid').onclick = () => {
     const name = el('fName').value.trim();
