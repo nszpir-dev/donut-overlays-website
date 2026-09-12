@@ -1,0 +1,2293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Donut Overlays — live games for Minecraft streamers</title>
+<meta name="description" content="Elimination boards, live auctions and money games that run off in-game payments. Works with TikTok LIVE Studio, Twitch and YouTube.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#060912">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Karla:wght@400;500;600;700;800&family=Pixelify+Sans:wght@600;700&display=swap" rel="stylesheet">
+<style>
+
+:root{
+  --ink:#060912;
+  --ink-2:#0c1322;
+  --panel:rgba(16,24,42,.78);
+  --line:#22304a;
+  --gold:#ffc93c;
+  --gold-2:#ff9b2f;
+  --teal:#19e3c8;
+  --violet:#8b5cff;
+  --pink:#ff4d9d;
+  --text:#eaf1ff;
+  --muted:#93a6c4;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--ink);color:var(--text);
+  font-family:Karla,system-ui,-apple-system,sans-serif;
+  font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+h1,h2,h3,.display{font-family:'Bebas Neue',Impact,sans-serif;font-weight:400;letter-spacing:.015em;line-height:.95}
+a{color:inherit}
+.wrap{width:min(1180px,92vw);margin:0 auto;position:relative;z-index:2}
+
+/* ---------- the sky ----------
+   Built from gradients rather than an image so it stays sharp at
+   any size and costs nothing to load. */
+#sky{position:fixed;top:0;right:0;bottom:0;left:0;z-index:0;overflow:hidden;pointer-events:none}
+#sky .glow{position:absolute;border-radius:50%;filter:blur(90px);opacity:.55}
+#sky .g1{width:70vw;height:70vw;left:-18vw;top:-24vw;background:radial-gradient(circle,#8b5cff,transparent 62%)}
+#sky .g2{width:62vw;height:62vw;right:-16vw;top:-10vw;background:radial-gradient(circle,#19e3c8,transparent 62%);opacity:.42}
+#sky .g3{width:80vw;height:50vw;left:12vw;top:34vh;background:radial-gradient(circle,#ff4d9d,transparent 64%);opacity:.24}
+#sky .g4{width:60vw;height:40vw;right:-10vw;top:78vh;background:radial-gradient(circle,#39e08a,transparent 64%);opacity:.22}
+#sky .stars{
+  position:absolute;top:0;right:0;bottom:0;left:0;
+  background-image:
+    radial-gradient(1px 1px at 12% 18%, #fff9, transparent),
+    radial-gradient(1px 1px at 34% 62%, #fff7, transparent),
+    radial-gradient(1px 1px at 58% 24%, #fff8, transparent),
+    radial-gradient(2px 2px at 72% 71%, #fff6, transparent),
+    radial-gradient(1px 1px at 88% 40%, #fff7, transparent),
+    radial-gradient(1px 1px at 22% 85%, #fff5, transparent);
+}
+#sky .veil{position:absolute;top:0;right:0;bottom:0;left:0;
+  background:linear-gradient(180deg,rgba(6,9,18,.20),rgba(6,9,18,.82) 62%,var(--ink))}
+
+/* ---------- the sky, moving ----------
+   Everything below animates transform or opacity only, which the browser
+   hands to the graphics card — so it costs nothing on the sort of PC that
+   is also running Minecraft, OBS and a stream at the same time. The
+   periods are deliberately odd numbers: matched ones would drift into
+   step and start pulsing together, which reads as a loop rather than as
+   weather. All of it is switched off further down for anyone who has
+   asked their system for less motion. */
+@keyframes drift1{0%,100%{transform:translate3d(0,0,0) scale(1)}
+                  50%{transform:translate3d(6vw,4vh,0) scale(1.12)}}
+@keyframes drift2{0%,100%{transform:translate3d(0,0,0) scale(1.05)}
+                  50%{transform:translate3d(-7vw,6vh,0) scale(.92)}}
+@keyframes drift3{0%,100%{transform:translate3d(0,0,0) scale(.95)}
+                  50%{transform:translate3d(5vw,-5vh,0) scale(1.15)}}
+@keyframes drift4{0%,100%{transform:translate3d(0,0,0) scale(1.08)}
+                  50%{transform:translate3d(-6vw,-3vh,0) scale(.94)}}
+#sky .g1{animation:drift1 47s ease-in-out infinite}
+#sky .g2{animation:drift2 61s ease-in-out infinite}
+#sky .g3{animation:drift3 53s ease-in-out infinite}
+#sky .g4{animation:drift4 67s ease-in-out infinite}
+
+/* A drawing grid, panning slowly. Faded out at the edges with a mask so
+   it never ends in a hard line, and kept far dimmer than it looks in an
+   editor — on a bright monitor it should read as texture, not as a
+   spreadsheet behind the words. */
+#sky .mesh{
+  position:absolute;top:-10%;left:-10%;width:120%;height:120%;
+  background-image:
+    linear-gradient(rgba(150,190,255,.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(150,190,255,.055) 1px, transparent 1px);
+  background-size:64px 64px;
+  -webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 30%, #000 30%, transparent 78%);
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 30%, #000 30%, transparent 78%);
+  animation:mesh 34s linear infinite;
+}
+@keyframes mesh{to{transform:translate3d(64px,64px,0)}}
+
+/* Slow specks rising, like money going up. Twelve of them, each with its
+   own delay, so they never leave the screen empty or crowd it. */
+#sky .motes{position:absolute;top:0;right:0;bottom:0;left:0}
+#sky .motes i{
+  position:absolute;bottom:-6vh;width:3px;height:3px;border-radius:50%;
+  background:var(--gold);opacity:0;
+  box-shadow:0 0 6px 1px rgba(255,201,60,.55);
+  animation:rise linear infinite;
+}
+#sky .motes i:nth-child(even){background:var(--teal);box-shadow:0 0 6px 1px rgba(25,227,200,.5)}
+@keyframes rise{
+  0%{transform:translate3d(0,0,0);opacity:0}
+  8%{opacity:.75}
+  85%{opacity:.5}
+  100%{transform:translate3d(2vw,-108vh,0);opacity:0}
+}
+
+/* One pale sweep across the top of the page every so often, the way light
+   moves over a car in a product shot. Long gap, short pass — it should be
+   the sort of thing you notice the second time you look. */
+#sky .sweep{
+  position:absolute;top:-30vh;left:-60vw;width:45vw;height:180vh;
+  background:linear-gradient(90deg,transparent,rgba(180,215,255,.055),transparent);
+  transform:rotate(14deg);
+  animation:sweep 17s ease-in-out infinite;
+}
+@keyframes sweep{0%,68%{transform:translate3d(0,0,0) rotate(14deg)}
+                 100%{transform:translate3d(200vw,0,0) rotate(14deg)}}
+
+/* A quiet twinkle. The stars are a static gradient, so the whole layer
+   breathes rather than each star firing on its own — far cheaper, and at
+   this opacity indistinguishable. */
+#sky .stars{animation:twinkle 9s ease-in-out infinite}
+@keyframes twinkle{0%,100%{opacity:.75}50%{opacity:1}}
+
+/* ---------- things arriving as you scroll ----------
+   Set by script, so a page with no JavaScript shows everything rather
+   than a blank column. */
+/* ---------- hover, where it earns its keep ----------
+   Only on devices with a real pointer. On a phone :hover sticks after a
+   tap, so a card you touched stays lifted until you touch another one,
+   which looks like a bug rather than a flourish. */
+@media(hover:hover){
+  .btn{transition:transform .16s ease, box-shadow .16s ease, filter .16s ease}
+  .btn:hover{transform:translateY(-2px)}
+  .btn-gold:hover{box-shadow:0 .7rem 1.7rem rgba(34,163,91,.55)}
+  .btn:active{transform:translateY(0)}
+
+  /* The coloured rule along the top of each game already identifies it;
+     the lift just picks that colour up and puts it under the card. */
+  .game{transition:transform .22s cubic-bezier(.2,.7,.3,1), filter .22s ease}
+  .game:hover{transform:translateY(-4px)}
+  .game:hover .shot{filter:brightness(1.06)}
+
+  .plan{transition:background .22s ease}
+  .plan:hover{background:rgba(255,255,255,.022)}
+
+  /* A line that grows out from the left rather than appearing whole. */
+  nav > a{position:relative}
+  nav > a::after{
+    content:'';position:absolute;left:0;right:0;bottom:-.35rem;height:2px;
+    background:linear-gradient(90deg,var(--teal),var(--gold));
+    transform:scaleX(0);transform-origin:left;transition:transform .2s ease;
+  }
+  nav > a:hover::after{transform:scaleX(1)}
+}
+@media(prefers-reduced-motion: reduce){
+  .btn,.game,.plan,nav > a::after{transition:none !important}
+  .btn:hover,.game:hover{transform:none !important}
+}
+
+.reveal{opacity:0;transform:translateY(18px);
+  transition:opacity .7s cubic-bezier(.2,.7,.3,1), transform .7s cubic-bezier(.2,.7,.3,1)}
+.reveal.in{opacity:1;transform:none}
+
+/* One switch for the lot. Anyone who has told their operating system they
+   do not want movement gets a still page — this is an accessibility
+   setting, not a preference to talk them out of. */
+@media(prefers-reduced-motion: reduce){
+  #sky .g1,#sky .g2,#sky .g3,#sky .g4,#sky .mesh,#sky .sweep,#sky .stars,#sky .motes i{
+    animation:none !important}
+  #sky .motes{display:none}
+  .reveal{opacity:1;transform:none;transition:none}
+}
+/* video still takes over if plains.mp4 is uploaded */
+#bgvid{position:absolute;top:0;left:0;width:100%;height:105vh;object-fit:cover;display:none}
+#bgvid.on{display:block}
+
+/* ---------- header ---------- */
+header{
+  position:sticky;top:0;z-index:40;
+  background:rgba(6,9,18,.72);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
+}
+header .wrap{display:flex;align-items:center;gap:1rem;height:76px}
+.mark{display:flex;align-items:center;gap:.6rem;font-family:'Pixelify Sans',sans-serif;font-weight:700;font-size:1.15rem;letter-spacing:.05em;white-space:nowrap;flex:none}
+.mark .dot{
+  width:1.15rem;height:1.15rem;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#a9ffc9,#22a35b);
+  box-shadow:0 0 .1rem .25rem rgba(34,163,91,.2), 0 0 1.6rem rgba(60,220,130,.55);
+}
+nav{margin-left:auto;display:flex;gap:.75rem;align-items:center;font-size:.95rem;font-weight:600;color:var(--muted)}
+nav > a{white-space:nowrap}
+nav .btn{
+  font-family:Karla,system-ui,-apple-system,sans-serif;font-weight:800;font-size:1rem;
+  padding:.55rem 1.05rem;white-space:nowrap;letter-spacing:.01em;
+}
+nav a:hover{color:var(--text)}
+@media(max-width:900px){nav .hide-sm{display:none}}
+
+.btn{
+  display:inline-block;padding:.68rem 1.3rem;border-radius:.5rem;
+  font-family:Karla,system-ui,-apple-system,sans-serif;font-weight:800;font-size:1rem;
+  letter-spacing:.01em;line-height:1.25;text-align:center;
+  text-decoration:none;cursor:pointer;border:2px solid transparent;
+  background:transparent;color:var(--text);
+  -webkit-appearance:none;appearance:none;
+}
+.btn-gold{
+  background:linear-gradient(180deg,#7bf59f,#22a35b);color:#06210f;
+  box-shadow:0 .4rem 1.2rem rgba(34,163,91,.4);
+  border-color:#8dffb4;
+}
+.btn-gold:hover{filter:brightness(1.07)}
+.btn-ghost{border-color:#33445f;color:var(--text);background:rgba(20,30,50,.7)}
+.btn-ghost:hover{border-color:var(--teal);color:#fff}
+.btn-discord{background:#5865f2;color:#fff;display:inline-flex;align-items:center;gap:.5rem}
+.btn-discord:hover{filter:brightness(1.08)}
+.icon-btn{
+  width:2.7rem;height:2.7rem;border-radius:.65rem;border:none;
+  background:#5865f2;display:grid;place-items:center;cursor:pointer;flex:none;
+  box-shadow:0 .3rem .9rem rgba(88,101,242,.4);
+}
+.icon-btn:hover{background:#6b76f5}
+.icon-btn svg{width:1.7rem;height:1.7rem;fill:#ffffff}
+.cur{position:relative;display:inline-flex;align-items:center}
+.cur::after{                       /* our own arrow, since the native one is ugly */
+  content:"";position:absolute;right:.7rem;top:50%;transform:translateY(-30%);
+  width:0;height:0;border-left:.32rem solid transparent;border-right:.32rem solid transparent;
+  border-top:.38rem solid var(--muted);pointer-events:none;
+}
+.cur select{
+  -webkit-appearance:none;appearance:none;
+  background:linear-gradient(180deg,rgba(28,40,64,.9),rgba(16,24,42,.9));
+  color:var(--text);border:1px solid #33445f;border-radius:.5rem;
+  padding:.58rem 1.9rem .58rem .8rem;
+  font-family:'Pixelify Sans',sans-serif;font-weight:700;font-size:1.02rem;
+  cursor:pointer;line-height:1.25;white-space:nowrap;
+}
+.cur select:hover{border-color:var(--teal)}
+.cur select:focus{outline:2px solid var(--teal);outline-offset:1px}
+.cur option{background:#0c1322;color:var(--text);font-weight:700}
+
+/* ---------- hero ---------- */
+.hero{padding:5.5rem 0 4.5rem}
+.hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:4rem;align-items:center}
+.hero h1{font-size:clamp(3.4rem,7vw,5.6rem)}
+.hero h1 .shine{
+  background:linear-gradient(92deg,var(--gold) 10%,#fff 40%,var(--teal) 78%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.hero p.lede{font-size:1.18rem;line-height:1.6;color:#b9c9e4;margin:1.4rem 0 2.2rem;max-width:38ch;line-height:1.55}
+.hero .cta-row{display:flex;gap:.9rem;flex-wrap:wrap;align-items:center}
+.hero .cta-row .btn{font-size:1.08rem;padding:.8rem 1.5rem}
+.trial-note{font-size:.9rem;color:var(--muted);margin-top:1.1rem}
+.counts{display:flex;gap:2.2rem;margin-top:2.4rem}
+.counts b{display:block;font-family:'Bebas Neue',sans-serif;font-size:2.1rem;color:var(--gold);line-height:1}
+.counts span{font-size:.82rem;color:var(--muted)}
+@media(max-width:960px){.hero .wrap{grid-template-columns:1fr;gap:2.5rem}}
+
+/* ---------- live board ---------- */
+.demo-frame{
+  background:var(--panel);border:1px solid var(--line);border-radius:1rem;padding:1rem;
+  box-shadow:0 2rem 5rem rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05);
+  backdrop-filter:blur(8px);
+}
+.demo-chrome{display:flex;align-items:center;gap:.5rem;margin-bottom:.8rem;color:var(--muted);font-size:.78rem;font-weight:700}
+.demo-chrome .live{display:inline-flex;align-items:center;gap:.35rem;color:#ff6b6b}
+.demo-chrome .live::before{content:"";width:.5rem;height:.5rem;border-radius:50%;background:#ff4242;animation:blink 1.4s steps(2) infinite}
+@keyframes blink{50%{opacity:.25}}
+.board{
+  background:#070d18;border:2px solid var(--teal);border-radius:.6rem;padding:.75rem;
+  box-shadow:0 0 2rem rgba(25,227,200,.25);
+}
+.board-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.6rem}
+.board-top .t{font-family:'Bebas Neue',sans-serif;font-size:2.3rem;color:#ff3b3b;line-height:1;
+  text-shadow:0 0 1.2rem rgba(255,60,60,.6)}
+.board-top .p{font-size:.82rem;color:var(--muted);font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:.32rem}
+.cell{background:#0d1728;border:1px solid #1f2c44;border-radius:.28rem;overflow:hidden;transition:transform .15s}
+.cell img{width:100%;aspect-ratio:1;display:block;image-rendering:pixelated;background:#16202f}
+.cell .nm{font-size:.5rem;font-weight:800;text-align:center;padding:.15rem 0;color:#c9d6e8;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell.hit{border-color:var(--pink);box-shadow:0 0 .55rem rgba(255,77,157,.9);transform:scale(1.08)}
+.cell.gone{opacity:0;transform:scale(.3)}
+.feed{margin-top:.6rem;font-size:.82rem;color:var(--muted);font-weight:700;height:1.3rem;overflow:hidden}
+.feed b{color:var(--teal)}
+
+/* ---------- sections ---------- */
+section{padding:6rem 0;position:relative}
+.sec-head{max-width:46ch;margin-bottom:3rem}
+.sec-head h2{font-size:clamp(2.4rem,4.4vw,3.4rem)}
+.sec-head h2 em{font-style:normal;color:var(--gold)}
+.sec-head p{color:var(--muted);margin-top:.9rem;line-height:1.7}
+
+/* ---------- games ---------- */
+/* Four games now. Two rows of two reads better than a squeezed row of
+   four, and the cards keep a sensible width all the way down to a phone. */
+.games{display:grid;grid-template-columns:repeat(2,1fr);gap:1.6rem 2rem}
+@media(max-width:760px){.games{grid-template-columns:1fr}}
+.game{display:flex;flex-direction:column;border-top:2px solid var(--line);padding-top:1.1rem}
+.game:nth-child(1){border-top-color:var(--teal)}
+.game:nth-child(2){border-top-color:var(--gold)}
+.game:nth-child(3){border-top-color:var(--violet)}
+.game:nth-child(4){border-top-color:#35e0ff}
+.game .shot{height:180px;display:flex;align-items:center;justify-content:flex-start}
+.game .body{padding:.9rem 0 0;display:flex;flex-direction:column;gap:.7rem;flex:1}
+.game h3{font-size:2rem}
+.game p{font-size:.95rem;color:var(--muted);flex:1}
+.game .row{display:flex;gap:.55rem}
+.game .row{gap:.6rem}
+.game .btn{padding:.62rem 1rem;font-size:.98rem;flex:1}
+
+.mini{width:100%;max-width:250px;font-family:Karla,sans-serif}
+.mini .cardish{border-radius:.4rem;padding:.55rem .65rem;border:2px solid var(--pv-accent,#19e3c8);
+  background:linear-gradient(180deg,rgba(13,22,38,.95),rgba(7,13,24,.95))}
+.mini .lbl{font-size:.55rem;font-weight:800;letter-spacing:.16em;color:#93a6c4;text-transform:uppercase}
+.mini .big{font-family:'Bebas Neue',sans-serif;font-size:2.4rem;line-height:1;color:var(--pv-accent,#19e3c8)}
+.mini .rowline{display:flex;align-items:center;gap:.4rem;margin-top:.35rem}
+.mini .rowline img{width:1.6rem;height:1.6rem;border-radius:.2rem;image-rendering:pixelated}
+.mini .who{font-family:'Bebas Neue',sans-serif;font-size:1.3rem}
+.mini .grid3{display:grid;grid-template-columns:repeat(4,1fr);gap:.2rem;margin-top:.3rem}
+.mini .grid3 img{width:100%;aspect-ratio:1;border-radius:.15rem;image-rendering:pixelated}
+.mini .drainbar{height:.3rem;border-radius:.2rem;background:#1d2a3d;overflow:hidden;margin:.35rem 0 .1rem}
+.mini .drainbar i{display:block;height:100%;border-radius:.2rem}
+
+/* ---------- steps ---------- */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:2rem}
+@media(max-width:900px){.steps{grid-template-columns:1fr}}
+.step{border-top:1px solid var(--line);padding-top:1rem}
+.step h3{font-size:1.7rem;margin:0 0 .5rem;color:var(--gold)}
+.step p{color:var(--muted);font-size:.95rem}
+
+/* ---------- links ---------- */
+.links{background:var(--panel);border:1px solid var(--line);border-radius:.9rem;padding:1.6rem;backdrop-filter:blur(8px)}
+.linkrow{display:flex;align-items:center;gap:1rem;padding:.85rem 0;border-bottom:1px solid var(--line)}
+.linkrow:last-child{border-bottom:none}
+.linkrow .plat{width:160px;font-weight:800;flex:none}
+.linkrow code{
+  flex:1;background:#070d18;border:1px solid var(--line);border-radius:.4rem;
+  padding:.55rem .7rem;font-size:.82rem;color:#a9c6ee;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.linkrow button{
+  background:rgba(20,30,50,.7);border:1px solid var(--line);color:var(--muted);border-radius:.4rem;
+  padding:.55rem .8rem;font:700 .82rem Karla,sans-serif;cursor:pointer;flex:none;
+}
+.linkrow button:hover{color:var(--text);border-color:var(--teal)}
+@media(max-width:700px){.linkrow{flex-wrap:wrap}.linkrow .plat{width:auto}}
+
+/* ---------- pricing ---------- */
+.plans.three{grid-template-columns:repeat(3,1fr);max-width:1060px}
+@media(max-width:900px){.plans.three{grid-template-columns:1fr;max-width:520px}}
+@media(max-width:900px){.plans.three .plan + .plan{border-left:none;border-top:1px solid var(--line)}}
+.plans{display:grid;grid-template-columns:1fr 1fr;max-width:880px;
+  border:1px solid var(--line);border-radius:1rem;overflow:hidden;background:var(--panel);backdrop-filter:blur(8px)}
+@media(max-width:800px){.plans{grid-template-columns:1fr}}
+.plan{padding:2rem 1.9rem}
+.plan + .plan{border-left:1px solid var(--line)}
+@media(max-width:800px){.plan + .plan{border-left:none;border-top:1px solid var(--line)}}
+.plan.best{background:linear-gradient(180deg,rgba(255,201,60,.07),transparent)}
+.plan h3{font-size:1.8rem;color:var(--muted);letter-spacing:.06em}
+.plan.best h3{color:var(--gold)}
+.plan .price{font-family:'Bebas Neue',sans-serif;font-size:4.2rem;line-height:.9;margin:.5rem 0 .2rem}
+.plan .price span{font-family:'Bebas Neue',sans-serif;font-size:.95rem;font-weight:700;color:var(--muted)}
+.plan .approx{font-size:.82rem;color:var(--muted);min-height:1.2rem}
+.plan ul{list-style:none;margin:1.3rem 0 1.6rem;display:flex;flex-direction:column;gap:.6rem}
+.plan li{padding-left:1.4rem;position:relative;font-size:.95rem}
+.plan li::before{content:"";position:absolute;left:0;top:.62rem;width:.55rem;height:.55rem;border-radius:50%;background:var(--teal)}
+.plan li.no{color:#63748c}
+.plan li.no::before{background:#33445f}
+.plan .btn{display:block;text-align:center;width:100%}
+.gate-note{font-size:.85rem;color:var(--muted);margin-top:.7rem;text-align:center}
+.fineprint{margin-top:1.6rem;font-size:.9rem;color:var(--muted);max-width:62ch}
+
+/* ---------- reviews ---------- */
+.reviews{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem}
+@media(max-width:900px){.reviews{grid-template-columns:1fr}}
+.rev{
+  background:var(--panel);border:1px solid var(--line);border-radius:.8rem;padding:1.2rem 1.3rem;
+  display:flex;flex-direction:column;gap:.6rem;backdrop-filter:blur(6px);
+}
+.rev .stars{color:var(--gold);letter-spacing:.15em;font-size:.95rem}
+.rev p{font-size:.97rem}
+.rev .by{display:flex;align-items:center;gap:.5rem;color:var(--muted);font-size:.85rem;font-weight:700;margin-top:auto}
+.rev .by img{width:1.5rem;height:1.5rem;border-radius:.25rem;image-rendering:pixelated}
+.rev-actions{margin-top:1.6rem;display:flex;gap:.7rem;align-items:center;flex-wrap:wrap}
+
+/* ---------- faq ---------- */
+.faq{display:grid;grid-template-columns:repeat(2,1fr);gap:1.4rem 3rem}
+@media(max-width:800px){.faq{grid-template-columns:1fr}}
+.faq h3{font-size:1.45rem;margin-bottom:.35rem;color:var(--text)}
+.faq p{color:var(--muted);font-size:.95rem}
+
+/* ---------- modals ---------- */
+.sheet{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(3,6,12,.78);z-index:60;
+  display:none;align-items:center;justify-content:center;padding:1.2rem;backdrop-filter:blur(4px)}
+.sheet.open{display:flex}
+.sheet-inner{background:#0c1322;border:1px solid var(--line);border-radius:1rem;
+  width:min(880px,100%);max-height:90vh;overflow:auto;box-shadow:0 2rem 6rem rgba(0,0,0,.7)}
+.sheet-inner.narrow{width:min(430px,100%)}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 1.4rem;border-bottom:1px solid var(--line)}
+.sheet-head h3{font-size:1.8rem}
+.sheet-head button{background:none;border:none;color:var(--muted);font-size:1.6rem;cursor:pointer;line-height:1}
+.sheet-body{display:grid;grid-template-columns:1.1fr .9fr;gap:1.4rem;padding:1.4rem}
+.sheet-body.single{grid-template-columns:1fr}
+@media(max-width:760px){.sheet-body{grid-template-columns:1fr}}
+.stage-prev{background:#070d18;border:1px solid var(--line);border-radius:.6rem;
+  padding:1.2rem;display:flex;align-items:center;justify-content:center;min-height:260px}
+.opt{margin-bottom:1.1rem}
+.opt label{display:block;font-size:.78rem;font-weight:800;color:var(--muted);margin-bottom:.4rem}
+.swatches{display:flex;gap:.5rem;flex-wrap:wrap}
+.sw{width:2.1rem;height:2.1rem;border-radius:.35rem;border:2px solid transparent;cursor:pointer}
+.sw.on{border-color:#fff}
+.seg{display:flex;border:1px solid var(--line);border-radius:.4rem;overflow:hidden}
+.seg button{flex:1;background:none;border:none;color:var(--muted);padding:.55rem;font:700 .85rem Karla,sans-serif;cursor:pointer}
+.seg button.on{background:#182437;color:var(--text)}
+
+.field{margin-bottom:.9rem}
+.field label{display:block;font-size:.78rem;font-weight:800;color:var(--muted);margin-bottom:.35rem}
+.field input{
+  width:100%;background:#070d18;border:1px solid var(--line);border-radius:.45rem;
+  padding:.7rem .8rem;color:var(--text);font:600 .95rem Karla,sans-serif;
+}
+.field input:focus{outline:2px solid var(--teal);outline-offset:0}
+
+/* show/hide password. Typing a password blind is where people give up on
+   signing in, so the field gets an eye they can hold the answer against. */
+.pw-wrap{position:relative;display:block}
+.pw-wrap input{padding-right:2.9rem}
+.pw-wrap input::-ms-reveal{display:none}   /* Edge draws its own; don't stack two */
+.pw-eye{
+  position:absolute;top:50%;right:.4rem;transform:translateY(-50%);
+  width:2.1rem;height:2.1rem;padding:0;
+  display:grid;place-items:center;
+  background:none;border:0;border-radius:.35rem;
+  color:var(--muted);cursor:pointer;
+}
+.pw-eye:hover{color:var(--text)}
+.pw-eye:focus-visible{outline:2px solid var(--teal);outline-offset:1px}
+.pw-eye svg{
+  width:1.2rem;height:1.2rem;display:block;
+  fill:none;stroke:currentColor;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round;
+}
+.pw-eye .slash{display:none}
+.pw-eye.on{color:var(--teal)}
+.pw-eye.on .slash{display:block}
+.hidden{display:none !important}
+
+/* picture-behind-the-board control */
+.art-row{display:flex;gap:.7rem;align-items:center}
+.art-prev{
+  width:4.4rem;height:4.4rem;flex:none;border-radius:.5rem;
+  border:1px solid var(--line);background:#070d18 center/contain no-repeat;
+  image-rendering:pixelated;
+}
+.art-prev.empty{display:grid;place-items:center}
+.art-prev.empty::after{content:'none';color:var(--muted);font-size:.72rem}
+.art-btns{display:flex;flex-wrap:wrap;gap:.35rem;align-content:flex-start}
+.btn-sm{padding:.34rem .6rem;font-size:.82rem}
+.msg{font-size:.88rem;margin-top:.6rem;min-height:1.2rem}
+.msg.bad{color:#ff8f8f}
+.msg.good{color:var(--teal)}
+/* Picking which overlays somebody is buying. Big targets, because this
+   gets picked on a phone as often as a desktop. */
+.pickcount{margin-top:.75rem;font-size:.88rem;color:var(--muted);
+  font-weight:700;letter-spacing:.04em}
+.pickcount.done{color:var(--teal)}
+.picks{display:grid;gap:.6rem}
+.pick{display:flex;gap:.85rem;align-items:flex-start;text-align:left;width:100%;
+  padding:.85rem 1rem;border:1px solid var(--line);border-radius:.5rem;
+  background:#070d18;color:var(--text);cursor:pointer;font:inherit}
+.pick:hover{border-color:var(--teal)}
+/* Selected state uses --teal, which this stylesheet actually defines.
+   It was written with a --green that does not exist here, so the colour
+   silently fell back and a chosen option looked unchosen. */
+.pick.on{border-color:var(--teal);background:#08201f}
+.pick .dot{width:1.1rem;height:1.1rem;border-radius:50%;border:2px solid var(--line);
+  flex:none;margin-top:.15rem}
+.pick.owned{opacity:.5;cursor:default}
+.pick.owned:hover{border-color:var(--line)}
+.pick .tag{font-style:normal;font-size:.7rem;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--gold);margin-left:.5rem}
+.pick.on .dot{border-color:var(--teal);background:var(--teal);
+  box-shadow:inset 0 0 0 3px #08201f}
+.pick b{display:block;font-size:1.02rem}
+.pick span{display:block;color:var(--muted);font-size:.88rem;margin-top:.1rem;line-height:1.4}
+
+/* The agreement tick box. Starts empty on purpose — a box that is
+   already ticked is not somebody agreeing to anything. */
+.agree{display:flex;gap:.6rem;align-items:flex-start;margin:0 0 1rem;
+  font-size:.86rem;line-height:1.45;color:var(--muted);cursor:pointer}
+.agree input{width:1.15rem;height:1.15rem;margin:.1rem 0 0;flex:none;accent-color:var(--teal);cursor:pointer}
+.agree a{color:var(--teal);text-decoration:underline}
+.agree.miss{color:#ffb4b4}
+.agree.miss input{outline:2px solid #ff8f8f;outline-offset:2px}
+.switch{margin-top:.9rem;font-size:.9rem;color:var(--muted);text-align:center}
+.switch a{color:var(--teal);cursor:pointer;text-decoration:underline}
+
+footer{border-top:1px solid var(--line);padding:2.6rem 0;color:var(--muted);font-size:.9rem;position:relative;z-index:2}
+footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+
+/* Header account block.
+   #accountArea has to be a flex row in its own right: as a plain inline
+   span its contents were laid out as text, so the email, the trial line
+   and the Log out button all wrapped on top of each other. A rule on the
+   nav cannot fix that — the nav only sees this one box. */
+#accountArea{
+  display:flex;align-items:center;gap:.9rem;flex:none;
+  padding-left:1.1rem;margin-left:.2rem;
+  border-left:1px solid var(--line);       /* separates it from the currency picker */
+}
+.acct{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;
+  line-height:1.3;gap:.12rem;flex:none}
+.acct .mail{font-size:.78rem;color:var(--muted);font-weight:700;max-width:20ch;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct .state{font-size:.73rem;font-weight:800;white-space:nowrap;color:var(--gold);letter-spacing:.02em}
+.acct .state.active{color:var(--teal)}
+.acct .state.ended{color:#ff8f8f}
+.btn-sm{padding:.42rem .85rem;font-size:.86rem}
+/* shed the least important bits before things start colliding */
+@media(max-width:1150px){ .acct .mail{display:none} }
+@media(max-width:1040px){ nav .cur{display:none} }
+/* A signed-in header carries an email, a status, Log out and Manage plan
+   on top of everything a stranger sees. Keeping it on one line means the
+   section links have to go sooner — for signed-in people only, who have
+   already found their way around. */
+@media(max-width:1200px){ body.signed-in nav .hide-sm{display:none} }
+/* On a phone the logo, the Discord button, Log out and Manage plan cannot
+   share one line without something being squashed or shoved off the edge
+   (it was running off the right before this). Give the controls their own
+   row instead — deliberate, and nothing has to be dropped. */
+@media(max-width:680px){
+  header .wrap{flex-wrap:wrap;height:auto;padding-top:.55rem;padding-bottom:.55rem;row-gap:.5rem}
+  nav{width:100%;flex-wrap:wrap;justify-content:flex-end;gap:.5rem .55rem}
+  nav .btn{padding:.5rem .85rem;font-size:.94rem}
+  /* The email and trial date get their own line rather than being
+     dropped — there is no reason to hide the one date somebody actually
+     wants to see on their phone.
+
+     display:contents dissolves the wrapper so the account text and the
+     Log out button become items of the nav itself. Without it the two
+     were stuck together in one box that squeezed the Discord button
+     down to nothing. */
+  #accountArea{display:contents}
+  .acct{order:-1;width:100%;flex-direction:row;justify-content:flex-end;
+    align-items:baseline;gap:.5rem}
+  .acct .mail{display:block;max-width:22ch}
+  nav .icon-btn{flex:none}
+}
+/* Narrower still: drop the divider so the trial date keeps its room. */
+@media(max-width:820px){ #accountArea{padding-left:0;margin-left:0;border-left:0;gap:.6rem} }
+#starPick{display:flex;gap:.4rem;margin-bottom:.9rem}
+#starPick button{background:#070d18;border:1px solid var(--line);color:var(--muted);border-radius:.4rem;
+  padding:.45rem .7rem;font:800 .95rem Karla,sans-serif;cursor:pointer}
+#starPick button.on{border-color:var(--gold);color:var(--gold)}
+#reviewText{width:100%;min-height:7rem;background:#070d18;border:1px solid var(--line);border-radius:.5rem;
+  padding:.7rem .8rem;color:var(--text);font:500 .95rem Karla,sans-serif;resize:vertical}
+#reviewText:focus{outline:2px solid var(--teal)}
+</style>
+</head>
+<body>
+
+<div id="sky" aria-hidden="true">
+  <video id="bgvid" autoplay muted loop playsinline preload="auto" poster=""></video>
+  <div class="glow g1"></div><div class="glow g2"></div>
+  <div class="glow g3"></div><div class="glow g4"></div>
+  <div class="mesh"></div>
+  <div class="stars"></div>
+  <div class="sweep"></div>
+  <div class="motes"></div>
+  <div class="veil"></div>
+</div>
+
+<header>
+  <div class="wrap">
+    <div class="mark"><span class="dot"></span> Donut Overlays</div>
+    <nav>
+      <a href="#games" class="hide-sm">Overlays</a>
+      <a href="#how" class="hide-sm">How it works</a>
+      <a href="#reviews" class="hide-sm">Reviews</a>
+      <a href="#pricing" class="hide-sm">Pricing</a>
+      <button class="icon-btn" id="discordIcon" title="Join the Discord" aria-label="Join the Discord">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.317 4.3698a19.7913 19.7913 0 0 0-4.8851-1.5152.0741.0741 0 0 0-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 0 0-.0785-.037 19.7363 19.7363 0 0 0-4.8852 1.515.0699.0699 0 0 0-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 0 0 .0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 0 0 .0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 0 0-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 0 1-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 0 1 .0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 0 1 .0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 0 1-.0066.1276 12.2986 12.2986 0 0 1-1.873.8914.0766.0766 0 0 0-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 0 0 .0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 0 0 .0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 0 0-.0312-.0286ZM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189Zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>
+      </button>
+      <span class="cur">
+        <select id="currency" aria-label="Currency">
+          <option value="USD">USD $</option><option value="CAD">CAD $</option>
+          <option value="GBP">GBP £</option><option value="EUR">EUR €</option>
+          <option value="AUD">AUD $</option>
+        </select>
+      </span>
+      <span id="accountArea"></span>
+      <a href="#pricing" class="btn btn-gold" id="headerCta">Start free trial</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <div>
+      <h1>Your chat pays.<br><span class="shine">The board plays.</span></h1>
+      <p class="lede">Live games for Minecraft streamers that run off real in-game payments. Someone pays you on Donut, their head lands on the board about a tenth of a second later.</p>
+      <div class="cta-row">
+        <a href="#pricing" class="btn btn-gold">Start your 7 day trial</a>
+        <a href="#games" class="btn btn-ghost">See the overlays</a>
+      </div>
+      <p class="trial-note">$5 a month, or buy the overlays outright. Works with TikTok LIVE Studio, Twitch and YouTube.</p>
+      <div class="counts">
+        <div><b>0.1s</b><span>payment to screen</span></div>
+        <div><b>4</b><span>games to choose from</span></div>
+        <div><b>5 min</b><span>to set up</span></div>
+      </div>
+    </div>
+
+    <div class="demo-frame">
+      <div class="demo-chrome"><span class="live">live</span> elimination board · <span id="dCount">8 players</span></div>
+      <div class="board">
+        <div class="board-top">
+          <div class="t" id="dTime">0:00</div>
+          <div class="p"><span id="dPot">$41M</span> in the pot</div>
+        </div>
+        <div class="grid" id="dGrid"></div>
+        <div class="feed" id="dFeed">&nbsp;</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section id="games">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Four games, <em>one setup</em></h2>
+      <p>Each one reads your Minecraft chat directly, so payments land on screen without you typing anything.</p>
+    </div>
+    <div class="games">
+      <div class="game">
+        <div class="shot"><div class="mini" id="pv-board"></div></div>
+        <div class="body">
+          <h3>Elimination board</h3>
+          <p>Everyone who pays gets a square. The board locks, then entries get wiped out until one person is left holding the pot.</p>
+          <div class="row">
+            <button class="btn btn-ghost" data-customize="board">Customise</button>
+            <button class="btn btn-ghost" data-links="board">Get links</button>
+          </div>
+        </div>
+      </div>
+      <div class="game">
+        <div class="shot"><div class="mini" id="pv-auction"></div></div>
+        <div class="body">
+          <h3>Live auction</h3>
+          <p>Put an item up, set a clock. Highest single payment takes it. Bids never stack, and late bids still count while your stream runs behind.</p>
+          <div class="row">
+            <button class="btn btn-ghost" data-customize="auction">Customise</button>
+            <button class="btn btn-ghost" data-links="auction">Get links</button>
+          </div>
+        </div>
+      </div>
+      <div class="game">
+        <div class="shot"><div class="mini" id="pv-money"></div></div>
+        <div class="body">
+          <h3>Money game</h3>
+          <p>You seed a pot, viewers pay in, biggest payment when the clock stops takes the lot. Losing payments stay in, and your cut comes off automatically.</p>
+          <div class="row">
+            <button class="btn btn-ghost" data-customize="money">Customise</button>
+            <button class="btn btn-ghost" data-links="money">Get links</button>
+          </div>
+        </div>
+      </div>
+      <div class="game">
+        <div class="shot"><div class="mini" id="pv-lastcall"></div></div>
+        <div class="body">
+          <h3>Last Call</h3>
+          <p>Everyone pays into one pot, and every payment puts a ten second clock back to full. Whoever paid last when it finally runs out takes everything.</p>
+          <div class="row">
+            <button class="btn btn-ghost" data-customize="lastcall">Customise</button>
+            <button class="btn btn-ghost" data-links="lastcall">Get links</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Running in about <em>five minutes</em></h2>
+      <p>No plugin, no server access, nothing to install on Donut. It reads the chat log your own game already writes.</p>
+    </div>
+    <div class="steps">
+      <div class="step"><h3>Run the launcher</h3><p>One download, one double-click. It finds your Minecraft log on its own and signs in with your account.</p></div>
+      <div class="step"><h3>Paste your link</h3><p>Every overlay has its own address. Drop it into LIVE Studio, OBS or Streamlabs like any other source.</p></div>
+      <div class="step"><h3>Take payments</h3><p>Someone pays you in game and they are on the board before you have finished saying their name.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2 id="setupTitle">Links for <em>wherever you stream</em></h2>
+      <p id="setupBlurb">An example of what you get after signing up. Your real addresses are tied to your account, so nobody else can point at your board.</p>
+    </div>
+    <div class="links" id="setupBox">
+      <div class="linkrow"><div class="plat">TikTok LIVE Studio</div><code id="l2">donutoverlays.com/o/7f3a91c4/board</code><button data-copy="l2">Copy</button></div>
+      <div class="linkrow"><div class="plat">OBS · Streamlabs</div><code id="l3">donutoverlays.com/o/7f3a91c4/board</code><button data-copy="l3">Copy</button></div>
+      <div class="linkrow"><div class="plat">Control panel</div><code id="l1">localhost:8090</code><button data-copy="l1">Copy</button></div>
+    </div>
+  </div>
+</section>
+
+<section id="pricing">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Pay monthly, <em>or buy it outright</em></h2>
+      <p>Start on the monthly — seven days free, cancel whenever. Or pay once and own the overlays outright, with nothing recurring and nothing to cancel. Five months of the monthly costs more than buying the lot.</p>
+    </div>
+    <div class="plans three">
+      <div class="plan best">
+        <h3>Monthly</h3>
+        <div class="price" data-usd="5" data-every="/month">$5<span>/month</span></div>
+        <div class="approx" data-approx="5"></div>
+        <ul>
+          <li>All four games while it runs</li>
+          <li>Every new game the day it launches</li>
+          <li>Seven days free — nothing charged</li>
+          <li>Cancel whenever, from the site</li>
+        </ul>
+        <a href="#" class="btn btn-gold" data-option="sub">Start free trial</a>
+        <p class="gate-note"></p>
+      </div>
+      <div class="plan">
+        <h3>One overlay</h3>
+        <div class="price" data-usd="12">$12<span>once</span></div>
+        <div class="approx" data-approx="12"></div>
+        <ul>
+          <li>Pick any one game — yours forever</li>
+          <li>One payment, nothing recurring</li>
+          <li>Keeps working with no subscription</li>
+          <li class="no">Games we add later are not included</li>
+        </ul>
+        <a href="#" class="btn btn-ghost" data-option="perm1">Buy one overlay</a>
+        <p class="gate-note"></p>
+      </div>
+      <div class="plan">
+        <h3>All four</h3>
+        <div class="price" data-usd="25">$25<span>once</span></div>
+        <div class="approx" data-approx="25"></div>
+        <ul>
+          <li>All four games we have today — yours forever</li>
+          <li>One payment, nothing recurring</li>
+          <li>Cheaper than five months of the monthly</li>
+          <li class="no">Games we add later are not included</li>
+        </ul>
+        <a href="#" class="btn btn-ghost" data-option="permall">Buy all four</a>
+        <p class="gate-note"></p>
+      </div>
+    </div>
+    <!-- Prepaid and gift cards are refused by their own bank at signup, because
+         a subscription has to save the card for later and most of them do not
+         allow that. Saying so here is cheaper than losing the signup to a
+         decline message that explains nothing. -->
+    <p class="fineprint">
+      <strong style="color:var(--gold)">Buying outright works with almost any card.</strong>
+      It is the <em>monthly</em> that trips people up: prepaid cards, gift cards and most kids'
+      cards get refused by their own bank when you set up a subscription, and it will just say
+      "declined" without telling you why. If that happens to you, buy an overlay outright instead —
+      a one-off payment does not need the card saved.
+      The monthly gives you seven days free before anything is charged.
+    </p>
+    <p class="fineprint">Your overlays are served from our end, not stored on your computer. That is what keeps them fast. An overlay you bought outright keeps working for as long as the site runs; a cancelled monthly stops working straight away rather than lingering.</p>
+  </div>
+</section>
+
+<section id="reviews">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>What streamers <em>say</em></h2>
+      <p>From people running these games on live every week.</p>
+    </div>
+    <div class="reviews" id="reviewList"></div>
+    <div class="rev-actions">
+      <button class="btn btn-gold" id="reviewBtn">Log in to leave a review</button>
+      <span style="color:var(--muted);font-size:.9rem">Reviews are checked before they appear.</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h2>Questions people ask</h2></div>
+    <div class="faq">
+      <div><h3>Does this work on Donut SMP?</h3><p>Yes. It reads the chat log your own client writes, so it needs nothing from the server and breaks no rules.</p></div>
+      <div><h3>How fast is it really?</h3><p>Payment to pixels is roughly a tenth of a second. Viewers see it a few seconds later because that is how long every platform holds video.</p></div>
+      <div><h3>Do I need OBS?</h3><p>Only for Twitch and YouTube. TikTok LIVE Studio takes the link directly.</p></div>
+      <div><h3>What if my server words payments differently?</h3><p>Send us the line and we will add it. Recognising new payment formats takes a day, not a release.</p></div>
+      <div><h3>Can I run two games at once?</h3><p>Not on one account — both would be reading the same payments and fighting over them. Run one per stream.</p></div>
+      <div><h3>What happens when I cancel?</h3><p>Your overlay links stop loading at the end of the paid period, and your settings and link are kept in case you come back. Charged after you cancelled? That is always refunded — see the <a href="/terms">refund policy</a>.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>Donut Overlays — built by a Donut streamer, for Donut streamers.</div>
+    <div>Not affiliated with Mojang, Microsoft, TikTok, Twitch or YouTube.</div>
+    <div style="margin-top:.4rem"><a href="/terms" style="color:var(--muted)">Terms, refunds and privacy</a></div>
+  </div>
+</footer>
+
+<div class="sheet" id="sheet">
+  <div class="sheet-inner">
+    <div class="sheet-head"><h3 id="sheetTitle">Customise</h3><button id="sheetClose" aria-label="Close">×</button></div>
+    <div class="sheet-body">
+      <div class="stage-prev"><div class="mini" id="pv-live" style="max-width:280px"></div></div>
+      <div>
+        <div class="opt"><label>Accent colour</label><div class="swatches" id="swatches"></div></div>
+        <div class="opt"><label>Text size</label>
+          <div class="seg" id="segSize"><button data-v="1">Normal</button><button data-v="1.2" class="on">Large</button><button data-v="1.45">Huge</button></div>
+        </div>
+        <div class="opt hidden" id="optArt">
+          <label>Picture behind the board</label>
+          <div class="art-row">
+            <div class="art-prev" id="artPrev"></div>
+            <div class="art-btns">
+              <button class="btn btn-ghost btn-sm" id="artPick">Choose an image…</button>
+              <button class="btn btn-ghost btn-sm" id="artDefault">Use the chicken</button>
+              <button class="btn btn-ghost btn-sm" id="artNone">No picture</button>
+              <input type="file" id="artFile" accept="image/png,image/jpeg,image/gif,image/webp" style="display:none">
+            </div>
+          </div>
+          <div class="seg" id="segArt" style="margin-top:.55rem">
+            <button data-v="0.07">Faint</button><button data-v="0.16" class="on">Normal</button><button data-v="0.28">Bolder</button>
+          </div>
+        </div>
+        <div class="msg" id="lookMsg" style="margin-top:.7rem"></div>
+        <p id="lookHint" style="color:var(--muted);font-size:.88rem;margin-top:.5rem"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="authSheet">
+  <div class="sheet-inner narrow">
+    <div class="sheet-head"><h3 id="authTitle">Log in</h3><button id="authClose" aria-label="Close">×</button></div>
+    <div class="sheet-body single">
+      <div>
+        <p id="authIntro" class="hidden" style="color:var(--muted);font-size:.93rem;margin:-.2rem 0 1rem"></p>
+        <div class="field" id="fieldEmail"><label>Email</label><input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></div>
+        <div class="field hidden" id="fieldIgn">
+          <label>Your Minecraft username</label>
+          <input id="authIgn" autocomplete="off" spellcheck="false" placeholder="e.g. mrchicken75">
+          <div style="font-size:.8rem;color:var(--muted);margin-top:.35rem;line-height:1.45">
+            Exactly as it appears in Donut chat. <b style="color:var(--gold)">On Bedrock,
+            start it with a full stop</b> — <code style="color:#a9c6ee">.yourname</code> —
+            because that is how the server writes it. You can change this any time.
+          </div>
+        </div>
+        <div class="field" id="fieldPass">
+          <label id="authPassLabel">Password</label>
+          <div class="pw-wrap">
+            <input id="authPass" type="password" autocomplete="current-password" placeholder="at least 8 characters">
+            <button type="button" class="pw-eye" id="pwEye" aria-label="Show password" aria-pressed="false" title="Show password">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M2 12s3.7-6.5 10-6.5S22 12 22 12s-3.7 6.5-10 6.5S2 12 2 12Z"/>
+                <circle cx="12" cy="12" r="3"/>
+                <path class="slash" d="M4 3.5 20 20.5"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <label class="agree hidden" id="fieldAgree">
+          <input type="checkbox" id="agreeBox">
+          <span>I have read and agree to the
+            <a href="/terms" target="_blank" rel="noopener">Terms, Refund Policy and Privacy Notice</a>,
+            and I am 18 or older — or I have my parent or guardian's permission.</span>
+        </label>
+        <button class="btn btn-gold" id="authGo" style="width:100%">Log in</button>
+        <div class="msg" id="authMsg"></div>
+        <div class="switch" id="authForgot"><a id="toForgot">Forgot your password?</a></div>
+        <div class="switch" id="authSwitch"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Shown to accounts made before there was a box to tick, and to everyone
+     again if the terms are ever changed in a way that affects them. -->
+<!-- Buying overlays outright means choosing which ones is a permanent
+     decision, so it has to be an actual decision. It used to silently
+     default to the elimination board, which meant anyone who wanted the
+     auction paid for the wrong thing. -->
+<div class="sheet" id="pickSheet">
+  <div class="sheet-inner narrow">
+    <div class="sheet-head"><h3 id="pickTitle">Which overlay do you want?</h3><button id="pickClose" aria-label="Close">×</button></div>
+    <div class="sheet-body single">
+      <div>
+        <p id="pickBlurb" style="color:var(--muted);margin:-.2rem 0 1.1rem;font-size:.95rem"></p>
+        <div id="pickList" class="picks"></div>
+        <div id="pickCount" class="pickcount"></div>
+        <button class="btn btn-gold" id="pickGo" style="width:100%;margin-top:.9rem">Continue to checkout</button>
+        <div class="msg" id="pickMsg"></div>
+        <div class="switch">Want all four? <a id="pickAll">Buy the lot for $25</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="termsSheet">
+  <div class="sheet-inner narrow">
+    <div class="sheet-head"><h3>One quick thing</h3></div>
+    <div class="sheet-body single">
+      <div>
+        <p style="color:var(--muted);margin:-.2rem 0 1.1rem;font-size:.95rem">
+          The terms have been written up properly since you signed up. Have a read and
+          tick the box — it takes a minute, and you will not be asked again.
+        </p>
+        <label class="agree" id="termsAgreeWrap">
+          <input type="checkbox" id="termsAgreeBox">
+          <span>I have read and agree to the
+            <a href="/terms" target="_blank" rel="noopener">Terms, Refund Policy and Privacy Notice</a>,
+            and I am 18 or older — or I have my parent or guardian's permission.</span>
+        </label>
+        <button class="btn btn-gold" id="termsAgreeGo" style="width:100%">Agree and carry on</button>
+        <div class="msg" id="termsMsg"></div>
+        <div class="switch"><a id="termsLogout">Log out instead</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="discordSheet">
+  <div class="sheet-inner narrow">
+    <div class="sheet-head"><h3>Join the Discord</h3><button id="discordClose" aria-label="Close">×</button></div>
+    <div class="sheet-body single">
+      <div>
+        <p style="color:var(--muted);margin-bottom:1.1rem">Setup help, payment format fixes and new games get posted there first. Join, then carry on to checkout.</p>
+        <button class="btn btn-discord" id="discordGo" style="width:100%;justify-content:center">Open the Discord</button>
+        <button class="btn btn-ghost" id="discordDone" style="width:100%;margin-top:.6rem">I have joined — continue</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="reviewSheet">
+  <div class="sheet-inner narrow">
+    <div class="sheet-head"><h3>Write a review</h3><button id="reviewClose" aria-label="Close">×</button></div>
+    <div class="sheet-body single">
+      <div>
+        <div class="field"><label>Rating</label>
+          <div id="starPick">
+            <button data-v="5" class="on">5</button><button data-v="4">4</button>
+            <button data-v="3">3</button><button data-v="2">2</button><button data-v="1">1</button>
+          </div>
+        </div>
+        <div class="field"><label>Minecraft name (for your head)</label><input id="reviewIgn" placeholder="e.g. mrchicken75"></div>
+        <div class="field"><label>Your review</label><textarea id="reviewText" placeholder="What did you run, and how did it go?"></textarea></div>
+        <button class="btn btn-gold" id="reviewGo" style="width:100%">Send it</button>
+        <div class="msg" id="reviewMsg"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+/* =========================================================
+   Fill these in before you go live.
+   ========================================================= */
+let DISCORD_INVITE = 'https://discord.gg/UPyz79jcth';
+/* the backend lives on the same origin as this page, so API is just '' */
+const API = '';
+
+/* ---------------- shared bits ---------------- */
+const NAMES = ['9void','xqovr','DrDonutt','VyperJames','Sc0tty','mighty4l','nj_lucca','Crawdiddle','ThatOneEnby','glazed_kai','mrchicken75','sprinkle_r'];
+const head = (n, s) => `https://minotar.net/helm/${encodeURIComponent(n)}/${s}.png`;
+const money = n => n >= 1e9 ? '$' + (n/1e9).toFixed(1) + 'B'
+                : n >= 1e6 ? '$' + (n/1e6).toFixed(n % 1e6 ? 1 : 0) + 'M'
+                : n >= 1e3 ? '$' + Math.round(n/1e3) + 'K' : '$' + n;
+const pick = a => a[Math.floor(Math.random() * a.length)];
+
+
+/* ---------------- hero: a board that actually plays ---------------- */
+const grid = document.getElementById('dGrid');
+const feedEl = document.getElementById('dFeed');
+const potEl = document.getElementById('dPot');
+const timeEl = document.getElementById('dTime');
+const countEl = document.getElementById('dCount');
+/* The header used to read "8 players" no matter what, while eighteen
+   heads sat underneath it. It is the first thing on the page that claims
+   to be live, so it had better agree with the thing next to it. */
+function paintCount(){
+  const n = entries.length;
+  countEl.textContent = phase === 'filling'
+    ? n + (n === 1 ? ' player' : ' players')
+    : (n === 1 ? 'last one standing' : n + ' left');
+}
+let entries = [], pot = 0, phase = 'filling', clock = 12;
+
+function makeEntry(){
+  const name = pick(NAMES);
+  const id = Math.random().toString(36).slice(2);
+  entries.push({ id, name });
+  pot += 1e6;
+  const c = document.createElement('div');
+  c.className = 'cell';
+  c.dataset.id = id;
+  c.innerHTML = `<img src="${head(name,64)}" alt="" loading="lazy"><div class="nm">${name}</div>`;
+  grid.append(c);
+  feedEl.innerHTML = `<b>${name}</b> paid $1M`;
+  potEl.textContent = money(pot);
+  paintCount();
+}
+function cellOf(id){ return grid.querySelector(`[data-id="${id}"]`); }
+
+async function loop(){
+  /* fill up */
+  for(let i = 0; i < 12; i++){ makeEntry(); await wait(200); }
+  /* lock, then pick people off */
+  phase = 'locked';
+  paintCount();
+  feedEl.textContent = 'Board locked — eliminations starting';
+  await wait(900);
+  while(entries.length > 1){
+    /* A beat before each elimination, counted out on the clock. Without
+       it the clock read 0:00 from the moment the board locked until the
+       round ended — about thirty of every forty seconds — so the biggest,
+       reddest thing on the page sat frozen while everything around it
+       moved. A still of the hero looked like a screenshot of a bug. */
+    for(let t = 2; t >= 1; t--){ timeEl.textContent = '0:0' + t; await wait(600); }
+    timeEl.textContent = '0:00';
+
+    const target = pick(entries);
+    /* skip around before landing */
+    for(let i = 0; i < 7; i++){
+      const c = cellOf(pick(entries).id);
+      if(c){ c.classList.add('hit'); await wait(90 + i * 22); c.classList.remove('hit'); }
+    }
+    const tc = cellOf(target.id);
+    if(tc){
+      tc.classList.add('hit');
+      await wait(420);
+      tc.classList.add('gone');
+      feedEl.innerHTML = `<b>${target.name}</b> eliminated`;
+      await wait(300);
+      tc.remove();
+    }
+    entries = entries.filter(e => e.id !== target.id);
+    paintCount();
+    await wait(340);
+  }
+  feedEl.innerHTML = `<b>${entries[0].name}</b> wins ${money(pot)}`;
+  await wait(2600);
+  grid.innerHTML = ''; entries = []; pot = 0; potEl.textContent = '$0';
+  /* Put the round back to the start. Without these two the second loop
+     onwards ran with the clock stuck on 0:00 — so anybody who watched the
+     hero for more than about half a minute, which is most people who are
+     reading the page properly, saw a dead timer on the one element that
+     is meant to prove the thing is live. */
+  phase = 'filling'; clock = 12; paintCount();
+  loop();
+}
+const wait = ms => new Promise(r => setTimeout(r, ms));
+function ticker(){
+  /* Only owns the clock while the board is filling. Once it locks, the
+     round itself drives the display — two things writing to one element
+     is how you get a number that flickers between two values. */
+  if(phase === 'filling'){
+    timeEl.textContent = '0:' + String(Math.max(0, clock)).padStart(2,'0');
+    if(clock > 0) clock--;
+  }
+  setTimeout(ticker, 1000);
+}
+if(!matchMedia('(prefers-reduced-motion: reduce)').matches){ loop(); ticker(); }
+else { for(let i = 0; i < 12; i++) makeEntry(); timeEl.textContent = '0:00'; paintCount(); }
+
+
+/* ---------------- background motes ----------------
+   Built here rather than written out twelve times in the HTML, so the
+   spread stays even and the markup stays readable. Positions and speeds
+   are fixed per index, not random: a reload should look like the same
+   page, not a different one. */
+(function motes(){
+  const box = document.querySelector('#sky .motes');
+  if(!box || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  for(let i = 0; i < 12; i++){
+    const d = document.createElement('i');
+    d.style.left = (4 + i * 8.1) + '%';
+    d.style.animationDuration = (22 + (i % 5) * 6) + 's';
+    d.style.animationDelay = (-i * 3.4) + 's';   // negative: already in flight on load
+    box.append(d);
+  }
+})();
+
+
+/* ---------------- arriving on scroll ----------------
+   The class is added by script and never present in the HTML, so if this
+   never runs the page is simply a normal page rather than a column of
+   invisible sections. Each element is unobserved once it has shown —
+   things should not fade out again on the way back up. */
+(function reveals(){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if(!('IntersectionObserver' in window)) return;
+  /* Only things that are in the page at load and are actually cards.
+     Anything drawn later by script — the overlay previews, the review
+     list — is deliberately left out: it would be given the hidden state
+     and then never observed, so it would simply never appear. */
+  const bits = document.querySelectorAll(
+    '.sec-head, #games .game, #pricing .plan, #how .step');
+  if(!bits.length) return;
+  const io = new IntersectionObserver((rows, self) => {
+    for(const r of rows){
+      if(!r.isIntersecting) continue;
+      r.target.classList.add('in');
+      self.unobserve(r.target);
+    }
+  }, { rootMargin: '0px 0px -8% 0px', threshold: 0 });
+  /* Last resort. Nothing known should reach it — an element that is
+     hidden when observed still fires the moment it is shown — but the
+     failure it guards against is a section of the page that is simply
+     never visible, and that is not a thing to leave to reasoning. */
+  setTimeout(() => {
+    for(const b of bits){
+      if(b.classList.contains('in')) continue;
+      const r = b.getBoundingClientRect();
+      if(r.height && r.top < innerHeight && r.bottom > 0) b.classList.add('in');
+    }
+  }, 10000);
+
+  bits.forEach((b, i) => {
+    /* A box with no area can never intersect anything, so an observer
+       would hold it at opacity 0 for good. That is exactly what a section
+       hidden at load looks like — the reviews heading, before any reviews
+       have come back from the server — and it would have shipped as a
+       heading that never appeared. Leave those alone entirely. */
+    const r = b.getBoundingClientRect();
+    if(r.height < 1 && r.width < 1) return;
+    b.classList.add('reveal');
+    /* A short stagger inside each group, capped, so a row of four cards
+       lands one after another instead of all at once — and so a long list
+       does not end up with a two-second wait on the last item. */
+    b.style.transitionDelay = Math.min(i % 4, 3) * 70 + 'ms';
+    io.observe(b);
+  });
+})();
+
+
+/* ---------------- previews ---------------- */
+function previewHTML(kind, opt){
+  const a = opt.accent, s = opt.scale, compact = opt.layout === 'compact';
+  const n1 = NAMES[0], n2 = NAMES[1];
+  const fs = r => (r * s).toFixed(2) + 'rem';
+  if(kind === 'board'){
+    return `<div class="cardish" style="--pv-accent:${a}">
+      <div class="lbl" style="font-size:${fs(.55)}">Elimination board</div>
+      <div class="grid3">${NAMES.slice(0,8).map(n => `<img src="${head(n,32)}" alt="">`).join('')}</div>
+      <div class="rowline"><span class="lbl" style="font-size:${fs(.55)}">Pot</span>
+        <span class="big" style="font-size:${fs(1.6)};margin-left:auto">$18M</span></div>
+    </div>`;
+  }
+  if(kind === 'auction'){
+    return `<div class="cardish" style="--pv-accent:${a}">
+      <div class="lbl" style="font-size:${fs(.55)}">Netherite kit</div>
+      <div class="big" style="font-size:${fs(2.2)}">$15M</div>
+      <div class="rowline"><img src="${head(n2,32)}" alt=""><span class="who" style="font-size:${fs(1.1)}">${n2}</span>
+        <span class="lbl" style="font-size:${fs(.5)};margin-left:auto">0:42</span></div>
+      ${compact ? '' : `<div class="lbl" style="font-size:${fs(.5)};margin-top:.4rem">Outbid: ${n1} $12M</div>`}
+    </div>`;
+  }
+  if(kind === 'lastcall'){
+    /* Deliberately not the money game's card. Last Call leads with the
+       clock and the drain bar under it, which is the thing people watch. */
+    return `<div class="cardish" style="--pv-accent:${a}">
+      <div class="lbl" style="font-size:${fs(.55)}">Last Call</div>
+      <div class="big" style="font-size:${fs(2.6)};text-align:center">6.2</div>
+      <div class="lbl" style="font-size:${fs(.45)};text-align:center;margin-top:-.15rem">seconds left</div>
+      <div class="drainbar"><i style="width:62%;background:${a}"></i></div>
+      <div class="rowline"><img src="${head(n1,32)}" alt=""><span class="who" style="font-size:${fs(1.1)}">${n1}</span>
+        <span class="who" style="font-size:${fs(1)};margin-left:auto;color:#ffd76a">wins $57M</span></div>
+      ${compact ? '' : `<div class="lbl" style="font-size:${fs(.5)};margin-top:.4rem">Snatched back 4 times</div>`}
+    </div>`;
+  }
+  return `<div class="cardish" style="--pv-accent:${a}">
+    <div class="lbl" style="font-size:${fs(.55)}">Total pot</div>
+    <div class="big" style="font-size:${fs(2.4)}">$11M</div>
+    <div class="rowline"><img src="${head(n1,32)}" alt=""><span class="who" style="font-size:${fs(1.1)}">${n1}</span>
+      <span class="who" style="font-size:${fs(1)};margin-left:auto;color:${a}">wins $9.9M</span></div>
+    ${compact ? '' : `<div class="lbl" style="font-size:${fs(.5)};margin-top:.4rem">Also in: ${n2} $3M</div>`}
+  </div>`;
+}
+const base = { accent:'#2ee66b', layout:'compact', scale:1.2 };
+const opts = {
+  board:   { ...base, bgImage:'', bgOpacity:0.16 },   // '' = the stock chicken
+  auction: { ...base, accent:'#f0b429' },
+  money:   { ...base },
+  /* Matches the colour Last Call actually ships with, so the preview is
+     honest before anyone has picked anything. */
+  lastcall:{ ...base, accent:'#35e0ff' },
+};
+/* One list, used by the previews, the loader and the saver. Adding a game
+   in three separate places is how the customiser quietly stopped covering
+   Last Call in the first place. */
+const LOOK_GAMES = ['board','auction','money','lastcall'];
+const STOCK_ART = '/chicken.png';
+const paint = k => document.getElementById('pv-' + k).innerHTML = previewHTML(k, opts[k]);
+LOOK_GAMES.forEach(paint);
+
+
+/* ---------------- customiser ---------------- */
+const sheet = document.getElementById('sheet');
+const swatchWrap = document.getElementById('swatches');
+const COLOURS = ['#2ee66b','#f0b429','#35e0ff','#2fb8f6','#ff4d9d','#b06bff','#ff6b3d'];
+let editing = 'board';
+
+swatchWrap.innerHTML = COLOURS.map(c =>
+  `<button class="sw" data-c="${c}" style="background:${c}" aria-label="accent ${c}"></button>`).join('');
+
+/* ---- the saved look ----------------------------------------------------
+   This used to change only the little preview, which made the line under
+   it ("reaches the overlay on stream immediately") a lie. Now the same
+   values are stored on the account and injected into the hosted overlay
+   page, so what you set here is what viewers see. */
+const DEFAULT_ART_OPACITY = 0.16;
+
+async function loadLook(){
+  if(!me) return;
+  try {
+    const r = await fetch(API + '/api/look', { headers: authHeader() });
+    if(!r.ok) return;
+    const { look } = await r.json();
+    LOOK_GAMES.forEach(g => {
+      const saved = (look && look[g]) || {};
+      if(saved.accent) opts[g].accent = saved.accent;
+      if(saved.scale)  opts[g].scale  = saved.scale;
+      if(g === 'board'){
+        opts.board.bgImage   = saved.bgImage || '';
+        opts.board.bgOpacity = typeof saved.bgOpacity === 'number' ? saved.bgOpacity : DEFAULT_ART_OPACITY;
+      }
+    });
+    LOOK_GAMES.forEach(paint);
+  } catch(e){ /* offline: the controls still work, they just won't persist */ }
+}
+
+let lookTimer = null;
+function saveLook(){
+  const hint = document.getElementById('lookMsg');
+  if(!me){
+    hint.className = 'msg bad';
+    hint.textContent = 'Log in to save this to your overlay.';
+    return;
+  }
+  hint.className = 'msg'; hint.textContent = 'Saving…';
+  clearTimeout(lookTimer);
+  /* Debounced: dragging through six colours should be one write, not six. */
+  lookTimer = setTimeout(async () => {
+    try {
+      const look = {};
+      LOOK_GAMES.forEach(g => { look[g] = { accent: opts[g].accent, scale: opts[g].scale }; });
+      /* Only the elimination board has a picture behind it. */
+      look.board.bgImage = opts.board.bgImage || '';
+      look.board.bgOpacity = opts.board.bgOpacity;
+      const body = { look };
+      const r = await fetch(API + '/api/look', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
+        body: JSON.stringify(body),
+      });
+      if(!r.ok) throw new Error((await r.json()).error || 'could not save that');
+      hint.className = 'msg good';
+      hint.textContent = 'Saved. Refresh the overlay source once to see it.';
+    } catch(e){
+      hint.className = 'msg bad';
+      hint.textContent = e.message === 'Failed to fetch' ? 'Could not reach the server.' : e.message;
+    }
+  }, 500);
+}
+
+function refreshSheet(){
+  const o = opts[editing];
+  document.getElementById('pv-live').innerHTML = previewHTML(editing, o);
+  swatchWrap.querySelectorAll('.sw').forEach(b => b.classList.toggle('on', b.dataset.c === o.accent));
+  document.querySelectorAll('#segSize button').forEach(b => b.classList.toggle('on', Number(b.dataset.v) === o.scale));
+
+  /* Only the elimination board has a picture behind it. */
+  const isBoard = editing === 'board';
+  document.getElementById('optArt').classList.toggle('hidden', !isBoard);
+  if(isBoard){
+    const prev = document.getElementById('artPrev');
+    const img = opts.board.bgImage;
+    prev.classList.toggle('empty', img === 'none');
+    prev.style.backgroundImage = (!img || img === 'none') ? 'none' : `url("${img}")`;
+    if(!img) prev.style.backgroundImage = `url("${STOCK_ART}")`;
+    const op = opts.board.bgOpacity == null ? DEFAULT_ART_OPACITY : opts.board.bgOpacity;
+    document.querySelectorAll('#segArt button').forEach(b =>
+      b.classList.toggle('on', Math.abs(Number(b.dataset.v) - op) < 0.001));
+  }
+
+  document.getElementById('lookHint').textContent = me
+    ? 'Saved to your account. The overlay picks it up next time the browser source reloads.'
+    : 'Log in and these settings follow your overlay onto stream.';
+  paint(editing);
+}
+document.querySelectorAll('[data-customize]').forEach(b => b.onclick = () => {
+  editing = b.dataset.customize;
+  document.getElementById('sheetTitle').textContent =
+    'Customise ' + ({board:'the elimination board', auction:'the auction',
+                     money:'the money game', lastcall:'Last Call'})[editing];
+  sheet.classList.add('open');
+  refreshSheet();
+});
+swatchWrap.onclick = e => {
+  const b = e.target.closest('.sw'); if(!b) return;
+  opts[editing].accent = b.dataset.c; refreshSheet(); saveLook();
+};
+document.getElementById('segSize').onclick = e => {
+  const b = e.target.closest('button'); if(!b) return;
+  opts[editing].scale = Number(b.dataset.v); refreshSheet(); saveLook();
+};
+document.getElementById('segArt').onclick = e => {
+  const b = e.target.closest('button'); if(!b) return;
+  opts.board.bgOpacity = Number(b.dataset.v); refreshSheet(); saveLook();
+};
+document.getElementById('artDefault').onclick = () => { opts.board.bgImage = '';     refreshSheet(); saveLook(); };
+document.getElementById('artNone').onclick    = () => { opts.board.bgImage = 'none'; refreshSheet(); saveLook(); };
+document.getElementById('artPick').onclick    = () => document.getElementById('artFile').click();
+
+/* Shrink whatever they picked to 512px and re-encode before it ever
+   leaves the browser. A phone photo is several megabytes; the board draws
+   it at a few hundred pixels behind everything else, so sending the
+   original would cost the customer bandwidth for detail nobody can see. */
+document.getElementById('artFile').onchange = e => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  const msg = document.getElementById('lookMsg');
+  if(!file) return;
+  if(!/^image\/(png|jpeg|gif|webp)$/.test(file.type)){
+    msg.className = 'msg bad'; msg.textContent = 'That needs to be a PNG, JPG, GIF or WebP.'; return;
+  }
+  msg.className = 'msg'; msg.textContent = 'Reading that image…';
+  const reader = new FileReader();
+  reader.onerror = () => { msg.className = 'msg bad'; msg.textContent = 'Could not read that file.'; };
+  reader.onload = () => {
+    const img = new Image();
+    img.onerror = () => { msg.className = 'msg bad'; msg.textContent = 'That file is not an image the browser can open.'; };
+    img.onload = () => {
+      const MAX = 512;
+      const k = Math.min(1, MAX / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.width * k));
+      c.height = Math.max(1, Math.round(img.height * k));
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = k < 1;      // keep pixel art crisp when it already fits
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      const out = c.toDataURL('image/png');
+      if(out.length > 690000){
+        msg.className = 'msg bad';
+        msg.textContent = 'That image is still too big after shrinking. Try a simpler one.';
+        return;
+      }
+      opts.board.bgImage = out;
+      msg.className = 'msg'; msg.textContent = '';
+      refreshSheet(); saveLook();
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+};
+document.getElementById('sheetClose').onclick = () => sheet.classList.remove('open');
+sheet.onclick = e => { if(e.target === sheet) sheet.classList.remove('open'); };
+addEventListener('keydown', e => { if(e.key === 'Escape') sheet.classList.remove('open'); });
+
+
+/* ---------------- currency ----------------
+   Display only. Stripe bills in USD, so anything else is shown
+   as an approximate figure and labelled as one. */
+const RATES = { USD:[1,'$'], CAD:[1.36,'$'], GBP:[0.78,'£'], EUR:[0.92,'€'], AUD:[1.50,'$'] };
+function showPrices(code){
+  const [rate, sym] = RATES[code] || RATES.USD;
+  document.querySelectorAll('[data-usd]').forEach(el => {
+    const usd = Number(el.dataset.usd);
+    const val = code === 'USD' ? usd : Math.round(usd * rate);
+    /* The suffix comes from the element, not from here. This used to
+       hardcode "/month", which silently relabelled the two one-time
+       purchases as subscriptions the moment the page loaded — the worst
+       possible thing for this page to be wrong about. */
+    const suffix = el.dataset.every || 'once';
+    el.innerHTML = sym + val + '<span>' + suffix + '</span>';
+  });
+  document.querySelectorAll('[data-approx]').forEach(el => {
+    el.textContent = code === 'USD' ? '' : 'about ' + code + ', charged as $' + el.dataset.approx + ' USD';
+  });
+  try { localStorage.setItem('cur', code); } catch(e){}
+}
+const curSel = document.getElementById('currency');
+let saved = 'USD';
+try { saved = localStorage.getItem('cur') || 'USD'; } catch(e){}
+curSel.value = saved;
+showPrices(saved);
+curSel.onchange = e => showPrices(e.target.value);
+
+
+
+/* ---------------- background video ----------------
+   Uses plains.mp4 if it's there, falls back to the drawn scene if
+   it isn't, and skips it on phones so nobody burns their data. */
+(function(){
+  const vid = document.getElementById('bgvid');
+  const small = matchMedia('(max-width: 760px)').matches;
+  const slow = navigator.connection && /2g/.test(navigator.connection.effectiveType || '');
+  if(small || slow || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  vid.addEventListener('canplay', () => {
+    vid.classList.add('on');
+    document.getElementById('sky').classList.add('video');
+    vid.play().catch(() => {});
+  }, { once: true });
+  vid.addEventListener('error', () => { /* no file yet — drawn scene stays */ });
+  vid.src = 'plains.mp4';
+})();
+
+/* ---------------- accounts ---------------- */
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem(k,v); } catch(e){} },
+  del(k){ try { localStorage.removeItem(k); } catch(e){} },
+};
+let me = null;
+try { me = JSON.parse(store.get('me') || 'null'); } catch(e){ me = null; }
+const authHeader = () => me ? { Authorization: 'Bearer ' + me.token } : {};
+
+function paintAccount(){
+  const box = document.getElementById('accountArea');
+  /* The header carries more when somebody is signed in, and the layout
+     needs to know that before it decides what to drop on a small screen. */
+  document.body.classList.toggle('signed-in', !!me);
+  if(me){
+    box.innerHTML = `<span class="acct">
+        <span class="mail" title="${me.email}">${me.email}</span>
+        <span class="state" id="acctState"></span>
+      </span>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn">Log out</button>`;
+    document.getElementById('logoutBtn').onclick = () => {
+      me = null; store.del('me'); paintAccount(); paintReviewForm(); loadReviews();
+    };
+    refreshMe();
+  } else {
+    box.innerHTML = `<button class="btn btn-ghost" id="loginBtn" style="font-family:'Pixelify Sans',sans-serif">Login</button>`;
+    document.getElementById('loginBtn').onclick = () => openAuth('login');
+    setCta(null);
+  }
+}
+
+/* a short date like "Sep 8" — the full ISO date was eating the header */
+const shortDate = d => new Date(d).toLocaleDateString(undefined, { month:'short', day:'numeric' });
+
+/* The header button is "Start free trial" for a stranger, but that reads as
+   nonsense to someone already trialing — they get "Manage plan" instead. */
+function setCta(status, perm){
+  const cta = document.getElementById('headerCta');
+  if(!cta) return;
+  const subscribed = status === 'trialing' || status === 'active' || status === 'past_due';
+  if(subscribed){
+    cta.textContent = 'Manage plan';
+    cta.href = '#';
+    cta.onclick = e => { e.preventDefault(); openPortal(); };
+  } else {
+    /* Somebody who bought overlays outright has no plan to manage and no
+       trial to start. Sending them to a "Start free trial" button they
+       have already moved past is confusing — offer them more games. */
+    cta.textContent = (perm && perm.length) ? 'Get more overlays' : 'Start free trial';
+    cta.href = '#pricing';
+    cta.onclick = null;
+  }
+}
+
+/* pulls plan/trial/renewal status from the server so the header shows
+   something more useful than just the email once it's known. */
+async function refreshMe(){
+  if(!me) return;
+  try {
+    const r = await fetch(API + '/api/me', { headers: authHeader() });
+    if(!r.ok) return; // expired token etc — leave the email showing
+    const data = await r.json();
+    setCta(data.status, data.perm);
+    /* Kept on `me` so the picker can grey out what they already own. */
+    me.perm = data.perm || [];
+    paintSetup();   // turn the example links into their real ones
+    if(data.needsTerms) askForTerms();
+    const el = document.getElementById('acctState');
+    if(!el) return;
+    el.className = 'state';
+    const owned = (data.perm || []).length;
+    if(data.status === 'trialing' && data.trialEnd){
+      /* Stripe can take a while to move a finished trial on, and until it
+         does this read "Trial ends Sep 8" on the twelfth of September —
+         which looks like the site has lost track of the account. Say what
+         is actually true and let the status catch up. */
+      const over = new Date(data.trialEnd).getTime() < Date.now();
+      if(over){ el.classList.add('ended'); el.textContent = 'Trial ended'; }
+      else el.textContent = 'Trial ends ' + shortDate(data.trialEnd);
+    } else if(data.status === 'active'){
+      el.classList.add('active');
+      el.textContent = data.plan === 'single' ? 'Two overlays' : 'All overlays';
+    } else if(data.status === 'past_due'){
+      el.classList.add('ended');
+      el.textContent = 'Payment failed';
+    } else if(owned){
+      /* Owned overlays outlive a cancelled subscription, so this comes
+         before the cancelled branch — telling somebody who owns two
+         games that they have nothing would be simply wrong. */
+      el.classList.add('active');
+      el.textContent = owned === 1 ? '1 overlay owned' : owned + ' overlays owned';
+    } else if(data.status === 'canceled'){
+      el.classList.add('ended');
+      el.textContent = 'Plan cancelled';
+    } else {
+      el.textContent = 'Nothing yet';
+    }
+  } catch(e){ /* server not reachable — leave the email showing */ }
+}
+
+/* Stripe's own billing page: change card, switch plan, cancel. Cancelling
+   there flows back to us through the subscription.updated webhook. */
+async function openPortal(){
+  try {
+    const r = await fetch(API + '/api/portal', { method: 'POST', headers: authHeader() });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || 'could not open the billing page');
+    location.href = data.url;
+  } catch(e){
+    alert(e.message === 'Failed to fetch'
+      ? 'The billing page is not reachable right now.'
+      : e.message);
+  }
+}
+
+let authMode = 'login';
+/* the eye. Kept next to openAuth so the reset below is impossible to miss:
+   a password left showing when the box is reopened is a real leak. */
+function setPwVisible(show){
+  const inp = document.getElementById('authPass');
+  const eye = document.getElementById('pwEye');
+  if(!inp || !eye) return;
+  inp.type = show ? 'text' : 'password';
+  eye.classList.toggle('on', show);
+  eye.setAttribute('aria-pressed', show ? 'true' : 'false');
+  eye.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+  eye.title = show ? 'Hide password' : 'Show password';
+}
+document.getElementById('pwEye').onclick = () => {
+  const inp = document.getElementById('authPass');
+  setPwVisible(inp.type === 'password');
+  inp.focus();
+};
+
+/* One box, four jobs: log in, sign up, ask for a reset link, and set a new
+   password from that link. Same fields, shown or hidden per mode, so there
+   is only one place where a login form can go wrong. */
+const AUTH_MODES = {
+  login:  { title:'Log in',                  go:'Log in',            email:1, pass:1, forgot:1,
+            switch:'No account yet? <a data-go="signup">Sign up</a>' },
+  signup: { title:'Create an account',       go:'Sign up',           email:1, pass:1, forgot:0,
+            switch:'Already have one? <a data-go="login">Log in</a>' },
+  forgot: { title:'Reset your password',     go:'Email me a link',   email:1, pass:0, forgot:0,
+            intro:'Put in the email you signed up with and we will send you a link to set a new password. It works once and lasts an hour.',
+            switch:'Remembered it? <a data-go="login">Log in</a>' },
+  reset:  { title:'Choose a new password',   go:'Save new password', email:0, pass:1, forgot:0,
+            intro:'Almost done — pick something at least 8 characters long.',
+            passLabel:'New password', switch:'' },
+};
+let resetToken = '';
+
+function openAuth(mode){
+  authMode = mode;
+  const m = AUTH_MODES[mode] || AUTH_MODES.login;
+  setPwVisible(false);
+  document.getElementById('authTitle').textContent = m.title;
+  document.getElementById('authGo').textContent = m.go;
+  document.getElementById('authPassLabel').textContent = m.passLabel || 'Password';
+  document.getElementById('fieldEmail').classList.toggle('hidden', !m.email);
+  document.getElementById('fieldPass').classList.toggle('hidden', !m.pass);
+  document.getElementById('authForgot').classList.toggle('hidden', !m.forgot);
+
+  /* The tick box only belongs on sign up, and it is cleared every time
+     the box opens so nobody ever finds it already ticked for them. */
+  /* Only on sign up. It is what the launcher matches payments against, so
+     asking once here beats a support message later. */
+  const ignField = document.getElementById('fieldIgn');
+  ignField.classList.toggle('hidden', mode !== 'signup');
+  if(mode !== 'signup') document.getElementById('authIgn').value = '';
+
+  const agree = document.getElementById('fieldAgree');
+  agree.classList.toggle('hidden', mode !== 'signup');
+  agree.classList.remove('miss');
+  document.getElementById('agreeBox').checked = false;
+
+  const intro = document.getElementById('authIntro');
+  intro.textContent = m.intro || '';
+  intro.classList.toggle('hidden', !m.intro);
+
+  const sw = document.getElementById('authSwitch');
+  sw.innerHTML = m.switch;
+  sw.querySelectorAll('a[data-go]').forEach(a => a.onclick = () => openAuth(a.dataset.go));
+
+  document.getElementById('authMsg').textContent = '';
+  document.getElementById('authMsg').className = 'msg';
+  document.getElementById('authSheet').classList.add('open');
+}
+document.getElementById('toForgot').onclick = () => openAuth('forgot');
+document.getElementById('authClose').onclick = () => document.getElementById('authSheet').classList.remove('open');
+
+function signedIn(data){
+  me = { email: data.email, token: data.token };
+  store.set('me', JSON.stringify(me));
+  paintAccount(); paintReviewForm(); loadReviews(); loadLook();
+  document.getElementById('authSheet').classList.remove('open');
+}
+
+document.getElementById('authGo').onclick = async () => {
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPass').value;
+  const msg = document.getElementById('authMsg');
+  const needsEmail = authMode !== 'reset';
+  const needsPass  = authMode !== 'forgot';
+
+  if(needsEmail && !email){ msg.className = 'msg bad'; msg.textContent = 'Put your email in.'; return; }
+  /* Checked here, between email and password, because that is where the
+     box sits on the form — pointing at the third empty field while the
+     second is also empty just makes people fill things twice. */
+  if(authMode === 'signup'){
+    const ign = document.getElementById('authIgn').value.trim();
+    if(!ign){
+      msg.className = 'msg bad';
+      msg.textContent = 'Put your Minecraft username in — the overlays need it to spot your payments.';
+      return;
+    }
+    if(!/^[.*]?[A-Za-z0-9_]{3,16}$/.test(ign)){
+      msg.className = 'msg bad';
+      msg.textContent = 'That does not look like a Minecraft username. 3 to 16 letters, numbers or underscores — Bedrock players start with a full stop.';
+      return;
+    }
+  }
+  if(needsPass && !password){ msg.className = 'msg bad'; msg.textContent = 'Put a password in.'; return; }
+  if(needsPass && password.length < 8){
+    msg.className = 'msg bad'; msg.textContent = 'Password needs at least 8 characters.'; return;
+  }
+  if(authMode === 'signup' && !document.getElementById('agreeBox').checked){
+    document.getElementById('fieldAgree').classList.add('miss');
+    msg.className = 'msg bad';
+    msg.textContent = 'Tick the box to say you agree to the terms.';
+    return;
+  }
+  msg.className = 'msg'; msg.textContent = 'One moment…';
+
+  try {
+    /* Asking for a link deliberately gets the same answer whether or not
+       the account exists, so the form cannot be used to find out who has
+       one. The message below says so honestly rather than implying we
+       just sent something we may not have. */
+    if(authMode === 'forgot'){
+      await fetch(API + '/api/forgot', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      msg.className = 'msg good';
+      msg.textContent = 'If there is an account for that email, a reset link is on its way. Check spam too.';
+      return;
+    }
+
+    if(authMode === 'reset'){
+      const r = await fetch(API + '/api/reset', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetToken, password }),
+      });
+      const data = await r.json();
+      if(!r.ok) throw new Error(data.error || 'that did not work');
+      /* Log them in FIRST. Tidying the address bar is a nicety, and some
+         browsers refuse replaceState outright — letting that throw would
+         mean the password was changed but the person is left staring at
+         an error, which is the worst of both. */
+      signedIn(data);
+      try { history.replaceState({}, '', location.pathname); } catch(e){}
+      return;
+    }
+
+    const r = await fetch(API + '/api/' + (authMode === 'login' ? 'login' : 'signup'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(authMode === 'signup'
+        ? { email, password, acceptTerms: true,
+            ign: document.getElementById('authIgn').value.trim() }
+        : { email, password }),
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || 'that did not work');
+    signedIn(data);
+    if(pendingPlan) proceedToCheckout();
+  } catch(e){
+    msg.className = 'msg bad';
+    msg.textContent = e.message === 'Failed to fetch'
+      ? 'Accounts are not switched on yet — the server is still being set up.'
+      : e.message;
+  }
+};
+
+/* ---------------- catching up old accounts ----------------
+   refreshMe() tells us whether this person has agreed to the terms as
+   they stand today. If not, they get asked once. Checkout is blocked on
+   the server as well, so closing the box does not get anybody past it. */
+function askForTerms(){
+  const wrap = document.getElementById('termsAgreeWrap');
+  const box  = document.getElementById('termsAgreeBox');
+  const msg  = document.getElementById('termsMsg');
+  box.checked = false; wrap.classList.remove('miss');
+  msg.textContent = ''; msg.className = 'msg';
+  document.getElementById('termsSheet').classList.add('open');
+}
+document.getElementById('termsAgreeGo').onclick = async () => {
+  const box = document.getElementById('termsAgreeBox');
+  const msg = document.getElementById('termsMsg');
+  if(!box.checked){
+    document.getElementById('termsAgreeWrap').classList.add('miss');
+    msg.className = 'msg bad'; msg.textContent = 'Tick the box first.';
+    return;
+  }
+  msg.className = 'msg'; msg.textContent = 'One moment…';
+  try {
+    const r = await fetch(API + '/api/accept-terms', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeader()),
+      body: JSON.stringify({ accept: true }),
+    });
+    if(!r.ok) throw new Error('that did not save — try again');
+    document.getElementById('termsSheet').classList.remove('open');
+    if(pendingPlan) proceedToCheckout();
+  } catch(e){
+    msg.className = 'msg bad'; msg.textContent = e.message;
+  }
+};
+document.getElementById('termsLogout').onclick = () => {
+  document.getElementById('termsSheet').classList.remove('open');
+  me = null; store.del('me'); paintAccount(); paintReviewForm(); loadReviews();
+};
+
+/* Arriving from the email link. */
+(function(){
+  const t = new URLSearchParams(location.search).get('token');
+  if(!t || !/^[a-f0-9]{16,128}$/.test(t)) return;
+  resetToken = t;
+  openAuth('reset');
+})();
+
+/* ---------------- discord gate ----------------
+   Honour system for now: it remembers that they clicked through.
+   Swap for Discord login later if people start dodging it. */
+function joinedDiscord(){ return store.get('joined') === 'yes'; }
+document.getElementById('discordIcon').onclick = () => window.open(DISCORD_INVITE, '_blank');
+document.getElementById('discordClose').onclick = () => document.getElementById('discordSheet').classList.remove('open');
+document.getElementById('discordGo').onclick = () => window.open(DISCORD_INVITE, '_blank');
+document.getElementById('discordDone').onclick = () => {
+  store.set('joined', 'yes');
+  document.getElementById('discordSheet').classList.remove('open');
+  paintGate();
+  proceedToCheckout();
+};
+function paintGate(){
+  document.querySelectorAll('.gate-note').forEach(n => {
+    n.textContent = joinedDiscord() ? '' : 'Join the Discord first — one click, then checkout opens.';
+  });
+}
+
+let pendingPlan = null;
+let pendingGames = [];
+
+/* What each thing you can buy covers. Mirrors the same table on the
+   server, which is the one that actually enforces it — these numbers
+   only shape the wording and stop the extra click. `picks: null` means
+   the option covers every overlay, so there is nothing to choose. */
+const OPTIONS = {
+  perm1:   { picks: 1,    label: 'one overlay' },
+  permall: { picks: null, label: 'all four' },
+  sub:     { picks: null, label: 'every overlay' },
+};
+let MAX_PICKS = 1;
+
+/* ---------------- which overlays, when you are buying some ---------------- */
+const GAMES = [
+  { id:'board',   name:'Donut Royale',  blurb:'The elimination board. Heads on a grid, knocked out one at a time until somebody is left.' },
+  { id:'auction', name:'Donut Auction', blurb:'Live item auctions. Highest bid before the clock runs out takes it.' },
+  { id:'money',   name:'Money Game',    blurb:'You seed a pot, biggest single payment before the timer takes it.' },
+  { id:'lastcall',name:'Last Call',     blurb:'Everyone builds one pot. Every payment resets a 10 second clock \u2014 whoever paid last when it runs out takes the lot.' },
+];
+
+/* Draw a list of overlay buttons with `chosen` highlighted. Shared by the
+   checkout picker and the switcher in the account panel, so the two can
+   never drift apart. */
+function renderPicks(list, chosen, owned){
+  owned = owned || [];
+  list.innerHTML = GAMES.map(g => {
+    const have = owned.includes(g.id);
+    return `
+    <button type="button" class="pick${chosen.includes(g.id) ? ' on' : ''}${have ? ' owned' : ''}"
+            data-game="${g.id}"${have ? ' disabled' : ''}>
+      <span class="dot"></span>
+      <span><b>${g.name}${have ? ' <em class="tag">you own this</em>' : ''}</b><span>${g.blurb}</span></span>
+    </button>`;
+  }).join('');
+}
+
+/* Clicking an overlay adds it, clicking it again takes it away. Once two
+   are chosen a third click swaps out the one picked first rather than
+   refusing — being told "you already have two" and having to work out
+   which to untick first is a worse experience than it just doing the
+   obvious thing. */
+function togglePick(chosen, id){
+  const at = chosen.indexOf(id);
+  if(at !== -1){ chosen.splice(at, 1); return chosen; }
+  chosen.push(id);
+  while(chosen.length > MAX_PICKS) chosen.shift();
+  return chosen;
+}
+
+function paintPickCount(){
+  const left = MAX_PICKS - pendingGames.length;
+  const el = document.getElementById('pickCount');
+  if(!el) return;
+  el.textContent = left > 0
+    ? (pendingGames.length ? `Pick ${left} more` : `Pick ${MAX_PICKS}`)
+    : (MAX_PICKS === 1
+        ? 'Chosen — clicking another swaps it'
+        : 'All chosen — clicking another swaps one out');
+  el.classList.toggle('done', left === 0);
+}
+
+function openPick(){
+  const spec = OPTIONS[pendingPlan] || { picks: 1 };
+  MAX_PICKS = spec.picks || 1;
+  /* The sheet is used for a one-overlay purchase and a three-overlay
+     purchase, so the wording has to come from the option rather than
+     being baked into the html. */
+  document.getElementById('pickTitle').textContent =
+    MAX_PICKS === 1 ? 'Which overlay do you want?' : `Pick your ${MAX_PICKS} overlays`;
+  document.getElementById('pickBlurb').textContent =
+    MAX_PICKS === 1
+      ? 'Whichever you choose is yours for good. There is no subscription and nothing to cancel.'
+      : `All ${MAX_PICKS} are yours for good. There is no subscription and nothing to cancel.`;
+  /* Overlays they already bought are not for sale twice. */
+  const owned = (me && me.perm) || [];
+  const list = document.getElementById('pickList');
+  /* Nothing preselected on purpose. A highlighted first option is how the
+     old version quietly sold everybody the elimination board. */
+  pendingGames = [];
+  renderPicks(list, pendingGames, owned);
+  list.onclick = e => {
+    const b = e.target.closest('.pick'); if(!b || b.disabled) return;
+    togglePick(pendingGames, b.dataset.game);
+    renderPicks(list, pendingGames, owned);
+    paintPickCount();
+    document.getElementById('pickMsg').textContent = '';
+  };
+  paintPickCount();
+  document.getElementById('pickMsg').textContent = '';
+  document.getElementById('pickMsg').className = 'msg';
+  document.getElementById('pickSheet').classList.add('open');
+}
+document.getElementById('pickClose').onclick = () =>
+  document.getElementById('pickSheet').classList.remove('open');
+document.getElementById('pickGo').onclick = () => {
+  /* The exact number, not "at least one". These are bought outright, so
+     paying the three-overlay price having chosen two would quietly cost
+     somebody a game they never got. */
+  if(pendingGames.length !== MAX_PICKS){
+    const m = document.getElementById('pickMsg');
+    const short = MAX_PICKS - pendingGames.length;
+    m.className = 'msg bad';
+    m.textContent = short > 0
+      ? `Pick ${short} more to carry on — you are paying for ${MAX_PICKS}.`
+      : `Pick ${MAX_PICKS} to carry on.`;
+    return;
+  }
+  document.getElementById('pickSheet').classList.remove('open');
+  proceedToCheckout();
+};
+document.getElementById('pickAll').onclick = () => {
+  document.getElementById('pickSheet').classList.remove('open');
+  pendingPlan = 'permall'; pendingGames = [];
+  proceedToCheckout();
+};
+
+/* runs after all the gates (Discord + logged in + overlay picked) */
+function proceedToCheckout(){
+  if(!joinedDiscord()) return; // discord sheet already handles re-entry
+  if(!me){ openAuth('login'); return; } // authGo success calls this again
+  const spec = OPTIONS[pendingPlan];
+  if(spec && spec.picks && pendingGames.length !== spec.picks){ openPick(); return; }
+  startCheckout(pendingPlan);
+}
+
+async function startCheckout(option){
+  const spec = OPTIONS[option] || {};
+  try {
+    const r = await fetch(API + '/api/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify(spec.picks ? { option, games: pendingGames } : { option }),
+    });
+    const data = await r.json();
+    /* The server refuses to bill anyone without an acceptance on file.
+       Ask for it, remembering the option so they land back here after. */
+    if(r.status === 403 && data.needsTerms){ pendingPlan = option; askForTerms(); return; }
+    pendingPlan = null;
+    if(!r.ok) throw new Error(data.error || 'could not start checkout');
+    location.href = data.url;
+  } catch(e){
+    alert(e.message === 'Failed to fetch'
+      ? 'Checkout is not switched on yet — the server is still being set up.'
+      : e.message);
+  }
+}
+document.querySelectorAll('[data-option]').forEach(b => b.addEventListener('click', e => {
+  e.preventDefault();
+  pendingPlan = b.dataset.option;
+  pendingGames = [];              // a fresh choice every time, never a leftover
+  if(!joinedDiscord()){
+    document.getElementById('discordSheet').classList.add('open');
+    return;
+  }
+  proceedToCheckout();
+}));
+
+/* bounced back from Stripe Checkout */
+(function(){
+  const q = new URLSearchParams(location.search);
+  if(q.get('checkout') === 'success'){
+    setTimeout(() => alert('You\'re in! Your trial has started — check your email/account for details.'), 300);
+    refreshMe();
+  } else if(q.get('checkout') === 'cancelled'){
+    setTimeout(() => alert('Checkout was cancelled — no charge was made.'), 300);
+  }
+})();
+
+/* ---------------- reviews ---------------- */
+/* Only real, approved reviews ever show here. Nothing is written in
+   locally: if the server has none yet, the section hides itself. */
+const starRow = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+
+async function loadReviews(){
+  const wrap = document.getElementById('reviewList');
+  const sec  = document.getElementById('reviews');
+  let list = [];
+  try {
+    const r = await fetch(API + '/api/reviews');
+    if(r.ok){
+      const data = await r.json();
+      if(Array.isArray(data.reviews)) list = data.reviews;
+    }
+  } catch(e){ /* server not up yet */ }
+
+  const navLink = document.querySelector('nav a[href="#reviews"]');
+  const show = list.length > 0 || !!me;   // signed-in people still get the form
+  sec.style.display = show ? '' : 'none';
+  if(navLink) navLink.style.display = show ? '' : 'none';
+
+  if(!list.length){
+    wrap.innerHTML = show
+      ? '<p style="color:var(--muted);grid-column:1/-1;margin:0">No reviews yet — be the first.</p>'
+      : '';
+    return;
+  }
+  wrap.innerHTML = list.slice(0, 6).map(v => `
+    <div class="rev">
+      <div class="stars">${starRow(v.stars || 5)}</div>
+      <p>${String(v.text || '').replace(/[<>]/g, '')}</p>
+      <div class="by">
+        <img src="${head(v.ign || 'Steve', 32)}" alt="" loading="lazy">${v.ign || 'anonymous'}
+      </div>
+    </div>`).join('');
+}
+function paintReviewForm(){
+  const b = document.getElementById('reviewBtn');
+  b.textContent = me ? 'Write a review' : 'Log in to leave a review';
+}
+document.getElementById('reviewBtn').onclick = () => {
+  if(!me) return openAuth('login');
+  document.getElementById('reviewSheet').classList.add('open');
+};
+document.getElementById('reviewClose').onclick = () => document.getElementById('reviewSheet').classList.remove('open');
+document.querySelectorAll('#starPick button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#starPick button').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
+});
+document.getElementById('reviewGo').onclick = async () => {
+  const stars = Number((document.querySelector('#starPick button.on') || {}).dataset?.v || 5);
+  const text = document.getElementById('reviewText').value.trim();
+  const ign = document.getElementById('reviewIgn').value.trim();
+  const msg = document.getElementById('reviewMsg');
+  if(text.length < 10){ msg.className = 'msg bad'; msg.textContent = 'Say a bit more than that.'; return; }
+  msg.className = 'msg'; msg.textContent = 'Sending…';
+  try {
+    const r = await fetch(API + '/api/reviews', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify({ stars, text, ign }),
+    });
+    if(!r.ok) throw new Error((await r.json()).error || 'could not send that');
+    msg.className = 'msg good'; msg.textContent = 'Thanks — it will show up once checked.';
+    document.getElementById('reviewText').value = '';
+    setTimeout(() => document.getElementById('reviewSheet').classList.remove('open'), 1200);
+    loadReviews();
+  } catch(e){
+    msg.className = 'msg bad';
+    msg.textContent = e.message === 'Failed to fetch' ? 'Reviews are not switched on yet.' : e.message;
+  }
+};
+
+paintAccount(); paintGate(); paintReviewForm(); loadReviews(); loadLook();
+
+/* ---------------- setup: the real links, once they're paying ----------------
+   Until someone subscribes this section shows an example, because that is
+   all it can honestly show. The moment they do, it turns into the actual
+   thing they need: the download, then their own permanent addresses. */
+async function paintSetup(){
+  const box = document.getElementById('setupBox');
+  if(!box || !me) return;
+  let data;
+  try {
+    const r = await fetch(API + '/api/links', { headers: authHeader() });
+    if(!r.ok) return;
+    data = await r.json();
+  } catch(e){ return; }
+  if(!data.active) return;   // signed in but no plan — the example stands
+
+  document.getElementById('setupTitle').innerHTML = 'Your overlays, <em>ready to go</em>';
+  document.getElementById('setupBlurb').textContent =
+    'Step 1 downloads the app that reads your Minecraft chat. Step 2 is the address you add as a browser source — it works the same in TikTok LIVE Studio, OBS, Streamlabs or anything else, and it never changes, so you only ever paste it once.';
+
+  const rows = [];
+  /* First, before the download, because everything below it is useless if
+     this is wrong: the launcher matches payments against this name, and a
+     mismatch reads real money as somebody else's and ignores it. */
+  rows.push(`
+    <div class="linkrow" style="align-items:flex-start">
+      <div class="plat">Your name</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+          <input id="ignBox" value="${(data.ign || '').replace(/"/g, '&quot;')}"
+                 autocomplete="off" spellcheck="false" placeholder="your Minecraft username"
+                 style="flex:1;min-width:12rem;padding:.5rem .6rem;border-radius:.4rem;
+                        border:1px solid var(--line);background:#070d18;color:var(--text);font:inherit">
+          <button id="ignSave" style="padding:.5rem .9rem">Save</button>
+        </div>
+        <div style="font-size:.8rem;color:var(--muted);margin-top:.4rem;line-height:1.45">
+          Exactly as it appears in Donut chat — this is how the overlay knows a payment is
+          yours. <b style="color:var(--gold)">On Bedrock, start it with a full stop</b>
+          (<code style="color:#a9c6ee">.yourname</code>). Change it whenever you rename;
+          the launcher picks it up next time it starts.
+        </div>
+        <div class="msg" id="ignMsg"></div>
+      </div>
+    </div>`);
+  rows.push(`
+    <div class="linkrow">
+      <div class="plat">1 · Download</div>
+      <code>donut-overlays-launcher.zip</code>
+      <a class="btn btn-gold" style="padding:.55rem .9rem;font-size:.85rem" href="${data.download}">Download</a>
+    </div>`);
+
+  rows.push(`
+    <div class="linkrow" style="border-bottom:none;padding-bottom:.2rem">
+      <div class="plat">2 · Your overlays</div>
+      <div style="flex:1;color:var(--muted);font-size:.88rem">
+        Add as a <b>browser source</b> in TikTok LIVE Studio, OBS, Streamlabs — any of them.
+      </div>
+    </div>`);
+
+  /* Each row says which game it is. Naming a platform here was wrong:
+     one link works everywhere, and what a streamer actually needs to
+     know is which of their overlays they are copying. */
+  /* Each game gets its own control panel address, because each relay
+     listens on its own port. One shared address was simply wrong for
+     two of the three games. */
+  /* Owned outright versus covered by the monthly. Worth saying on each
+     row: somebody about to cancel needs to know which of these keeps
+     working afterwards and which does not. */
+  const owned = data.perm || [];
+  data.links.forEach((l, i) => {
+    const mine = owned.includes(l.game);
+    rows.push(`
+      <div class="linkrow">
+        <div class="plat" style="padding-left:1.2rem;font-weight:700;color:var(--teal)">
+          ${l.name}
+          <div style="font-weight:400;font-size:.74rem;letter-spacing:.06em;margin-top:.15rem;
+                      color:${mine ? 'var(--gold)' : 'var(--muted)'}">
+            ${mine ? 'yours forever' : 'with your monthly'}
+          </div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <code id="ln${i}" style="display:block">${l.url}</code>
+          <div style="font-size:.8rem;color:var(--muted);margin-top:.3rem">
+            ${l.panelLive
+              ? `Your controls, running right now:
+                 <b style="color:var(--teal)">${l.panel}</b>`
+              : `Your controls once the launcher is open:
+                 <b style="color:#a9c6ee">${l.panel}</b>
+                 <span style="color:#63748c">— the launcher opens this for you, and shows
+                 the exact address if it has to use a different port</span>`}
+          </div>
+        </div>
+        <button data-copy="ln${i}">Copy</button>
+      </div>`);
+  });
+
+  /* What they have not got yet, so buying the rest is one click away
+     rather than a scroll back up to the pricing table. */
+  const missing = GAMES.filter(g => !data.games.includes(g.id));
+  if(missing.length){
+    rows.push(`
+      <div class="linkrow" style="align-items:flex-start">
+        <div class="plat">Not yours yet</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.88rem;color:var(--muted)">
+            ${missing.map(g => g.name).join(', ')} —
+            <a href="#pricing" style="color:var(--teal)">buy ${missing.length === 1 ? 'it' : 'them'} outright</a>
+            or take the $5 monthly for the lot.
+          </div>
+        </div>
+      </div>`);
+  }
+
+  /* Only for accounts still on the old two-overlay subscription. Nothing
+     sold today is switchable — an overlay bought outright is owned, and
+     the monthly covers all of them. */
+  if(data.plan === 'single' && data.status !== 'canceled'){
+    rows.push(`
+      <div class="linkrow" style="align-items:flex-start">
+        <div class="plat">Switch</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.88rem;color:var(--muted);margin-bottom:.55rem">
+            Your old plan covers 2 overlays at a time. Click one to add it,
+            click a highlighted one to drop it. Your links above update straight away.
+          </div>
+          <div id="swapList" class="picks"></div>
+          <div class="msg" id="swapMsg"></div>
+        </div>
+      </div>`);
+  }
+
+  box.innerHTML = rows.join('');
+
+  /* Guarded the same way as the block that draws it above — without the
+     matching condition this looked up an element that is not there. */
+  /* Saving the name. Deliberately its own small form rather than part of
+     a bigger settings page — it is the single most common thing to get
+     wrong, so it lives where people are already looking. */
+  const ignSave = document.getElementById('ignSave');
+  if(ignSave){
+    ignSave.onclick = async () => {
+      const box = document.getElementById('ignBox');
+      const m = document.getElementById('ignMsg');
+      const val = box.value.trim();
+      if(!/^[.*]?[A-Za-z0-9_]{3,16}$/.test(val)){
+        m.className = 'msg bad';
+        m.textContent = '3 to 16 letters, numbers or underscores. Bedrock players start with a full stop.';
+        return;
+      }
+      m.className = 'msg'; m.textContent = 'Saving…';
+      try {
+        const r = await fetch(API + '/api/ign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader() },
+          body: JSON.stringify({ ign: val }),
+        });
+        const d = await r.json();
+        if(!r.ok) throw new Error(d.error || 'could not save that');
+        m.className = 'msg good';
+        m.textContent = 'Saved as ' + d.ign + '. Restart the launcher and it will use this.';
+      } catch(e){
+        m.className = 'msg bad';
+        m.textContent = e.message === 'Failed to fetch' ? 'Could not reach the server.' : e.message;
+      }
+    };
+  }
+
+  const swapEl = document.getElementById('swapList');
+  if(swapEl){
+    MAX_PICKS = 2;
+    const list = swapEl;
+    /* Trust the server's list, not the old single `choice` field — an
+       account that has picked two would otherwise show only one lit up. */
+    const chosen = (data.subOnly && data.subOnly.length ? data.subOnly : [data.choice]).slice();
+    renderPicks(list, chosen);
+    list.onclick = async e => {
+      const b = e.target.closest('.pick'); if(!b) return;
+      const msg = document.getElementById('swapMsg');
+      const id = b.dataset.game;
+      /* Dropping the last one would leave them with no overlay at all,
+         and the server would refuse it anyway. Say why instead of
+         letting the click do nothing. */
+      if(chosen.length === 1 && chosen[0] === id){
+        msg.className = 'msg bad';
+        msg.textContent = 'You need at least one. Click a different overlay to swap to it.';
+        return;
+      }
+      const next = togglePick(chosen.slice(), id);
+      msg.className = 'msg'; msg.textContent = 'Saving…';
+      try {
+        const r = await fetch(API + '/api/choose-overlay', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader() },
+          body: JSON.stringify({ games: next }),
+        });
+        const d = await r.json();
+        if(!r.ok) throw new Error(d.error || 'could not change that');
+        /* Redraw FIRST, then say so. paintSetup replaces this whole box,
+           which threw away the confirmation the moment it was written. */
+        await paintSetup();
+        const after = document.getElementById('swapMsg');
+        if(after){
+          after.className = 'msg good';
+          after.textContent = 'Saved. Your links above are up to date — copy them into LIVE Studio or OBS.';
+        }
+      } catch(e){
+        msg.className = 'msg bad'; msg.textContent = e.message;
+      }
+    };
+  }
+  box.insertAdjacentHTML('beforeend',
+    /* The unblock step is first because skipping it is what makes Windows
+       refuse to run the launcher at all — and the message it shows says
+       nothing about zips, so nobody works it out on their own. */
+    `<div style="color:var(--muted);font-size:.88rem;margin-top:1.1rem;
+        background:#0c1322;border:1px solid var(--line);border-left:3px solid var(--gold);
+        border-radius:.5rem;padding:.9rem 1.1rem">
+       <b style="color:var(--gold)">Setting it up on Windows — in this order:</b>
+       <ol style="margin:.5rem 0 0 1.1rem;padding:0;line-height:1.7">
+         <li><b style="color:#a9c6ee">Right-click the zip → Properties → tick Unblock → OK.</b>
+             Do this <em>before</em> unzipping. Skip it and Windows blocks the launcher with a
+             "Smart App Control" warning.</li>
+         <li>Right-click the zip again → <b style="color:#a9c6ee">Extract All</b>.
+             Don't run anything from inside the zip window — those files are temporary.</li>
+         <li>Open the folder and run <b style="color:#a9c6ee">START-DONUT-OVERLAYS.bat</b>,
+             sign in, and pick your overlay.</li>
+       </ol>
+       <p style="margin:.7rem 0 0">
+         Leave that black window open while you stream — closing it stops the overlay.
+         It opens your control panel automatically and prints the address every time it
+         starts. If another program on your PC is already using its usual port it quietly
+         moves to a different one and says so, so trust the address in that window over
+         the one above.
+         ${data.plan === 'single' ? ' Your old plan covers two overlays at a time — change which two from your account.' : ''}
+       </p>
+     </div>`);
+  bindCopy();
+}
+
+/* pull the real Discord invite from the server config so it can be
+   changed later without touching this file */
+fetch(API + '/api/config').then(r => r.json()).then(cfg => {
+  if(cfg && cfg.discordInvite) DISCORD_INVITE = cfg.discordInvite;
+}).catch(() => {});
+
+/* ---------------- copy buttons ---------------- */
+/* Re-bindable, because the setup rows get replaced with the real links
+   once someone subscribes. The example rows have no scheme on them; the
+   real ones already do, so only add one where it is missing. */
+function bindCopy(){
+  document.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => {
+    const el = document.getElementById(b.dataset.copy);
+    if(!el) return;
+    let text = el.textContent.trim();
+    if(!/^https?:\/\//i.test(text)) text = 'https://' + text;
+    navigator.clipboard.writeText(text).then(() => {
+      const old = b.textContent; b.textContent = 'Copied';
+      setTimeout(() => b.textContent = old, 1400);
+    }).catch(() => {});
+  });
+}
+bindCopy();
+document.querySelectorAll('[data-links]').forEach(b => b.onclick = () =>
+  document.querySelector('.links').scrollIntoView({behavior:'smooth', block:'center'}));
+
+</script>
+<script src="/px.js" defer></script>
+</body>
+</html>
