@@ -748,12 +748,12 @@ app.post('/api/checkout', auth, async (req, res) => {
 // ---------------------------------------------------------------------
 // Overlays: the permanent links, and the pages themselves.
 // ---------------------------------------------------------------------
-const GAME_FILES = { board: 'board.html', auction: 'auction.html', money: 'money.html', lastcall: 'lastcall.html' };
-const GAME_NAMES = { board: 'Elimination board', auction: 'Live auction', money: 'Money game', lastcall: 'Last Call' };
+const GAME_FILES = { board: 'board.html', auction: 'auction.html', money: 'money.html', lastcall: 'lastcall.html', wheel: 'wheel.html' };
+const GAME_NAMES = { board: 'Elimination board', auction: 'Live auction', money: 'Money game', lastcall: 'Last Call', wheel: 'Follow Reel' };
 /* Each game's relay listens on its own port, so the control panel address
    differs per game. Showing one fixed port sent anyone running the auction
    or money game to a dead page. */
-const GAME_PORTS = { board: 8090, auction: 8091, money: 8092, lastcall: 8093 };
+const GAME_PORTS = { board: 8090, auction: 8091, money: 8092, lastcall: 8093, wheel: 8094 };
 
 /* Made once and never changed, so a link pasted into OBS keeps working
    for the life of the account. */

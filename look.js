@@ -11,7 +11,7 @@
  * own; and it means the rules can be tested without standing up Express,
  * Mongo and Stripe first.
  */
-const GAMES = ['board', 'auction', 'money', 'lastcall'];
+const GAMES = ['board', 'auction', 'money', 'lastcall', 'wheel'];
 
 const SCALES = [1, 1.2, 1.45];
 const isHex = v => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);

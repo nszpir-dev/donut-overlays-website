@@ -23,7 +23,12 @@ const { WebSocketServer } = require('ws');
 const jwt = require('jsonwebtoken');
 const { User } = require('./models');
 
-const GAMES = ['board', 'auction', 'money', 'lastcall'];
+const GAMES = ['board', 'auction', 'money', 'lastcall', 'wheel'];
+
+/* The four that existed when "all overlays, forever" first went on sale.
+   Anyone whose outright purchase covers all of these bought the whole set
+   as it stood, and owns what has been added since — see permOf. */
+const CORE = ['board', 'auction', 'money', 'lastcall'];
 
 /* past_due gets in: their card failed but Stripe is still retrying, and
    cutting a live stream dead over a temporary billing hiccup would be a
@@ -39,7 +44,7 @@ const OPTIONS = {
   /* picks: null means the option covers every overlay, so there is
      nothing to choose and nothing to carry in the checkout metadata. */
   perm1:   { picks: 1,    usd: 12, once: true,  label: 'One overlay, forever' },
-  permall: { picks: null, usd: 25, once: true,  label: 'All four overlays, forever' },
+  permall: { picks: null, usd: 25, once: true,  label: 'Every overlay, forever' },
   sub:     { picks: null, usd: 5,  once: false, label: 'Everything, monthly' },
 };
 
@@ -62,6 +67,13 @@ function permOf(user) {
   for (const g of (user.perm || [])) {
     if (GAMES.includes(g) && !out.includes(g)) out.push(g);
   }
+  /* Somebody who paid once for every overlay there was owns the ones
+     added later. Without this, two people who paid the same $25 for the
+     same thing end up owning different things depending on which side of
+     a release they bought on — which is not a rule anyone would agree to
+     out loud, and is the sort of thing customers find out about from
+     each other rather than from you. */
+  if (CORE.every(g => out.includes(g))) return GAMES.slice();
   return out;
 }
 
@@ -275,4 +287,4 @@ async function recheckLive() {
   }
 }
 
-module.exports = { setup, entitled, allowedGames, permOf, subGames, hasAnything, gamesFor, panelPort, OPTIONS, GAMES };
+module.exports = { setup, entitled, allowedGames, permOf, subGames, hasAnything, gamesFor, panelPort, OPTIONS, GAMES, CORE };
