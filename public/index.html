@@ -60,6 +60,128 @@ a{color:inherit}
 }
 #sky .veil{position:absolute;top:0;right:0;bottom:0;left:0;
   background:linear-gradient(180deg,rgba(6,9,18,.20),rgba(6,9,18,.82) 62%,var(--ink))}
+
+/* ---------- the sky, moving ----------
+   Everything below animates transform or opacity only, which the browser
+   hands to the graphics card — so it costs nothing on the sort of PC that
+   is also running Minecraft, OBS and a stream at the same time. The
+   periods are deliberately odd numbers: matched ones would drift into
+   step and start pulsing together, which reads as a loop rather than as
+   weather. All of it is switched off further down for anyone who has
+   asked their system for less motion. */
+@keyframes drift1{0%,100%{transform:translate3d(0,0,0) scale(1)}
+                  50%{transform:translate3d(6vw,4vh,0) scale(1.12)}}
+@keyframes drift2{0%,100%{transform:translate3d(0,0,0) scale(1.05)}
+                  50%{transform:translate3d(-7vw,6vh,0) scale(.92)}}
+@keyframes drift3{0%,100%{transform:translate3d(0,0,0) scale(.95)}
+                  50%{transform:translate3d(5vw,-5vh,0) scale(1.15)}}
+@keyframes drift4{0%,100%{transform:translate3d(0,0,0) scale(1.08)}
+                  50%{transform:translate3d(-6vw,-3vh,0) scale(.94)}}
+#sky .g1{animation:drift1 47s ease-in-out infinite}
+#sky .g2{animation:drift2 61s ease-in-out infinite}
+#sky .g3{animation:drift3 53s ease-in-out infinite}
+#sky .g4{animation:drift4 67s ease-in-out infinite}
+
+/* A drawing grid, panning slowly. Faded out at the edges with a mask so
+   it never ends in a hard line, and kept far dimmer than it looks in an
+   editor — on a bright monitor it should read as texture, not as a
+   spreadsheet behind the words. */
+#sky .mesh{
+  position:absolute;top:-10%;left:-10%;width:120%;height:120%;
+  background-image:
+    linear-gradient(rgba(150,190,255,.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(150,190,255,.055) 1px, transparent 1px);
+  background-size:64px 64px;
+  -webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 30%, #000 30%, transparent 78%);
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 30%, #000 30%, transparent 78%);
+  animation:mesh 34s linear infinite;
+}
+@keyframes mesh{to{transform:translate3d(64px,64px,0)}}
+
+/* Slow specks rising, like money going up. Twelve of them, each with its
+   own delay, so they never leave the screen empty or crowd it. */
+#sky .motes{position:absolute;top:0;right:0;bottom:0;left:0}
+#sky .motes i{
+  position:absolute;bottom:-6vh;width:3px;height:3px;border-radius:50%;
+  background:var(--gold);opacity:0;
+  box-shadow:0 0 6px 1px rgba(255,201,60,.55);
+  animation:rise linear infinite;
+}
+#sky .motes i:nth-child(even){background:var(--teal);box-shadow:0 0 6px 1px rgba(25,227,200,.5)}
+@keyframes rise{
+  0%{transform:translate3d(0,0,0);opacity:0}
+  8%{opacity:.75}
+  85%{opacity:.5}
+  100%{transform:translate3d(2vw,-108vh,0);opacity:0}
+}
+
+/* One pale sweep across the top of the page every so often, the way light
+   moves over a car in a product shot. Long gap, short pass — it should be
+   the sort of thing you notice the second time you look. */
+#sky .sweep{
+  position:absolute;top:-30vh;left:-60vw;width:45vw;height:180vh;
+  background:linear-gradient(90deg,transparent,rgba(180,215,255,.055),transparent);
+  transform:rotate(14deg);
+  animation:sweep 17s ease-in-out infinite;
+}
+@keyframes sweep{0%,68%{transform:translate3d(0,0,0) rotate(14deg)}
+                 100%{transform:translate3d(200vw,0,0) rotate(14deg)}}
+
+/* A quiet twinkle. The stars are a static gradient, so the whole layer
+   breathes rather than each star firing on its own — far cheaper, and at
+   this opacity indistinguishable. */
+#sky .stars{animation:twinkle 9s ease-in-out infinite}
+@keyframes twinkle{0%,100%{opacity:.75}50%{opacity:1}}
+
+/* ---------- things arriving as you scroll ----------
+   Set by script, so a page with no JavaScript shows everything rather
+   than a blank column. */
+/* ---------- hover, where it earns its keep ----------
+   Only on devices with a real pointer. On a phone :hover sticks after a
+   tap, so a card you touched stays lifted until you touch another one,
+   which looks like a bug rather than a flourish. */
+@media(hover:hover){
+  .btn{transition:transform .16s ease, box-shadow .16s ease, filter .16s ease}
+  .btn:hover{transform:translateY(-2px)}
+  .btn-gold:hover{box-shadow:0 .7rem 1.7rem rgba(34,163,91,.55)}
+  .btn:active{transform:translateY(0)}
+
+  /* The coloured rule along the top of each game already identifies it;
+     the lift just picks that colour up and puts it under the card. */
+  .game{transition:transform .22s cubic-bezier(.2,.7,.3,1), filter .22s ease}
+  .game:hover{transform:translateY(-4px)}
+  .game:hover .shot{filter:brightness(1.06)}
+
+  .plan{transition:background .22s ease}
+  .plan:hover{background:rgba(255,255,255,.022)}
+
+  /* A line that grows out from the left rather than appearing whole. */
+  nav > a{position:relative}
+  nav > a::after{
+    content:'';position:absolute;left:0;right:0;bottom:-.35rem;height:2px;
+    background:linear-gradient(90deg,var(--teal),var(--gold));
+    transform:scaleX(0);transform-origin:left;transition:transform .2s ease;
+  }
+  nav > a:hover::after{transform:scaleX(1)}
+}
+@media(prefers-reduced-motion: reduce){
+  .btn,.game,.plan,nav > a::after{transition:none !important}
+  .btn:hover,.game:hover{transform:none !important}
+}
+
+.reveal{opacity:0;transform:translateY(18px);
+  transition:opacity .7s cubic-bezier(.2,.7,.3,1), transform .7s cubic-bezier(.2,.7,.3,1)}
+.reveal.in{opacity:1;transform:none}
+
+/* One switch for the lot. Anyone who has told their operating system they
+   do not want movement gets a still page — this is an accessibility
+   setting, not a preference to talk them out of. */
+@media(prefers-reduced-motion: reduce){
+  #sky .g1,#sky .g2,#sky .g3,#sky .g4,#sky .mesh,#sky .sweep,#sky .stars,#sky .motes i{
+    animation:none !important}
+  #sky .motes{display:none}
+  .reveal{opacity:1;transform:none;transition:none}
+}
 /* video still takes over if plains.mp4 is uploaded */
 #bgvid{position:absolute;top:0;left:0;width:100%;height:105vh;object-fit:cover;display:none}
 #bgvid.on{display:block}
@@ -453,7 +575,10 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
   <video id="bgvid" autoplay muted loop playsinline preload="auto" poster=""></video>
   <div class="glow g1"></div><div class="glow g2"></div>
   <div class="glow g3"></div><div class="glow g4"></div>
+  <div class="mesh"></div>
   <div class="stars"></div>
+  <div class="sweep"></div>
+  <div class="motes"></div>
   <div class="veil"></div>
 </div>
 
@@ -499,7 +624,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
     </div>
 
     <div class="demo-frame">
-      <div class="demo-chrome"><span class="live">live</span> elimination board · 8 players</div>
+      <div class="demo-chrome"><span class="live">live</span> elimination board · <span id="dCount">8 players</span></div>
       <div class="board">
         <div class="board-top">
           <div class="t" id="dTime">0:00</div>
@@ -871,6 +996,16 @@ const grid = document.getElementById('dGrid');
 const feedEl = document.getElementById('dFeed');
 const potEl = document.getElementById('dPot');
 const timeEl = document.getElementById('dTime');
+const countEl = document.getElementById('dCount');
+/* The header used to read "8 players" no matter what, while eighteen
+   heads sat underneath it. It is the first thing on the page that claims
+   to be live, so it had better agree with the thing next to it. */
+function paintCount(){
+  const n = entries.length;
+  countEl.textContent = phase === 'filling'
+    ? n + (n === 1 ? ' player' : ' players')
+    : (n === 1 ? 'last one standing' : n + ' left');
+}
 let entries = [], pot = 0, phase = 'filling', clock = 12;
 
 function makeEntry(){
@@ -885,17 +1020,27 @@ function makeEntry(){
   grid.append(c);
   feedEl.innerHTML = `<b>${name}</b> paid $1M`;
   potEl.textContent = money(pot);
+  paintCount();
 }
 function cellOf(id){ return grid.querySelector(`[data-id="${id}"]`); }
 
 async function loop(){
   /* fill up */
-  for(let i = 0; i < 18; i++){ makeEntry(); await wait(220); }
+  for(let i = 0; i < 12; i++){ makeEntry(); await wait(200); }
   /* lock, then pick people off */
   phase = 'locked';
+  paintCount();
   feedEl.textContent = 'Board locked — eliminations starting';
   await wait(900);
   while(entries.length > 1){
+    /* A beat before each elimination, counted out on the clock. Without
+       it the clock read 0:00 from the moment the board locked until the
+       round ended — about thirty of every forty seconds — so the biggest,
+       reddest thing on the page sat frozen while everything around it
+       moved. A still of the hero looked like a screenshot of a bug. */
+    for(let t = 2; t >= 1; t--){ timeEl.textContent = '0:0' + t; await wait(600); }
+    timeEl.textContent = '0:00';
+
     const target = pick(entries);
     /* skip around before landing */
     for(let i = 0; i < 7; i++){
@@ -912,21 +1057,103 @@ async function loop(){
       tc.remove();
     }
     entries = entries.filter(e => e.id !== target.id);
+    paintCount();
     await wait(340);
   }
   feedEl.innerHTML = `<b>${entries[0].name}</b> wins ${money(pot)}`;
   await wait(2600);
   grid.innerHTML = ''; entries = []; pot = 0; potEl.textContent = '$0';
+  /* Put the round back to the start. Without these two the second loop
+     onwards ran with the clock stuck on 0:00 — so anybody who watched the
+     hero for more than about half a minute, which is most people who are
+     reading the page properly, saw a dead timer on the one element that
+     is meant to prove the thing is live. */
+  phase = 'filling'; clock = 12; paintCount();
   loop();
 }
 const wait = ms => new Promise(r => setTimeout(r, ms));
 function ticker(){
-  timeEl.textContent = phase === 'filling' ? '0:' + String(Math.max(0, clock)).padStart(2,'0') : '0:00';
-  if(phase === 'filling' && clock > 0) clock--;
+  /* Only owns the clock while the board is filling. Once it locks, the
+     round itself drives the display — two things writing to one element
+     is how you get a number that flickers between two values. */
+  if(phase === 'filling'){
+    timeEl.textContent = '0:' + String(Math.max(0, clock)).padStart(2,'0');
+    if(clock > 0) clock--;
+  }
   setTimeout(ticker, 1000);
 }
 if(!matchMedia('(prefers-reduced-motion: reduce)').matches){ loop(); ticker(); }
-else { for(let i = 0; i < 12; i++) makeEntry(); timeEl.textContent = '0:00'; }
+else { for(let i = 0; i < 12; i++) makeEntry(); timeEl.textContent = '0:00'; paintCount(); }
+
+
+/* ---------------- background motes ----------------
+   Built here rather than written out twelve times in the HTML, so the
+   spread stays even and the markup stays readable. Positions and speeds
+   are fixed per index, not random: a reload should look like the same
+   page, not a different one. */
+(function motes(){
+  const box = document.querySelector('#sky .motes');
+  if(!box || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  for(let i = 0; i < 12; i++){
+    const d = document.createElement('i');
+    d.style.left = (4 + i * 8.1) + '%';
+    d.style.animationDuration = (22 + (i % 5) * 6) + 's';
+    d.style.animationDelay = (-i * 3.4) + 's';   // negative: already in flight on load
+    box.append(d);
+  }
+})();
+
+
+/* ---------------- arriving on scroll ----------------
+   The class is added by script and never present in the HTML, so if this
+   never runs the page is simply a normal page rather than a column of
+   invisible sections. Each element is unobserved once it has shown —
+   things should not fade out again on the way back up. */
+(function reveals(){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if(!('IntersectionObserver' in window)) return;
+  /* Only things that are in the page at load and are actually cards.
+     Anything drawn later by script — the overlay previews, the review
+     list — is deliberately left out: it would be given the hidden state
+     and then never observed, so it would simply never appear. */
+  const bits = document.querySelectorAll(
+    '.sec-head, #games .game, #pricing .plan, #how .step');
+  if(!bits.length) return;
+  const io = new IntersectionObserver((rows, self) => {
+    for(const r of rows){
+      if(!r.isIntersecting) continue;
+      r.target.classList.add('in');
+      self.unobserve(r.target);
+    }
+  }, { rootMargin: '0px 0px -8% 0px', threshold: 0 });
+  /* Last resort. Nothing known should reach it — an element that is
+     hidden when observed still fires the moment it is shown — but the
+     failure it guards against is a section of the page that is simply
+     never visible, and that is not a thing to leave to reasoning. */
+  setTimeout(() => {
+    for(const b of bits){
+      if(b.classList.contains('in')) continue;
+      const r = b.getBoundingClientRect();
+      if(r.height && r.top < innerHeight && r.bottom > 0) b.classList.add('in');
+    }
+  }, 10000);
+
+  bits.forEach((b, i) => {
+    /* A box with no area can never intersect anything, so an observer
+       would hold it at opacity 0 for good. That is exactly what a section
+       hidden at load looks like — the reviews heading, before any reviews
+       have come back from the server — and it would have shipped as a
+       heading that never appeared. Leave those alone entirely. */
+    const r = b.getBoundingClientRect();
+    if(r.height < 1 && r.width < 1) return;
+    b.classList.add('reveal');
+    /* A short stagger inside each group, capped, so a row of four cards
+       lands one after another instead of all at once — and so a long list
+       does not end up with a two-second wait on the last item. */
+    b.style.transitionDelay = Math.min(i % 4, 3) * 70 + 'ms';
+    io.observe(b);
+  });
+})();
 
 
 /* ---------------- previews ---------------- */
@@ -1274,7 +1501,13 @@ async function refreshMe(){
     el.className = 'state';
     const owned = (data.perm || []).length;
     if(data.status === 'trialing' && data.trialEnd){
-      el.textContent = 'Trial ends ' + shortDate(data.trialEnd);
+      /* Stripe can take a while to move a finished trial on, and until it
+         does this read "Trial ends Sep 8" on the twelfth of September —
+         which looks like the site has lost track of the account. Say what
+         is actually true and let the status catch up. */
+      const over = new Date(data.trialEnd).getTime() < Date.now();
+      if(over){ el.classList.add('ended'); el.textContent = 'Trial ended'; }
+      else el.textContent = 'Trial ends ' + shortDate(data.trialEnd);
     } else if(data.status === 'active'){
       el.classList.add('active');
       el.textContent = data.plan === 'single' ? 'Two overlays' : 'All overlays';
