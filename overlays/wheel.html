@@ -247,7 +247,37 @@ body.chroma{background:#00b140}
   position:fixed;inset:0;overflow:auto;background:#070b14;padding:1.2rem;display:none;
 }
 body.panel #panel{display:block}
-body.panel #stage{display:none}
+
+/* The control panel used to be controls and nothing else, which meant the
+   only way to see the overlay was to put it on stream and wait for a
+   follow — so there was no way to check a prize name fitted, or that a
+   picture looked right, without going live and hoping.
+   
+   This is not a mock-up of the overlay. It is the overlay, the same
+   element, driven by the same state, sitting in a box instead of filling
+   the screen. Anything that happens on stream happens here. */
+body.panel #stage{
+  position:relative;inset:auto;width:100%;height:27rem;
+  border-radius:.6rem;overflow:hidden;background:#05070f;
+  border:1px solid #1e2a42;
+}
+#stageWrap{position:relative}
+#stageTag{
+  position:absolute;top:.5rem;left:.7rem;z-index:9;
+  font-size:.68rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;
+  color:#8fa2c4;background:rgba(7,11,20,.8);padding:.2rem .5rem;border-radius:2rem;
+  pointer-events:none;
+}
+body:not(.panel) #stageTag{display:none}
+
+/* Loud on purpose. Forgetting this is on means a strip of prizes parked
+   across the stream for an hour. */
+#pinWarn{
+  display:none;margin-top:.6rem;padding:.55rem .8rem;border-radius:.45rem;
+  background:#3a2a08;border:1px solid #6b5010;color:#ffd77a;
+  font-size:.88rem;font-weight:700;
+}
+body.pinned #pinWarn{display:block}
 .pwrap{width:min(1080px,100%);margin:0 auto;display:flex;flex-direction:column;gap:1rem}
 .phead{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}
 .phead h1{font-family:'Bebas Neue',sans-serif;font-size:2.1rem;letter-spacing:.04em}
@@ -365,7 +395,24 @@ td{padding:.3rem .4rem;vertical-align:middle;border-top:1px solid #162034}
     </div>
 
     <div class="card">
-      <h2>2 · Try it</h2>
+      <h2>2 · What is on stream</h2>
+      <p class="hint">
+        The real overlay, not a picture of one. It is empty between runs because that is what goes
+        out — nothing at all until somebody follows. Press <b>Run it</b> below to watch a spin.
+      </p>
+      <div id="stageWrap">
+        <div id="stageTag">live overlay</div>
+        <!-- the overlay itself is moved in here by script -->
+      </div>
+      <div class="row" style="margin-top:.7rem">
+        <button class="btn" id="bPin">Hold it on screen</button>
+        <span class="wincount">for dragging it into place in OBS or LIVE Studio</span>
+      </div>
+      <div id="pinWarn">Held on screen. Your viewers can see it sitting there — turn this off before you go live.</div>
+    </div>
+
+    <div class="card">
+      <h2>3 · Try it</h2>
       <p class="hint">
         Runs the reel exactly as a real follow would, so you can see it on stream before anyone is watching.
         The name you type is the one that appears on screen.
@@ -382,20 +429,20 @@ td{padding:.3rem .4rem;vertical-align:middle;border-top:1px solid #162034}
     </div>
 
     <div class="card">
-      <h2>3 · Look and timing</h2>
+      <h2>4 · Look and timing</h2>
       <div class="row">
         <div style="flex:2;min-width:11rem"><label>Heading on screen</label><input type="text" id="fTitle" maxlength="28"></div>
         <div style="flex:2;min-width:11rem"><label>Line underneath</label><input type="text" id="fSub" maxlength="48"></div>
         <div style="flex:1;min-width:7rem"><label>Donut first (seconds)</label><input type="number" id="fIntro" min="0" max="8" step=".25"></div>
         <div style="flex:1;min-width:7rem"><label>Spin length (seconds)</label><input type="number" id="fSpin" min="1.5" max="20" step=".5"></div>
         <div style="flex:1;min-width:7rem"><label>Hold result (seconds)</label><input type="number" id="fHold" min="1" max="20" step=".5"></div>
-        <div style="flex:1;min-width:7rem"><label>Size</label><input type="number" id="fScale" min="0.6" max="2" step=".05"></div>
+        <div style="flex:1;min-width:7rem"><label>Size on stream</label><input type="number" id="fScale" min="0.6" max="2" step=".05"></div>
         <button class="btn go" id="bLook">Apply</button>
       </div>
     </div>
 
     <div class="card">
-      <h2>4 · Who won what</h2>
+      <h2>5 · Who won what</h2>
       <p class="hint">
         Also written to <b>wheel-wins.json</b> next to the launcher, so this survives closing the window —
         which matters, because this is the list of things you now owe people.
@@ -413,7 +460,7 @@ td{padding:.3rem .4rem;vertical-align:middle;border-top:1px solid #162034}
     </div>
 
     <div class="card">
-      <h2>5 · Where follows come from</h2>
+      <h2>6 · Where follows come from</h2>
       <p class="hint" id="srcHint"></p>
       <div id="log"></div>
     </div>
@@ -577,7 +624,11 @@ function paint(){
 
 let lastPhase = '', lastRunKey = '';
 function render(){
-  document.documentElement.style.fontSize = (16 * (W.uiScale || 1)) + 'px';
+  /* Size scales the OVERLAY. It used to be set on the root element, which
+     on the display page is exactly right and in the control panel meant
+     turning the overlay up also blew up every button and heading in the
+     panel itself — the thing you were using to make the change. */
+  if(DISPLAY) document.documentElement.style.fontSize = (16 * (W.uiScale || 1)) + 'px';
   el('title').textContent = W.title || 'FOLLOW REEL';
 
   const key = JSON.stringify(W.tiles);
@@ -603,8 +654,16 @@ function render(){
   /* The overlay exists only while there is something to say. On the
      panel it always shows, because a preview that disappears is not a
      preview. */
-  el('stage').classList.toggle('on', DISPLAY ? W.phase !== 'idle' : true);
-  el('idle').classList.toggle('hidden', W.phase !== 'intro');
+  /* On stream: only while something is happening, unless it is being
+     held on screen for positioning. In the panel: always, because a
+     preview that vanishes is not a preview. */
+  el('stage').classList.toggle('on', DISPLAY ? (W.phase !== 'idle' || !!W.pinned) : true);
+  document.body.classList.toggle('pinned', !!W.pinned);
+  const pinBtn = el('bPin');
+  if(pinBtn) pinBtn.textContent = W.pinned ? 'Stop holding it on screen' : 'Hold it on screen';
+  /* The donut also stands in while the overlay is being positioned, so
+     there is something in the middle to line up against. */
+  el('idle').classList.toggle('hidden', !(W.phase === 'intro' || (W.pinned && W.phase === 'idle')));
 
   const q = W.queue.length;
   el('qBadge').style.display = q ? '' : 'none';
@@ -629,8 +688,14 @@ function render(){
     note.textContent = 'new follower';
     who.textContent = '@' + W.current.name;
     what.textContent = t ? (t.label || '—') : '—';
+  } else if(W.pinned || !DISPLAY){
+    /* Held for positioning, or the panel's preview: say why it is there
+       rather than leaving a blank strip nobody can explain. */
+    note.textContent = '';
+    who.textContent = W.pinned ? 'HOLDING IT ON SCREEN' : 'NOTHING ON STREAM RIGHT NOW';
+    what.textContent = '';
   } else {
-    /* Idle. Nothing is on screen, so nothing needs saying. */
+    /* Idle on stream. Nothing is showing, so nothing needs saying. */
     note.textContent = ''; who.textContent = ''; what.textContent = '';
   }
 
@@ -838,6 +903,8 @@ if(!DISPLAY){
     log('prizes saved');
   };
 
+  el('bPin').onclick = () => { if(!cmd('w.pin')) log('not connected'); };
+
   el('bTest').onclick = () => {
     const name = (el('fTest').value || 'test_viewer').trim();
     if(!cmd('w.follow', { name })) log('not connected');
@@ -870,6 +937,15 @@ if(!DISPLAY){
     '<b>POST http://localhost:' + (location.port || 8094) + '/follow</b> with <b>{"name":"someone"}</b><br>' +
     'That is how the TikTok listener does it, and it is what to point a follow alert at if TikTok stops working. ' +
     'Only your own PC and your own network can reach it — a spin is a prize, and the open internet does not get to hand them out.';
+}
+
+/* The overlay lives at the top of the document so the display page is
+   exactly what goes on stream. In the panel it is moved into the preview
+   box — moved, not copied, so there is only ever one of it and no chance
+   of the preview and the real thing disagreeing. */
+if(!DISPLAY){
+  const wrap = el('stageWrap');
+  if(wrap) wrap.append(el('stage'));
 }
 
 window.addEventListener('resize', () => { measure(); render(); });
