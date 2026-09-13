@@ -695,7 +695,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
         <div class="shot"><div class="mini" id="pv-wheel"></div></div>
         <div class="body">
           <h3>Follow Reel</h3>
-          <p>The odd one out: this one watches TikTok, not Minecraft chat. Every new follower gets a strip of prizes that runs across the screen and stops on one. You set what the prizes are and how often each comes up.</p>
+          <p>The odd one out: this one watches TikTok, not Minecraft chat. Every new follower gets a strip of dares that runs across the screen and stops on one. You write the dares and set how often each comes up. Dares and forfeits rather than items or currency, so following never becomes a trade.</p>
           <div class="row">
             <button class="btn btn-ghost" data-customize="wheel">Customise</button>
             <button class="btn btn-ghost" data-links="wheel">Get links</button>
@@ -1216,11 +1216,11 @@ function previewHTML(kind, opt){
     return `<div class="cardish" style="--pv-accent:${a}">
       <div class="lbl" style="font-size:${fs(.55)}">New follower</div>
       <div style="display:flex;gap:${fs(.22)};margin:${fs(.3)} 0 ${fs(.18)}">
-        ${tile('$1M', '#19e3c8', false)}${tile('Shoutout', a, true)}${tile('Nothing', '#5b6b86', false)}
+        ${tile('Push-ups', '#19e3c8', false)}${tile('Shoutout', a, true)}${tile('Nothing', '#5b6b86', false)}
       </div>
       <div class="rowline"><span class="who" style="font-size:${fs(1)}">@new_follower</span>
         <span class="who" style="font-size:${fs(1)};margin-left:auto;color:${a}">Shoutout</span></div>
-      ${compact ? '' : `<div class="lbl" style="font-size:${fs(.5)};margin-top:.4rem">Odds you set yourself</div>`}
+      ${compact ? '' : `<div class="lbl" style="font-size:${fs(.5)};margin-top:.4rem">Dares, not items</div>`}
     </div>`;
   }
   return `<div class="cardish" style="--pv-accent:${a}">
@@ -1832,7 +1832,7 @@ const GAMES = [
   { id:'auction', name:'Donut Auction', blurb:'Live item auctions. Highest bid before the clock runs out takes it.' },
   { id:'money',   name:'Money Game',    blurb:'You seed a pot, biggest single payment before the timer takes it.' },
   { id:'lastcall',name:'Last Call',     blurb:'Everyone builds one pot. Every payment resets a 10 second clock \u2014 whoever paid last when it runs out takes the lot.' },
-  { id:'wheel',   name:'Follow Reel',   blurb:'Every new TikTok follower gets a strip of prizes that runs across the screen and stops on one. You set the prizes and the odds.' },
+  { id:'wheel',   name:'Follow Reel',   blurb:'Every new TikTok follower gets a strip of dares that runs across the screen and stops on one. You write the dares and set the odds.' },
 ];
 
 /* Draw a list of overlay buttons with `chosen` highlighted. Shared by the
