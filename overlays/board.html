@@ -951,24 +951,39 @@ function initialTile(name){
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 function setFace(node, name, size){
-  const key = name.toLowerCase() + ':' + size;
+  const key = String(name).toLowerCase() + ':' + size;
   const hit = faceCache.get(key);
   if(hit) return void (node.style.backgroundImage = `url("${hit}")`);
-  let i = 0;
-  const attempt = () => {
-    if(i >= faceSources.length){
-      const tile = initialTile(name);
-      faceCache.set(key, tile);
-      node.style.backgroundImage = `url("${tile}")`;
-      return;
-    }
-    const url = faceSources[i++](name, size);
+
+  /* Something on screen immediately. */
+  node.dataset.face = key;
+  node.style.backgroundImage = `url("${initialTile(name)}")`;
+
+  /* All of them at once; first one home wins. The dataset check stops a
+     slow reply from painting itself over whoever leads by the time it
+     finally lands — on the auction the leader can change twice while one
+     of these is still in flight. */
+  let done = false;
+  for(const src of faceSources){
+    const url = src(name, size);
     const img = new Image();
-    img.onload = () => { faceCache.set(key, url); node.style.backgroundImage = `url("${url}")`; };
-    img.onerror = attempt;
+    img.onload = () => {
+      if(done) return;
+      done = true;
+      faceCache.set(key, url);
+      if(node.dataset.face === key) node.style.backgroundImage = `url("${url}")`;
+    };
+    img.onerror = () => {};
     img.src = url;
-  };
-  attempt();
+  }
+}
+/* Fetch someone's head before it is needed on screen — called when a
+   payment arrives, so by the time they take the lead it is already in
+   the cache and appears in the same frame. */
+function warmFace(name, size){
+  const key = String(name).toLowerCase() + ':' + size;
+  if(faceCache.has(key)) return;
+  setFace(document.createElement('div'), name, size);
 }
 function paintHighlight(){
   for(const c of grid.children){

@@ -476,15 +476,59 @@ const clock = ms => {
 };
 const headURL = (n, s) => `https://minotar.net/helm/${encodeURIComponent(n)}/${s}.png`;
 const headAlt = (n, s) => `https://mc-heads.net/avatar/${encodeURIComponent(n)}/${s}`;
+/* Hand a username to a skin-render service and it returns that account's
+   head as a PNG. Three of them, asked all at once. Cached per name+size. */
+const faceCache = new Map();
+const faceSources = [
+  (n, s) => `https://minotar.net/helm/${encodeURIComponent(n)}/${s}.png`,
+  (n, s) => `https://mc-heads.net/avatar/${encodeURIComponent(n)}/${s}`,
+  (n, s) => `https://api.mineatar.io/face/${encodeURIComponent(n)}?scale=8`,
+];
+/* Drawn here, not fetched, so there is always something to show in the
+   same frame the name appears. Colour comes from the name, so the same
+   person is always the same colour. */
+function initialTile(name){
+  const hue = [...String(name)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+    <rect width="64" height="64" fill="hsl(${hue},42%,26%)"/>
+    <text x="32" y="44" font-family="sans-serif" font-size="34" font-weight="900"
+      fill="hsl(${hue},70%,78%)" text-anchor="middle">${(String(name)[0]||'?').toUpperCase()}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
 function setFace(node, name, size){
-  const img = new Image();
-  img.onload = () => node.style.backgroundImage = `url("${img.src}")`;
-  img.onerror = () => {
-    const i2 = new Image();
-    i2.onload = () => node.style.backgroundImage = `url("${i2.src}")`;
-    i2.src = headAlt(name, size);
-  };
-  img.src = headURL(name, size);
+  const key = String(name).toLowerCase() + ':' + size;
+  const hit = faceCache.get(key);
+  if(hit) return void (node.style.backgroundImage = `url("${hit}")`);
+
+  /* Something on screen immediately. */
+  node.dataset.face = key;
+  node.style.backgroundImage = `url("${initialTile(name)}")`;
+
+  /* All of them at once; first one home wins. The dataset check stops a
+     slow reply from painting itself over whoever leads by the time it
+     finally lands — on the auction the leader can change twice while one
+     of these is still in flight. */
+  let done = false;
+  for(const src of faceSources){
+    const url = src(name, size);
+    const img = new Image();
+    img.onload = () => {
+      if(done) return;
+      done = true;
+      faceCache.set(key, url);
+      if(node.dataset.face === key) node.style.backgroundImage = `url("${url}")`;
+    };
+    img.onerror = () => {};
+    img.src = url;
+  }
+}
+/* Fetch someone's head before it is needed on screen — called when a
+   payment arrives, so by the time they take the lead it is already in
+   the cache and appears in the same frame. */
+function warmFace(name, size){
+  const key = String(name).toLowerCase() + ':' + size;
+  if(faceCache.has(key)) return;
+  setFace(document.createElement('div'), name, size);
 }
 function log(t){
   const f = el('log'); if(!f) return;
@@ -588,6 +632,9 @@ function render(){
 
   /* everyone who has been beaten, newest first */
   const rows = el('ladderRows');
+  /* Everyone who has bid could be the next leader, so their head is
+     fetched now rather than at the moment the card flips to them. */
+  for(const b of A.bids.slice(0, 5)) warmFace(b.name, 256);
   const beaten = A.bids.filter(b => !(A.high && b.name === A.high.name && b.amount === A.high.amount));
   el('ladderHead').classList.toggle('hidden', beaten.length === 0);
   rows.innerHTML = beaten.slice(0, 6).map(b =>
