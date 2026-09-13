@@ -428,6 +428,23 @@ td{padding:.3rem .4rem;vertical-align:middle;border-top:1px solid #162034}
 .thumb.empty{display:flex;align-items:center;justify-content:center;font-size:.65rem;color:#546484}
 .pct{font-family:'Bebas Neue',sans-serif;font-size:1.25rem;color:#ffc93c;min-width:3.2rem;display:inline-block}
 .wincount{font-size:.8rem;color:#8fa2c4}
+/* The follow status, in words, where it can be read at any time rather
+   than once at startup thirty lines up a console window. */
+#followBox{
+  border-radius:.5rem;padding:.75rem .9rem;margin-bottom:.2rem;
+  background:#0a1424;border:1px solid #24314c;
+}
+#followBox b{font-size:1rem;display:block;margin-bottom:.2rem}
+#followNote{font-size:.9rem;color:#a9bcd8;line-height:1.5}
+#followBox.good{background:#0d2419;border-color:#1d5238}
+#followBox.good b{color:#7bf59f}
+#followBox.warn{background:#2a2208;border-color:#5e4a10}
+#followBox.warn b{color:#ffd77a}
+#followCmd{margin-top:.6rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+#followCmd code{
+  background:#070d19;border:1px solid #2b3a58;border-radius:.35rem;
+  padding:.3rem .5rem;font-size:.85rem;color:#cfe0ff;
+}
 #log{
   background:#070d19;border:1px solid #1e2a42;border-radius:.5rem;padding:.6rem;
   font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.8rem;color:#9fb4d6;
@@ -487,17 +504,17 @@ td{padding:.3rem .4rem;vertical-align:middle;border-top:1px solid #162034}
     </div>
 
     <div class="card">
-      <h2>1 · Your prizes</h2>
+      <h2>1 · Your dares</h2>
       <p class="hint">
-        Type what a tile says, pick a picture for it, and set how often it should come up.
+        Type the dare, pick a picture for it, and set how often it should come up.
         <b>Chance</b> is worked out for you — a tile on 30 next to a tile on 10 comes up three times as often.
-        Set a tile to 0 and it never lands. Changes save the moment you press Save, and survive restarting.
+        Set one to 0 and it never lands. Changes save when you press Save and survive restarting. Keep these to dares and forfeits — handing out in-game money or items for a follow is trading, and it is your account the server takes that up with.
       </p>
       <table>
         <thead>
           <tr>
             <th style="width:3rem">Image</th>
-            <th>Name on the tile</th>
+            <th>What the dare is</th>
             <th style="width:6rem">How often</th>
             <th style="width:5rem">Chance</th>
             <th style="width:3rem" class="hide-sm">Colour</th>
@@ -507,8 +524,8 @@ td{padding:.3rem .4rem;vertical-align:middle;border-top:1px solid #162034}
         <tbody id="tileRows"></tbody>
       </table>
       <div class="row" style="margin-top:.8rem">
-        <button class="btn" id="bAdd">Add a prize</button>
-        <button class="btn go" id="bSave">Save prizes</button>
+        <button class="btn" id="bAdd">Add a dare</button>
+        <button class="btn go" id="bSave">Save dares</button>
         <span class="wincount" id="tileNote"></span>
       </div>
     </div>
@@ -558,10 +575,10 @@ td{padding:.3rem .4rem;vertical-align:middle;border-top:1px solid #162034}
     </div>
 
     <div class="card">
-      <h2>5 · Who won what</h2>
+      <h2>5 · Who got what</h2>
       <p class="hint">
         Also written to <b>wheel-wins.json</b> next to the launcher, so this survives closing the window —
-        which matters, because this is the list of things you now owe people.
+        which matters, because this is the list of dares you still owe.
       </p>
       <div class="wins">
         <table>
@@ -576,8 +593,16 @@ td{padding:.3rem .4rem;vertical-align:middle;border-top:1px solid #162034}
     </div>
 
     <div class="card">
-      <h2>6 · Where follows come from</h2>
-      <p class="hint" id="srcHint"></p>
+      <h2>6 · Follows</h2>
+      <div id="followBox">
+        <b id="followState">checking…</b>
+        <div id="followNote"></div>
+        <div id="followCmd" style="display:none">
+          <code id="followCmdText">npm install tiktok-live-connector</code>
+          <button class="btn sm" id="bCopyCmd">Copy</button>
+        </div>
+      </div>
+      <p class="hint" id="srcHint" style="margin-top:.8rem"></p>
       <div id="log"></div>
     </div>
   </div>
@@ -862,6 +887,24 @@ function render(){
   el('qBadge').style.display = q ? '' : 'none';
   el('qText').textContent = q === 1 ? '1 waiting' : q + ' waiting';
 
+  /* Live follow status. Four states that each need a different answer,
+     and "nothing is happening" looks identical in all four from outside. */
+  const fb = el('followBox');
+  if(fb){
+    const live = W.source === 'tiktok';
+    const note = W.followNote || '';
+    const needsInstall = /npm install/i.test(note);
+    fb.className = live ? 'good' : (needsInstall || /not live|refused|would not|dropped/i.test(note) ? 'warn' : '');
+    el('followState').textContent =
+      live ? ('Listening to @' + (W.tiktokUser || 'your account'))
+      : needsInstall ? 'The TikTok listener is not installed'
+      : (W.followNote ? 'Not listening to TikTok' : 'Starting up');
+    el('followNote').textContent = note;
+    el('followCmd').style.display = needsInstall ? 'flex' : 'none';
+    if(W.follows) el('followNote').textContent = note +
+      '  ·  ' + W.follows + (W.follows === 1 ? ' follow' : ' follows') + ' so far this session.';
+  }
+
   el('srcText').textContent =
     W.source === 'tiktok' ? 'tiktok live' :
     W.source === 'http'   ? 'ready' :
@@ -931,8 +974,8 @@ function drawTileRows(){
   });
   const note = el('tileNote');
   note.textContent = total > 0
-    ? `${list.length} prizes` + (editing ? ' — not saved yet' : '')
-    : 'every prize is set to 0, so nothing can be picked — give at least one a number';
+    ? `${list.length} dares` + (editing ? ' — not saved yet' : '')
+    : 'every dare is set to 0, so nothing can be picked — give at least one a number';
 }
 
 function drawWins(){
@@ -983,7 +1026,7 @@ function pickImage(i){
       startEdit();
       editing[i].img = url;
       drawTileRows();
-      log('image set on "' + (editing[i].label || 'prize ' + (i + 1)) + '" — press Save prizes');
+      log('image set on "' + (editing[i].label || 'dare ' + (i + 1)) + '" — press Save dares');
     });
     fr.onerror = () => log('could not read that file');
     fr.readAsDataURL(f);
@@ -1108,8 +1151,8 @@ if(!DISPLAY){
       sp.textContent = pct.toFixed(1) + '%';
     });
     el('tileNote').textContent = total > 0
-      ? `${list.length} prizes — not saved yet`
-      : 'every prize is set to 0, so nothing can be picked — give at least one a number';
+      ? `${list.length} dares — not saved yet`
+      : 'every dare is set to 0, so nothing can be picked — give at least one a number';
   }
 
   el('tileRows').addEventListener('click', e => {
@@ -1133,22 +1176,31 @@ if(!DISPLAY){
 
   el('bAdd').onclick = () => {
     startEdit();
-    if(editing.length >= 24){ log('24 prizes is the most that fits'); return; }
+    if(editing.length >= 24){ log('24 dares is the most that fits'); return; }
     const colors = ['#19e3c8','#ffc93c','#8b5cff','#ff4d9d','#35e0ff','#7bf59f','#ff8a3d','#c77dff'];
-    editing.push({ label:'New prize', weight:10, color:colors[editing.length % colors.length], img:'' });
+    editing.push({ label:'New dare', weight:10, color:colors[editing.length % colors.length], img:'' });
     drawTileRows();
   };
 
   el('bSave').onclick = () => {
     const list = (editing || W.tiles).filter(t => (t.label || '').trim() || t.img);
-    if(!list.length){ log('add at least one prize before saving'); return; }
+    if(!list.length){ log('add at least one dare before saving'); return; }
     if(list.reduce((n, t) => n + (Number(t.weight) || 0), 0) <= 0){
-      log('every prize is on 0 — give at least one of them a number, or nothing can ever be picked');
+      log('every dare is on 0 — give at least one of them a number, or nothing can ever be picked');
       return;
     }
     if(!cmd('w.tiles', { tiles: list })){ log('not connected — start the launcher window again'); return; }
     editing = null;
-    log('prizes saved');
+    log('dares saved');
+  };
+
+  el('bCopyCmd').onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(el('followCmdText').textContent);
+      log('command copied — paste it into a terminal in the launcher folder');
+    } catch {
+      log('could not copy it — type it by hand: ' + el('followCmdText').textContent);
+    }
   };
 
   el('bTest').onclick = () => {
@@ -1182,7 +1234,7 @@ if(!DISPLAY){
     'Anything can start a spin by sending a name to this address on your own PC:<br>' +
     '<b>POST http://localhost:' + (location.port || 8094) + '/follow</b> with <b>{"name":"someone"}</b><br>' +
     'That is how the TikTok listener does it, and it is what to point a follow alert at if TikTok stops working. ' +
-    'Only your own PC and your own network can reach it — a spin is a prize, and the open internet does not get to hand them out.';
+    'Only your own PC and your own network can reach it — a spin is yours to give out, and the open internet does not get to do it for you.';
 }
 
 /* The overlay lives at the top of the document so the display page is
