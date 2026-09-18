@@ -14,6 +14,7 @@ const relay = require('./relay');
 const mail = require('./mailer');
 const look = require('./look');
 const visits = require('./visits');
+const updates = require('./updates');
 
 const {
   PORT = 8080,
@@ -65,7 +66,13 @@ const TRIAL_DAYS = 7;
    asked to accept again the next time they open the site, and the old
    acceptance stays on their record. It must match the date printed at
    the top of public/terms.html. */
-const TERMS_VERSION = '2026-09-08';
+/* Bumped because section 4 changed what $25 buys. Everybody is asked to
+   accept again at their next checkout — not to stream, not to sign in,
+   only to pay — because the alternative is somebody buying three
+   overlays having agreed to a page that said four. The grandfather
+   clause for earlier buyers is spelled out there too, so the re-accept
+   is also where they read that nothing of theirs was taken away. */
+const TERMS_VERSION = '2026-09-16';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -107,6 +114,18 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
            lot — an all-four purchase carries no list. */
         const picked = String(meta.games || '').split(',').map(s => s.trim());
         const bought = option ? relay.gamesFor(option, picked) : [];
+        /* gamesFor tops the list up rather than granting nothing, so a
+           paying customer is never left empty-handed. Say so in the log
+           when it happens: it means the metadata did not survive the
+           round trip, and the overlays granted may not be the ones they
+           chose — which is worth a look and a message, not silence. */
+        const wanted = picked.filter(Boolean).length;
+        const spec0 = option ? relay.OPTIONS[option] : null;
+        if (spec0 && spec0.picks != null && wanted !== spec0.picks) {
+          console.error(`[webhook] ${user.email} bought ${option} but the session carried `
+            + `${wanted} pick(s) instead of ${spec0.picks} — granted ${bought.join(', ')}. `
+            + 'Check this one by hand.');
+        }
 
         if (spec && spec.once) {
           /* Granted forever, and stamped with today's date so you can see
@@ -689,7 +708,7 @@ app.post('/api/checkout', auth, async (req, res) => {
 
     /* Nobody should be able to pay for something they already own. For a
        pick-your-own option that means the overlays they chose; for the
-       all-four option it means already owning all four. Checked against
+       bundle it means already owning every overlay in it. Checked against
        what the purchase would actually grant, so the rule cannot drift
        apart from the grant. */
     if (spec.once) {
@@ -708,8 +727,8 @@ app.post('/api/checkout', auth, async (req, res) => {
           error: `you already own ${dupes.map(g => GAME_NAMES[g] || g).join(' and ')}`,
         });
       }
-      /* Buying all four while owning one or two is fine — they are
-         topping up, and the extra overlays are worth the price. */
+      /* Buying the bundle while owning one of the three is fine — they
+         are topping up, and the other two are worth the price. */
     }
 
     // Someone who already has (or has already used) a subscription on this
@@ -803,6 +822,12 @@ app.get('/api/links', auth, async (req, res) => {
       };
     }),
     download: `${PUBLIC_URL}/download/${token}/donut-overlays-launcher.zip`,
+    /* Which launcher is on the server right now. The page remembers
+       which one this browser last downloaded, and that is the whole of
+       how the button knows whether to say Download or Update. Null when
+       no zip has been uploaded yet, which the page treats as "just show
+       Download" rather than inventing a version. */
+    launcher: updates.current(),
   });
 });
 
@@ -827,6 +852,55 @@ app.get('/download/:token/donut-overlays-launcher.zip', async (req, res) => {
     return res.status(500).send(notice('The launcher has not been uploaded to the server yet.'));
   }
   res.download(file, 'donut-overlays-launcher.zip');
+});
+
+/* ---------------- the update feed ----------------
+   What a running launcher reads to bring itself up to date. Both routes
+   are gated on the same token as the download above, for the same
+   reason: this is the software, handed out file by file instead of in
+   one zip, and a lapsed account should not keep collecting it.
+
+   The file list is derived from that same zip — see updates.js — so
+   there is nothing extra to upload and the two can never drift apart. */
+async function updateUser(req, res) {
+  const user = await User.findOne({ overlayToken: req.params.token });
+  if (!user) { res.status(404).json({ error: 'not recognised' }); return null; }
+  if (!relay.hasAnything(user)) { res.status(402).json({ error: 'nothing on this account' }); return null; }
+  return user;
+}
+
+app.get('/update/:token/manifest.json', async (req, res) => {
+  try {
+    if (!await updateUser(req, res)) return;
+    const feed = updates.feed();
+    /* No zip on the server yet. 503 rather than 404: the launcher should
+       treat it as "ask again later", not "this site has no updates". */
+    if (!feed) return res.status(503).json({ error: 'no launcher build on the server' });
+    res.set('Cache-Control', 'no-store').json(feed);
+  } catch (err) {
+    console.error('[update] manifest', err.message);
+    res.status(500).json({ error: 'could not read the launcher build' });
+  }
+});
+
+app.get('/update/:token/f/:name', async (req, res) => {
+  try {
+    if (!await updateUser(req, res)) return;
+    /* fileNamed only ever returns something that was actually read out
+       of the zip, so no path on this server is reachable by name. The
+       shape check here is belt and braces on top of that. */
+    if (!updates.SAFE_NAME.test(String(req.params.name || ''))) {
+      return res.status(400).json({ error: 'not a launcher file' });
+    }
+    const body = updates.fileNamed(req.params.name);
+    if (!body) return res.status(404).json({ error: 'not part of this build' });
+    res.set('Content-Type', 'application/octet-stream')
+       .set('Cache-Control', 'no-store')
+       .send(body);
+  } catch (err) {
+    console.error('[update] file', err.message);
+    res.status(500).json({ error: 'could not read that file' });
+  }
 });
 
 /* ---------------- how the overlays look ----------------
@@ -1301,7 +1375,10 @@ app.get('/admin', requireAdmin, async (req, res) => {
 
   const KIND_NAME = {
     perm1: 'One overlay, forever',
-    permall: 'All four, forever',
+    /* This one changed meaning: it was every overlay, it is now any
+       three. The overlays granted are listed beside it on the page, so
+       an old row still reads correctly under a name that fits both. */
+    permall: 'Bundle ($25), forever',
     perm3: 'Three overlays, forever',   // never sold, kept so old rows read right
     comp: 'Given free',
     revoke: 'Taken away',
@@ -1331,6 +1408,9 @@ app.get('/admin', requireAdmin, async (req, res) => {
   const rows = users.map(u => `
     <tr>
       <td>${esc(u.email)}</td>
+      <td>${u.ign
+            ? `<code>${esc(u.ign)}</code>`
+            : '<span class="muted">not set</span>'}</td>
       <td><span class="pill ${esc(u.status)}">${esc(u.status || 'none')}</span></td>
       <td>${esc(u.plan || '—')}</td>
       <td>${(u.perm || []).length
@@ -1397,8 +1477,8 @@ app.get('/admin', requireAdmin, async (req, res) => {
        : 'Everyone has accepted the terms.'}
     </p>
     <table>
-      <thead><tr><th>Email</th><th>Status</th><th>Plan</th><th>Owns forever</th><th>Trial started</th><th>Trial ends</th><th>Renews / ended</th><th>Signed up</th><th>Terms accepted</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="8" class="muted">No accounts yet.</td></tr>'}</tbody>
+      <thead><tr><th>Email</th><th>Donut name</th><th>Status</th><th>Plan</th><th>Owns forever</th><th>Trial started</th><th>Trial ends</th><th>Renews / ended</th><th>Signed up</th><th>Terms accepted</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="10" class="muted">No accounts yet.</td></tr>'}</tbody>
     </table>
     <script>
       /* Refresh only the live bits. Reloading the whole page every few

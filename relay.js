@@ -44,7 +44,11 @@ const OPTIONS = {
   /* picks: null means the option covers every overlay, so there is
      nothing to choose and nothing to carry in the checkout metadata. */
   perm1:   { picks: 1,    usd: 12, once: true,  label: 'One overlay, forever' },
-  permall: { picks: null, usd: 25, once: true,  label: 'Every overlay, forever' },
+  /* The $25 option used to cover every overlay there was. It now covers
+     three of your choosing. Everyone who bought it under the old terms
+     keeps what they paid for — see permOf below, which is where that is
+     actually enforced rather than merely intended. */
+  permall: { picks: 3,    usd: 25, once: true,  label: 'Three overlays, forever' },
   sub:     { picks: null, usd: 5,  once: false, label: 'Everything, monthly' },
 };
 
@@ -56,24 +60,75 @@ function gamesFor(option, picked) {
   const spec = OPTIONS[option];
   if (!spec) return [];
   if (spec.picks == null) return GAMES.slice();
-  return (picked || []).filter(g => GAMES.includes(g)).slice(0, spec.picks);
+
+  const out = [];
+  for (const g of (picked || [])) {
+    if (GAMES.includes(g) && !out.includes(g) && out.length < spec.picks) out.push(g);
+  }
+
+  /* Never hand back fewer overlays than were paid for.
+  
+     This used to be safe by accident: the $25 option covered everything,
+     so it ignored the list entirely and a lost or truncated metadata
+     field could not cost anybody anything. Now that it is pick-three,
+     an empty list would mean somebody pays $25 and is granted nothing —
+     the single worst outcome this code has, and one that would only
+     surface as an angry message hours later.
+  
+     Stripe metadata is a string map with size limits and it travels
+     through a webhook that can be replayed, so "the list will always be
+     there" is an assumption, not a fact. When it is short, top it up in
+     the order the site lists them. Over-granting by a game is a mistake
+     anybody can live with; under-granting a paying customer is not.
+     Either way the picks are validated at checkout, so this is a last
+     resort rather than a normal path. */
+  for (const g of GAMES) {
+    if (out.length >= spec.picks) break;
+    if (!out.includes(g)) out.push(g);
+  }
+  return GAMES.filter(g => out.includes(g));
 }
 
 /* Overlays somebody owns outright. Deliberately does NOT look at their
    subscription status: a cancelled card must never take away a thing
    that was already paid for. */
+/* When the $25 option stopped meaning "every overlay". Anything granted
+   on or after this is a pick-three bundle; anything before it, or with no
+   date recorded at all, predates the change. Undated counts as old on
+   purpose: permSince was added after some grants had already happened,
+   and the only accounts with gaps in it are older than this date by
+   definition. */
+const BUNDLE_CHANGED = Date.parse('2026-09-16T00:00:00Z');
+
+function ownedAllBefore(user, when) {
+  const since = (user && user.permSince) || {};
+  return CORE.every(g => {
+    const t = Date.parse(since[g]);
+    return !Number.isFinite(t) || t < when;
+  });
+}
+
 function permOf(user) {
   const out = [];
   for (const g of (user.perm || [])) {
     if (GAMES.includes(g) && !out.includes(g)) out.push(g);
   }
-  /* Somebody who paid once for every overlay there was owns the ones
-     added later. Without this, two people who paid the same $25 for the
+  /* Somebody who paid $25 for every overlay there was owns the ones
+     added since. Without this, two people who paid the same $25 for the
      same thing end up owning different things depending on which side of
      a release they bought on — which is not a rule anyone would agree to
      out loud, and is the sort of thing customers find out about from
-     each other rather than from you. */
-  if (CORE.every(g => out.includes(g))) return GAMES.slice();
+     each other rather than from you.
+     
+     The date matters now. While $25 meant "all of them", owning all four
+     core overlays could only mean you had bought that, so the test was
+     simply "owns all four". Since $25 became "pick three", the same four
+     can be assembled from a bundle plus a single — and letting THAT
+     collect every future overlay free would be giving away, for $37, a
+     thing that is not for sale at any price. So the grandfather clause is
+     pinned to the people it was written for: those who already owned the
+     set before the change. */
+  if (CORE.every(g => out.includes(g)) && ownedAllBefore(user, BUNDLE_CHANGED)) return GAMES.slice();
   return out;
 }
 
@@ -316,4 +371,4 @@ async function recheckLive() {
   }
 }
 
-module.exports = { setup, entitled, allowedGames, permOf, subGames, hasAnything, gamesFor, panelPort, OPTIONS, GAMES, CORE };
+module.exports = { setup, entitled, ownedAllBefore, BUNDLE_CHANGED, allowedGames, permOf, subGames, hasAnything, gamesFor, panelPort, OPTIONS, GAMES, CORE };
