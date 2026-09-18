@@ -15,6 +15,10 @@
 <style>
 
 :root{
+  /* Control heights, so a row of mixed buttons, links and inputs lines
+     up without each one being nudged by hand. */
+  --ctl:2.5rem;
+  --ctl-lg:2.95rem;
   --ink:#060912;
   --ink-2:#0c1322;
   --panel:rgba(16,24,42,.78);
@@ -208,8 +212,17 @@ nav .btn{
 nav a:hover{color:var(--text)}
 @media(max-width:900px){nav .hide-sm{display:none}}
 
+/* One height, set once.
+   Buttons used to get their height from whatever padding and font size
+   each one happened to carry, so a Copy button, a Save button and a
+   Download button sitting in the same row came out three different
+   heights and none of their middles lined up. Height is now a variable
+   and the padding is horizontal only, which is the only way to keep a
+   row of controls level when the labels are different lengths and some
+   of them are links rather than buttons. */
 .btn{
-  display:inline-block;padding:.68rem 1.3rem;border-radius:.5rem;
+  display:inline-flex;align-items:center;justify-content:center;
+  height:var(--ctl-lg);padding:0 1.3rem;border-radius:.5rem;
   font-family:Karla,system-ui,-apple-system,sans-serif;font-weight:800;font-size:1rem;
   letter-spacing:.01em;line-height:1.25;text-align:center;
   text-decoration:none;cursor:pointer;border:2px solid transparent;
@@ -224,7 +237,7 @@ nav a:hover{color:var(--text)}
 .btn-gold:hover{filter:brightness(1.07)}
 .btn-ghost{border-color:#33445f;color:var(--text);background:rgba(20,30,50,.7)}
 .btn-ghost:hover{border-color:var(--teal);color:#fff}
-.btn-discord{background:#5865f2;color:#fff;display:inline-flex;align-items:center;gap:.5rem}
+.btn-discord{background:#5865f2;color:#fff;gap:.5rem}
 .btn-discord:hover{filter:brightness(1.08)}
 .icon-btn{
   width:2.7rem;height:2.7rem;border-radius:.65rem;border:none;
@@ -261,7 +274,7 @@ nav a:hover{color:var(--text)}
 }
 .hero p.lede{font-size:1.18rem;line-height:1.6;color:#b9c9e4;margin:1.4rem 0 2.2rem;max-width:38ch;line-height:1.55}
 .hero .cta-row{display:flex;gap:.9rem;flex-wrap:wrap;align-items:center}
-.hero .cta-row .btn{font-size:1.08rem;padding:.8rem 1.5rem}
+.hero .cta-row .btn{font-size:1.08rem;height:3.4rem;padding:0 1.5rem}
 .trial-note{font-size:.9rem;color:var(--muted);margin-top:1.1rem}
 .counts{display:flex;gap:2.2rem;margin-top:2.4rem}
 .counts b{display:block;font-family:'Bebas Neue',sans-serif;font-size:2.1rem;color:var(--gold);line-height:1}
@@ -298,6 +311,10 @@ nav a:hover{color:var(--text)}
 
 /* ---------- sections ---------- */
 section{padding:6rem 0;position:relative}
+/* The last section used to lay 6rem of nothing on top of the footer's
+   own 2.6rem, so the page ended in the better part of a screenful of
+   empty. The footer provides the breathing room from here down. */
+section:last-of-type{padding-bottom:2.4rem}
 .sec-head{max-width:46ch;margin-bottom:3rem}
 .sec-head h2{font-size:clamp(2.4rem,4.4vw,3.4rem)}
 .sec-head h2 em{font-style:normal;color:var(--gold)}
@@ -349,16 +366,72 @@ section{padding:6rem 0;position:relative}
 .linkrow{display:flex;align-items:center;gap:1rem;padding:.85rem 0;border-bottom:1px solid var(--line)}
 .linkrow:last-child{border-bottom:none}
 .linkrow .plat{width:160px;font-weight:800;flex:none}
-.linkrow code{
+/* The middle column of a setup row. It used to carry flex:1;min-width:0
+   as an inline style, which meant the phone rule below could not widen
+   it — an inline style beats a stylesheet, so the row stayed in three
+   squeezed columns at 390px and set its explanation one word per line.
+   Same values, somewhere they can be overridden. */
+.linkrow > .col{flex:1;min-width:0}
+/* Only the boxed, copyable addresses — the ones that sit on their own as
+   a row's main content. A <code> further in is part of a sentence
+   (".yourname", in the bit about Bedrock names), and styling that as a
+   box turns one word of prose into a full-width panel with a border
+   round it. Depth is what tells them apart. */
+.linkrow > code,
+.linkrow > div > code{
   flex:1;background:#070d18;border:1px solid var(--line);border-radius:.4rem;
-  padding:.55rem .7rem;font-size:.82rem;color:#a9c6ee;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  display:flex;align-items:center;height:var(--ctl);padding:0 .7rem;
+  font-size:.82rem;color:#a9c6ee;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+/* Every control in a setup row is the same height, whether it is a
+   button, a link styled as a button, or the box you type your name
+   into. The Download link in particular used to be a couple of
+   millimetres taller than the Copy buttons beside it, which is exactly
+   the sort of thing that reads as sloppy without anybody being able to
+   say why. */
+.linkrow button,
+.linkrow .btn,
+.linkrow input{
+  height:var(--ctl);padding:0 .85rem;flex:none;
+  display:inline-flex;align-items:center;justify-content:center;
+  box-sizing:border-box;
 }
 .linkrow button{
   background:rgba(20,30,50,.7);border:1px solid var(--line);color:var(--muted);border-radius:.4rem;
-  padding:.55rem .8rem;font:700 .82rem Karla,sans-serif;cursor:pointer;flex:none;
+  font:700 .82rem Karla,sans-serif;cursor:pointer;
 }
+.linkrow .btn{font-size:.85rem;border-radius:.4rem}
+.linkrow input{flex:1;min-width:12rem;text-align:left;justify-content:flex-start}
 .linkrow button:hover{color:var(--text);border-color:var(--teal)}
-@media(max-width:700px){.linkrow{flex-wrap:wrap}.linkrow .plat{width:auto}}
+/* Rows that stack their own contents (the name box, the switcher) set
+   their own alignment, so the shared rule must not stretch them. */
+.linkrow[style*="flex-start"] > code,
+.linkrow[style*="flex-start"] > div > code{height:auto;padding:.55rem .7rem;display:block}
+/* The explanatory line under each row carries an address in bold —
+   http://localhost:8090/ and the like. On a phone that is wider than
+   what is left of the row, and a word that cannot break pushes the whole
+   page sideways: you get a document 8px wider than the screen and a
+   horizontal scrollbar on every section. Breaking mid-address is the
+   lesser evil, and only applies to the prose; the copyable boxes above
+   still clip to one line. */
+.linkrow{overflow-wrap:anywhere}
+.linkrow > code,
+.linkrow > div > code{overflow-wrap:normal}
+/* On a phone a setup row stacks: the label, then the address, then the
+   button. Left as a single flex line it squeezed the middle column down
+   to about forty pixels and set the explanation one word per line. The
+   rule has to reach the wrapper divs, not just the code box, because
+   that middle column is a div in every row that has one. */
+@media(max-width:700px){
+  .linkrow{flex-wrap:wrap;gap:.6rem}
+  .linkrow > div,
+  .linkrow > .col{flex:1 1 100%;min-width:0}
+  .linkrow > .plat{width:auto}
+  .linkrow > code{flex:1 1 100%}
+  .linkrow > button,
+  .linkrow > .btn{margin-left:auto}
+  .linkrow > div > code{width:100%}
+}
 
 /* ---------- pricing ---------- */
 .plans.three{grid-template-columns:repeat(3,1fr);max-width:1060px}
@@ -367,7 +440,9 @@ section{padding:6rem 0;position:relative}
 .plans{display:grid;grid-template-columns:1fr 1fr;max-width:880px;
   border:1px solid var(--line);border-radius:1rem;overflow:hidden;background:var(--panel);backdrop-filter:blur(8px)}
 @media(max-width:800px){.plans{grid-template-columns:1fr}}
-.plan{padding:2rem 1.9rem}
+/* A column, so the three buy buttons sit on one line however many
+   bullet points each card happens to have above it. */
+.plan{padding:2rem 1.9rem;display:flex;flex-direction:column}
 .plan + .plan{border-left:1px solid var(--line)}
 @media(max-width:800px){.plan + .plan{border-left:none;border-top:1px solid var(--line)}}
 .plan.best{background:linear-gradient(180deg,rgba(255,201,60,.07),transparent)}
@@ -376,12 +451,12 @@ section{padding:6rem 0;position:relative}
 .plan .price{font-family:'Bebas Neue',sans-serif;font-size:4.2rem;line-height:.9;margin:.5rem 0 .2rem}
 .plan .price span{font-family:'Bebas Neue',sans-serif;font-size:.95rem;font-weight:700;color:var(--muted)}
 .plan .approx{font-size:.82rem;color:var(--muted);min-height:1.2rem}
-.plan ul{list-style:none;margin:1.3rem 0 1.6rem;display:flex;flex-direction:column;gap:.6rem}
+.plan ul{list-style:none;margin:1.3rem 0 1.6rem;display:flex;flex-direction:column;gap:.6rem;flex:1}
 .plan li{padding-left:1.4rem;position:relative;font-size:.95rem}
 .plan li::before{content:"";position:absolute;left:0;top:.62rem;width:.55rem;height:.55rem;border-radius:50%;background:var(--teal)}
 .plan li.no{color:#63748c}
 .plan li.no::before{background:#33445f}
-.plan .btn{display:block;text-align:center;width:100%}
+.plan .btn{display:flex;text-align:center;width:100%}
 .gate-note{font-size:.85rem;color:var(--muted);margin-top:.7rem;text-align:center}
 .fineprint{margin-top:1.6rem;font-size:.9rem;color:var(--muted);max-width:62ch}
 
@@ -510,7 +585,7 @@ section{padding:6rem 0;position:relative}
 .switch{margin-top:.9rem;font-size:.9rem;color:var(--muted);text-align:center}
 .switch a{color:var(--teal);cursor:pointer;text-decoration:underline}
 
-footer{border-top:1px solid var(--line);padding:2.6rem 0;color:var(--muted);font-size:.9rem;position:relative;z-index:2}
+footer{border-top:1px solid var(--line);padding:2rem 0 2.2rem;color:var(--muted);font-size:.9rem;position:relative;z-index:2}
 footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 
 /* Header account block.
@@ -738,7 +813,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
   <div class="wrap">
     <div class="sec-head">
       <h2>Pay monthly, <em>or buy it outright</em></h2>
-      <p>Start on the monthly — seven days free, cancel whenever. Or pay once and own the overlays outright, with nothing recurring and nothing to cancel. Five months of the monthly costs more than buying the lot.</p>
+      <p>Start on the monthly — seven days free, cancel whenever. Or pay once and own the overlays outright, with nothing recurring and nothing to cancel. Five months of the monthly costs more than buying three outright.</p>
     </div>
     <div class="plans three">
       <div class="plan best">
@@ -768,16 +843,16 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
         <p class="gate-note"></p>
       </div>
       <div class="plan">
-        <h3>All four</h3>
+        <h3>Three overlays</h3>
         <div class="price" data-usd="25">$25<span>once</span></div>
         <div class="approx" data-approx="25"></div>
         <ul>
-          <li>Every game we have today — yours forever, including any we add later</li>
+          <li>Pick any three games — yours forever</li>
           <li>One payment, nothing recurring</li>
-          <li>Cheaper than five months of the monthly</li>
+          <li>Works out cheaper than buying three on their own</li>
           <li class="no">Games we add later are not included</li>
         </ul>
-        <a href="#" class="btn btn-ghost" data-option="permall">Buy all four</a>
+        <a href="#" class="btn btn-ghost" data-option="permall">Buy three overlays</a>
         <p class="gate-note"></p>
       </div>
     </div>
@@ -873,7 +948,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
         <p id="authIntro" class="hidden" style="color:var(--muted);font-size:.93rem;margin:-.2rem 0 1rem"></p>
         <div class="field" id="fieldEmail"><label>Email</label><input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></div>
         <div class="field hidden" id="fieldIgn">
-          <label>Your Minecraft username</label>
+          <label>Your Donut SMP username</label>
           <input id="authIgn" autocomplete="off" spellcheck="false" placeholder="e.g. mrchicken75">
           <div style="font-size:.8rem;color:var(--muted);margin-top:.35rem;line-height:1.45">
             Exactly as it appears in Donut chat. <b style="color:var(--gold)">On Bedrock,
@@ -925,7 +1000,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
         <div id="pickCount" class="pickcount"></div>
         <button class="btn btn-gold" id="pickGo" style="width:100%;margin-top:.9rem">Continue to checkout</button>
         <div class="msg" id="pickMsg"></div>
-        <div class="switch">Want all four? <a id="pickAll">Buy the lot for $25</a></div>
+        <div class="switch" id="pickMoreWrap">Want three? <a id="pickAll">Get any three for $25</a></div>
       </div>
     </div>
   </div>
@@ -1820,8 +1895,8 @@ let pendingGames = [];
    only shape the wording and stop the extra click. `picks: null` means
    the option covers every overlay, so there is nothing to choose. */
 const OPTIONS = {
-  perm1:   { picks: 1,    label: 'one overlay' },
-  permall: { picks: null, label: 'all four' },
+  perm1:   { picks: 1, label: 'one overlay' },
+  permall: { picks: 3, label: 'any three overlays' },
   sub:     { picks: null, label: 'every overlay' },
 };
 let MAX_PICKS = 1;
@@ -1887,7 +1962,7 @@ function openPick(){
   document.getElementById('pickBlurb').textContent =
     MAX_PICKS === 1
       ? 'Whichever you choose is yours for good. There is no subscription and nothing to cancel.'
-      : `All ${MAX_PICKS} are yours for good. There is no subscription and nothing to cancel.`;
+      : `All ${MAX_PICKS} are yours for good — one payment, no subscription, nothing to cancel.`;
   /* Overlays they already bought are not for sale twice. */
   const owned = (me && me.perm) || [];
   const list = document.getElementById('pickList');
@@ -1902,9 +1977,37 @@ function openPick(){
     paintPickCount();
     document.getElementById('pickMsg').textContent = '';
   };
-  paintPickCount();
   document.getElementById('pickMsg').textContent = '';
   document.getElementById('pickMsg').className = 'msg';
+  paintPickCount();
+  /* Offering the three-overlay bundle to somebody already buying it
+     reads as a broken link. */
+  const more = document.getElementById('pickMoreWrap');
+  if(more) more.style.display = pendingPlan === 'permall' ? 'none' : '';
+
+  /* A dead end worth catching. Overlays you already own are not for sale
+     twice, so somebody owning three of the five cannot assemble a bundle
+     of three from what is left — they would sit there clicking, be told
+     to pick one more, and have nothing left to pick. Say so, and point
+     at the thing that does work. */
+  const spare = GAMES.filter(g => !owned.includes(g.id)).length;
+  const go = document.getElementById('pickGo');
+  if(spare < MAX_PICKS){
+    const m = document.getElementById('pickMsg');
+    m.className = 'msg bad';
+    m.textContent = spare === 0
+      ? 'You already own every overlay — there is nothing left to buy.'
+      : `You already own all but ${spare} of them, so a bundle of ${MAX_PICKS} `
+        + `has nothing to fill it with. Buy the ${spare === 1 ? 'last one' : 'last ' + spare} `
+        + 'on its own instead.';
+    go.disabled = true;
+    go.style.opacity = '.5';
+    go.style.cursor = 'not-allowed';
+  } else {
+    go.disabled = false;
+    go.style.opacity = '';
+    go.style.cursor = '';
+  }
   document.getElementById('pickSheet').classList.add('open');
 }
 document.getElementById('pickClose').onclick = () =>
@@ -1925,10 +2028,14 @@ document.getElementById('pickGo').onclick = () => {
   document.getElementById('pickSheet').classList.remove('open');
   proceedToCheckout();
 };
+/* The upsell used to skip the picker entirely, because $25 meant every
+   overlay and there was nothing to choose. It buys three of your
+   choosing now, so it reopens the picker with three slots instead of
+   sending somebody to Stripe having chosen nothing. */
 document.getElementById('pickAll').onclick = () => {
-  document.getElementById('pickSheet').classList.remove('open');
-  pendingPlan = 'permall'; pendingGames = [];
-  proceedToCheckout();
+  pendingPlan = 'permall';
+  pendingGames = [];
+  openPick();
 };
 
 /* runs after all the gates (Discord + logged in + overlay picked) */
@@ -2083,14 +2190,14 @@ async function paintSetup(){
      mismatch reads real money as somebody else's and ignores it. */
   rows.push(`
     <div class="linkrow" style="align-items:flex-start">
-      <div class="plat">Your name</div>
-      <div style="flex:1;min-width:0">
+      <div class="plat">Donut name</div>
+      <div class="col">
         <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
           <input id="ignBox" value="${(data.ign || '').replace(/"/g, '&quot;')}"
-                 autocomplete="off" spellcheck="false" placeholder="your Minecraft username"
-                 style="flex:1;min-width:12rem;padding:.5rem .6rem;border-radius:.4rem;
+                 autocomplete="off" spellcheck="false" placeholder="your Donut SMP username"
+                 style="padding:0 .7rem;border-radius:.4rem;
                         border:1px solid var(--line);background:#070d18;color:var(--text);font:inherit">
-          <button id="ignSave" style="padding:.5rem .9rem">Save</button>
+          <button id="ignSave">Save</button>
         </div>
         <div style="font-size:.8rem;color:var(--muted);margin-top:.4rem;line-height:1.45">
           Exactly as it appears in Donut chat — this is how the overlay knows a payment is
@@ -2101,17 +2208,50 @@ async function paintSetup(){
         <div class="msg" id="ignMsg"></div>
       </div>
     </div>`);
+  /* Download the first time, Update when the build on the server has
+     moved on, and neither when it has not.
+
+     What the browser can actually know is narrow, and pretending
+     otherwise would be worse than saying less: this page cannot see a
+     folder on somebody's PC. What it can see is which build this browser
+     last downloaded. So that is what it compares, and the launcher
+     itself is what does the updating — it checks on every start and
+     replaces its own files. This button is a first download, and after
+     that a heads-up plus a fresh zip for anyone who would rather have
+     one. Nobody is ever pushed through the old ritual of deleting the
+     folder and extracting again. */
+  const here = data.launcher && data.launcher.id ? data.launcher.id : null;
+  let had = null;
+  try { had = localStorage.getItem('donut.launcher'); } catch(e){ /* private window */ }
+  const state = !here || !had ? 'new' : (had === here ? 'current' : 'stale');
+  const stamp = data.launcher && data.launcher.build ? data.launcher.build : '';
+
   rows.push(`
     <div class="linkrow">
-      <div class="plat">1 · Download</div>
-      <code>donut-overlays-launcher.zip</code>
-      <a class="btn btn-gold" style="padding:.55rem .9rem;font-size:.85rem" href="${data.download}">Download</a>
+      <div class="plat">1 · ${state === 'stale' ? 'Update' : 'Download'}</div>
+      <div class="col">
+        <code style="display:block">donut-overlays-launcher.zip</code>
+        <div style="font-size:.8rem;color:var(--muted);margin-top:.3rem">
+          ${state === 'new'
+            ? `One download, then never again — it keeps itself up to date from then on.${
+                stamp ? ` Current build ${stamp}.` : ''}`
+            : state === 'current'
+              ? `You are on the current build${stamp ? ' (' + stamp + ')' : ''}. Nothing to do.`
+              : `Build ${stamp} is out. <b style="color:var(--gold)">Your launcher updates itself</b> —
+                 just start it and it will be on ${stamp} before it asks you anything.
+                 The button is here if you would rather have a fresh copy.`}
+        </div>
+      </div>
+      <a class="btn ${state === 'current' ? 'btn-ghost' : 'btn-gold'} dlbtn"
+         href="${data.download}"
+         data-build="${here || ''}">${
+        state === 'stale' ? 'Update' : state === 'current' ? 'Download again' : 'Download'}</a>
     </div>`);
 
   rows.push(`
     <div class="linkrow" style="border-bottom:none;padding-bottom:.2rem">
       <div class="plat">2 · Your overlays</div>
-      <div style="flex:1;color:var(--muted);font-size:.88rem">
+      <div class="col" style="color:var(--muted);font-size:.88rem">
         Add as a <b>browser source</b> in TikTok LIVE Studio, OBS, Streamlabs — any of them.
       </div>
     </div>`);
@@ -2137,7 +2277,7 @@ async function paintSetup(){
             ${mine ? 'yours forever' : 'with your monthly'}
           </div>
         </div>
-        <div style="flex:1;min-width:0">
+        <div class="col">
           <code id="ln${i}" style="display:block">${l.url}</code>
           <div style="font-size:.8rem;color:var(--muted);margin-top:.3rem">
             ${l.panelLive
@@ -2160,7 +2300,7 @@ async function paintSetup(){
     rows.push(`
       <div class="linkrow" style="align-items:flex-start">
         <div class="plat">Not yours yet</div>
-        <div style="flex:1;min-width:0">
+        <div class="col">
           <div style="font-size:.88rem;color:var(--muted)">
             ${missing.map(g => g.name).join(', ')} —
             <a href="#pricing" style="color:var(--teal)">buy ${missing.length === 1 ? 'it' : 'them'} outright</a>
@@ -2177,7 +2317,7 @@ async function paintSetup(){
     rows.push(`
       <div class="linkrow" style="align-items:flex-start">
         <div class="plat">Switch</div>
-        <div style="flex:1;min-width:0">
+        <div class="col">
           <div style="font-size:.88rem;color:var(--muted);margin-bottom:.55rem">
             Your old plan covers 2 overlays at a time. Click one to add it,
             click a highlighted one to drop it. Your links above update straight away.
@@ -2195,6 +2335,19 @@ async function paintSetup(){
   /* Saving the name. Deliberately its own small form rather than part of
      a bigger settings page — it is the single most common thing to get
      wrong, so it lives where people are already looking. */
+  /* Remember what they just took, so the next visit can tell them
+     whether anything has moved. Written on the click rather than after
+     the download finishes, because a browser never tells the page that
+     it did. Failing is fine — a private window just keeps saying
+     "Download", which is the safe way round. */
+  const dl = box.querySelector('.dlbtn');
+  if(dl){
+    dl.addEventListener('click', () => {
+      const id = dl.dataset.build;
+      if(id) { try { localStorage.setItem('donut.launcher', id); } catch(e){} }
+    });
+  }
+
   const ignSave = document.getElementById('ignSave');
   if(ignSave){
     ignSave.onclick = async () => {
@@ -2274,7 +2427,8 @@ async function paintSetup(){
     `<div style="color:var(--muted);font-size:.88rem;margin-top:1.1rem;
         background:#0c1322;border:1px solid var(--line);border-left:3px solid var(--gold);
         border-radius:.5rem;padding:.9rem 1.1rem">
-       <b style="color:var(--gold)">Setting it up on Windows — in this order:</b>
+       ${state === 'new'
+         ? `<b style="color:var(--gold)">Setting it up on Windows — in this order:</b>
        <ol style="margin:.5rem 0 0 1.1rem;padding:0;line-height:1.7">
          <li><b style="color:#a9c6ee">Right-click the zip → Properties → tick Unblock → OK.</b>
              Do this <em>before</em> unzipping. Skip it and Windows blocks the launcher with a
@@ -2283,7 +2437,19 @@ async function paintSetup(){
              Don't run anything from inside the zip window — those files are temporary.</li>
          <li>Open the folder and run <b style="color:#a9c6ee">START-DONUT-OVERLAYS.bat</b>,
              sign in, and pick your overlay.</li>
-       </ol>
+       </ol>`
+         /* Somebody who already has it does not need the unblock-and-extract
+            ritual read to them again, and printing it next to a button that
+            says Update is what makes people think they have to do all of it
+            again. They have one step now: open the thing they already have. */
+         : `<b style="color:var(--gold)">You already have it — just run it.</b>
+       <p style="margin:.5rem 0 0">
+         Open your <b style="color:#a9c6ee">donut-overlays</b> folder and double-click
+         <b style="color:#a9c6ee">START-DONUT-OVERLAYS.bat</b> as usual. It checks for a
+         newer version as it starts, fetches only what has changed and restarts itself
+         into it — normally a second or two. Your Donut name, your dares and your saved
+         wins are left exactly as they are.
+       </p>`}
        <p style="margin:.7rem 0 0">
          Leave that black window open while you stream — closing it stops the overlay.
          It opens your control panel automatically and prints the address every time it
