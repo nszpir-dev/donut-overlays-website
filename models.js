@@ -28,6 +28,26 @@ const userSchema = new mongoose.Schema({
      stored exactly as they typed it. */
   ign: { type: String, default: '' },
 
+  /* Which build of the launcher this account is actually running.
+  
+     Written from two places, both of which are facts rather than
+     guesses: the download route sets it when they take the zip, and the
+     running launcher reports it up the same connection that feeds their
+     overlay. The launcher wins, because it is the only one that knows
+     what is really on the disk — somebody can download a zip and never
+     extract it.
+  
+     The account page reads this to decide whether its button says
+     Download, Update, or nothing much. It used to ask the browser's own
+     storage, which got it wrong for anybody on a second device, in a
+     private window, or — the case that matters most — everybody who had
+     already downloaded before this field existed.
+  
+     Empty means "we have never heard from a launcher on this account".
+     That is a different thing from "never downloaded", and the page
+     tells them apart by how old the account is. */
+  launcherBuild: { type: String, default: '' },
+
   // The unguessable id that appears in their OBS / LIVE Studio link.
   // Stays the same for the life of the account so they paste it once.
   overlayToken: { type: String, unique: true, sparse: true, index: true },

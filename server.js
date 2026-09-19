@@ -822,14 +822,35 @@ app.get('/api/links', auth, async (req, res) => {
       };
     }),
     download: `${PUBLIC_URL}/download/${token}/donut-overlays-launcher.zip`,
-    /* Which launcher is on the server right now. The page remembers
-       which one this browser last downloaded, and that is the whole of
-       how the button knows whether to say Download or Update. Null when
-       no zip has been uploaded yet, which the page treats as "just show
-       Download" rather than inventing a version. */
+    /* Which launcher is on the server right now, and which one this
+       ACCOUNT is on. Null when no zip has been uploaded yet, which the
+       page treats as "just show Download" rather than inventing a
+       version. */
     launcher: updates.current(),
+    /* '' when no launcher on this account has ever reported in and
+       nothing has been downloaded. 'older' when it must have been — an
+       account with overlays, made before the self-updating build
+       existed, has obviously run the launcher; it just ran a version
+       with no way to say so. Without that, every single existing
+       customer would be shown "Download" as though they were new, which
+       is exactly the wrong word for the one thing they still have to do
+       by hand. */
+    has: launcherOn(req.user),
   });
 });
+
+/* The build that first knew how to update itself. Anything older has to
+   be replaced by hand once, because the code that would fetch a new one
+   is precisely what it does not have. */
+const SELF_UPDATING_FROM = Date.parse('2026-09-16T00:00:00Z');
+
+function launcherOn(user) {
+  if (!user) return '';
+  if (user.launcherBuild) return user.launcherBuild;
+  const made = user.createdAt ? Date.parse(user.createdAt) : NaN;
+  if (Number.isFinite(made) && made < SELF_UPDATING_FROM && relay.hasAnything(user)) return 'older';
+  return '';
+}
 
 /* The launcher download. Gated on the same token as the overlay links so
    a plain <a href> works — a browser download cannot carry an auth header,
@@ -850,6 +871,14 @@ app.get('/download/:token/donut-overlays-launcher.zip', async (req, res) => {
   const file = path.join(__dirname, 'launcher', 'donut-overlays-launcher.zip');
   if (!fs.existsSync(file)) {
     return res.status(500).send(notice('The launcher has not been uploaded to the server yet.'));
+  }
+  /* Remember what they took. Not waited on and never fatal: a slow
+     database must not hold up a download, and the running launcher
+     reports its build anyway, which is the better source of the two. */
+  const now = updates.current();
+  if (now && now.build && user.launcherBuild !== now.build) {
+    User.updateOne({ _id: user._id }, { launcherBuild: now.build })
+      .catch(err => console.error('[download] could not record the build', err.message));
   }
   res.download(file, 'donut-overlays-launcher.zip');
 });

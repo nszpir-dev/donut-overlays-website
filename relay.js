@@ -292,6 +292,27 @@ function attachUplink(ws, user) {
        Range-checked because it arrives over the wire. */
     const p = Number(m.port);
     if (Number.isInteger(p) && p > 0 && p < 65536) h.ports.set(m.game, p);
+
+    /* Which build is actually running on that PC. Recorded once per
+       connection, and only when it has changed, so a board pushing
+       twenty times a second does not become twenty database writes a
+       second. Shape-checked because it arrives over the wire, and
+       written without waiting — this is bookkeeping for the account
+       page, and it must never be able to delay a frame of somebody's
+       overlay or take their stream down if the database is slow. */
+    /* Checked as it arrived, NOT after trimming it to length. Slicing
+       first and validating second is how a 200-character string of
+       rubbish becomes a valid-looking 32-character one — the check has
+       to see what was actually sent. */
+    const build = typeof m.build === 'string' ? m.build : '';
+    if (/^[\w.-]{1,32}$/.test(build) && ws._build !== build) {
+      ws._build = build;
+      if (user.launcherBuild !== build) {
+        user.launcherBuild = build;
+        User.updateOne({ _id: user._id }, { launcherBuild: build })
+          .catch(err => console.error('[relay] could not record the build', err.message));
+      }
+    }
     if (!allowedGames(user).includes(m.game)) return;
 
     /* Claim this game on the first push. Whoever pushed it last owns it,
