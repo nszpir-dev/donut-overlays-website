@@ -2208,23 +2208,26 @@ async function paintSetup(){
         <div class="msg" id="ignMsg"></div>
       </div>
     </div>`);
-  /* Download the first time, Update when the build on the server has
-     moved on, and neither when it has not.
+  /* Download the first time, Update when this account is behind, and
+     nothing much when it is not.
 
-     What the browser can actually know is narrow, and pretending
-     otherwise would be worse than saying less: this page cannot see a
-     folder on somebody's PC. What it can see is which build this browser
-     last downloaded. So that is what it compares, and the launcher
-     itself is what does the updating — it checks on every start and
-     replaces its own files. This button is a first download, and after
-     that a heads-up plus a fresh zip for anyone who would rather have
-     one. Nobody is ever pushed through the old ritual of deleting the
-     folder and extracting again. */
-  const here = data.launcher && data.launcher.id ? data.launcher.id : null;
-  let had = null;
-  try { had = localStorage.getItem('donut.launcher'); } catch(e){ /* private window */ }
+     Which build they are on comes from the ACCOUNT, not from this
+     browser. The running launcher reports it up the same connection
+     that feeds their overlay, and the download route records it too, so
+     the answer is right on a second device, in a private window, and on
+     a machine they have never opened this page on before. Browser
+     storage is kept only as a last resort for the moment between
+     clicking download and first running it.
+
+     'older' is the one-off case: an account that plainly has the
+     launcher but from before it could report anything. Those people get
+     "Update", because that is the honest word for the single manual
+     download they still owe — and it is the last one. */
+  const here  = data.launcher && data.launcher.build ? data.launcher.build : '';
+  const stamp = here;
+  let had = data.has || '';
+  if(!had){ try { had = localStorage.getItem('donut.launcher') || ''; } catch(e){ /* private window */ } }
   const state = !here || !had ? 'new' : (had === here ? 'current' : 'stale');
-  const stamp = data.launcher && data.launcher.build ? data.launcher.build : '';
 
   rows.push(`
     <div class="linkrow">
@@ -2236,10 +2239,22 @@ async function paintSetup(){
             ? `One download, then never again — it keeps itself up to date from then on.${
                 stamp ? ` Current build ${stamp}.` : ''}`
             : state === 'current'
-              ? `You are on the current build${stamp ? ' (' + stamp + ')' : ''}. Nothing to do.`
-              : `Build ${stamp} is out. <b style="color:var(--gold)">Your launcher updates itself</b> —
-                 just start it and it will be on ${stamp} before it asks you anything.
-                 The button is here if you would rather have a fresh copy.`}
+              ? `You are on the current build${stamp ? ' (' + stamp + ')' : ''}. Nothing to do —
+                 it picks up anything new on its own when you start it.`
+              : had === 'older'
+                /* The changeover. Their launcher predates the updater, so
+                   it cannot fetch this one — the code that would do it is
+                   the thing it is missing. Say that plainly and say it is
+                   the last time, because "download it again" is exactly
+                   what this whole change exists to stop. */
+                ? `<b style="color:var(--gold)">The last download you will ever need.</b>
+                   Your launcher is from before it could update itself, so it cannot fetch
+                   build ${stamp} on its own. Grab it once here — after that every new build
+                   arrives by itself when you start it, and this button goes quiet.`
+                : `Build ${stamp} is out. <b style="color:var(--gold)">Your launcher updates
+                   itself</b> — just start it and it will be on ${stamp} before it asks you
+                   anything. Nothing to download; the button is only here if you would
+                   rather have a fresh copy.`}
         </div>
       </div>
       <a class="btn ${state === 'current' ? 'btn-ghost' : 'btn-gold'} dlbtn"
@@ -2335,11 +2350,10 @@ async function paintSetup(){
   /* Saving the name. Deliberately its own small form rather than part of
      a bigger settings page — it is the single most common thing to get
      wrong, so it lives where people are already looking. */
-  /* Remember what they just took, so the next visit can tell them
-     whether anything has moved. Written on the click rather than after
-     the download finishes, because a browser never tells the page that
-     it did. Failing is fine — a private window just keeps saying
-     "Download", which is the safe way round. */
+  /* A local note of what they just took. The server records this too,
+     on the same click, and that record is what the page trusts — this
+     only covers the seconds in between, and the case where the download
+     route could not write. Failing is fine. */
   const dl = box.querySelector('.dlbtn');
   if(dl){
     dl.addEventListener('click', () => {
