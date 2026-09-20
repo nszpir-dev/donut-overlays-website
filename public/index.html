@@ -696,7 +696,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
       <p class="trial-note">$5 a month, or buy the overlays outright. Works with TikTok LIVE Studio, Twitch and YouTube.</p>
       <div class="counts">
         <div><b>0.1s</b><span>payment to screen</span></div>
-        <div><b>5</b><span>games to choose from</span></div>
+        <div><b>4</b><span>games to choose from</span></div>
         <div><b>5 min</b><span>to set up</span></div>
       </div>
     </div>
@@ -763,17 +763,6 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
           <div class="row">
             <button class="btn btn-ghost" data-customize="lastcall">Customise</button>
             <button class="btn btn-ghost" data-links="lastcall">Get links</button>
-          </div>
-        </div>
-      </div>
-      <div class="game">
-        <div class="shot"><div class="mini" id="pv-wheel"></div></div>
-        <div class="body">
-          <h3>Follow Reel</h3>
-          <p>The odd one out: this one watches TikTok, not Minecraft chat. Every new follower gets a strip of dares that runs across the screen and stops on one. You write the dares and set how often each comes up. Dares and forfeits rather than items or currency, so following never becomes a trade.</p>
-          <div class="row">
-            <button class="btn btn-ghost" data-customize="wheel">Customise</button>
-            <button class="btn btn-ghost" data-links="wheel">Get links</button>
           </div>
         </div>
       </div>
@@ -1280,24 +1269,6 @@ function previewHTML(kind, opt){
       ${compact ? '' : `<div class="lbl" style="font-size:${fs(.5)};margin-top:.4rem">Snatched back 4 times</div>`}
     </div>`;
   }
-  if(kind === 'wheel'){
-    /* Nothing like the other four, because the overlay is nothing like
-       them: a strip rather than a card, and the prize colour doing the
-       work a border does everywhere else. */
-    const tile = (label, c, on) => `<div style="flex:1;min-width:0;border-radius:${fs(.34)};padding:${fs(.34)} ${fs(.2)};text-align:center;
-      background:linear-gradient(180deg,${on ? c + '55' : c + '18'},rgba(10,16,32,.9));
-      border:1px solid ${on ? c : c + '66'};${on ? 'box-shadow:0 0 ' + fs(.7) + ' ' + c + ';' : 'opacity:.6;'}
-      font-size:${fs(.62)};color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</div>`;
-    return `<div class="cardish" style="--pv-accent:${a}">
-      <div class="lbl" style="font-size:${fs(.55)}">New follower</div>
-      <div style="display:flex;gap:${fs(.22)};margin:${fs(.3)} 0 ${fs(.18)}">
-        ${tile('Push-ups', '#19e3c8', false)}${tile('Shoutout', a, true)}${tile('Nothing', '#5b6b86', false)}
-      </div>
-      <div class="rowline"><span class="who" style="font-size:${fs(1)}">@new_follower</span>
-        <span class="who" style="font-size:${fs(1)};margin-left:auto;color:${a}">Shoutout</span></div>
-      ${compact ? '' : `<div class="lbl" style="font-size:${fs(.5)};margin-top:.4rem">Dares, not items</div>`}
-    </div>`;
-  }
   return `<div class="cardish" style="--pv-accent:${a}">
     <div class="lbl" style="font-size:${fs(.55)}">Total pot</div>
     <div class="big" style="font-size:${fs(2.4)}">$11M</div>
@@ -1314,13 +1285,11 @@ const opts = {
   /* Matches the colour Last Call actually ships with, so the preview is
      honest before anyone has picked anything. */
   lastcall:{ ...base, accent:'#35e0ff' },
-  /* Gold, which is the colour the winning tile lands on by default. */
-  wheel:   { ...base, accent:'#ffc93c' },
 };
 /* One list, used by the previews, the loader and the saver. Adding a game
    in three separate places is how the customiser quietly stopped covering
    Last Call in the first place. */
-const LOOK_GAMES = ['board','auction','money','lastcall','wheel'];
+const LOOK_GAMES = ['board','auction','money','lastcall'];
 const STOCK_ART = '/chicken.png';
 const paint = k => document.getElementById('pv-' + k).innerHTML = previewHTML(k, opts[k]);
 LOOK_GAMES.forEach(paint);
@@ -1907,7 +1876,6 @@ const GAMES = [
   { id:'auction', name:'Donut Auction', blurb:'Live item auctions. Highest bid before the clock runs out takes it.' },
   { id:'money',   name:'Money Game',    blurb:'You seed a pot, biggest single payment before the timer takes it.' },
   { id:'lastcall',name:'Last Call',     blurb:'Everyone builds one pot. Every payment resets a 10 second clock \u2014 whoever paid last when it runs out takes the lot.' },
-  { id:'wheel',   name:'Follow Reel',   blurb:'Every new TikTok follower gets a strip of dares that runs across the screen and stops on one. You write the dares and set the odds.' },
 ];
 
 /* Draw a list of overlay buttons with `chosen` highlighted. Shared by the
@@ -2088,6 +2056,20 @@ document.querySelectorAll('[data-option]').forEach(b => b.addEventListener('clic
   } else if(q.get('checkout') === 'cancelled'){
     setTimeout(() => alert('Checkout was cancelled — no charge was made.'), 300);
   }
+
+  /* Back from Discord. The message is written by our own callback, but it
+     arrives through the address bar, so it is put on the page as TEXT
+     rather than as html — a query string is not something to trust just
+     because we were the last ones to touch it. */
+  const dc = q.get('discord');
+  if(dc){
+    const msg = (q.get('m') || '').slice(0, 200);
+    setTimeout(() => alert(msg || (dc === 'ok' ? 'Discord linked.' : 'Could not link Discord.')), 300);
+    refreshMe();
+    /* Take it back out of the address bar so a refresh does not say it
+       all over again. */
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch(e){}
+  }
 })();
 
 /* ---------------- reviews ---------------- */
@@ -2233,7 +2215,7 @@ async function paintSetup(){
     <div class="linkrow">
       <div class="plat">1 · ${state === 'stale' ? 'Update' : 'Download'}</div>
       <div class="col">
-        <code style="display:block">donut-overlays-launcher.zip</code>
+        <code>donut-overlays-launcher.zip</code>
         <div style="font-size:.8rem;color:var(--muted);margin-top:.3rem">
           ${state === 'new'
             ? `One download, then never again — it keeps itself up to date from then on.${
@@ -2260,8 +2242,40 @@ async function paintSetup(){
       <a class="btn ${state === 'current' ? 'btn-ghost' : 'btn-gold'} dlbtn"
          href="${data.download}"
          data-build="${here || ''}">${
-        state === 'stale' ? 'Update' : state === 'current' ? 'Download again' : 'Download'}</a>
+        state === 'stale' ? 'Update'
+        : state === 'current' ? 'Download the latest version'
+        : 'Download'}</a>
     </div>`);
+
+  /* Discord, if the server has it switched on. Placed after the download
+     and before the overlay links because it is a one-off thing you do
+     once and never think about again — the links below are what people
+     come back to this page for. */
+  if(data.discord){
+    const d = data.discord;
+    rows.push(`
+      <div class="linkrow" style="align-items:flex-start">
+        <div class="plat">Discord</div>
+        <div class="col">
+          ${d.linked
+            ? `<div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
+                 <b style="color:var(--teal)">Linked as ${(d.name || 'your account').replace(/</g,'&lt;')}</b>
+                 <button id="dcUnlink">Unlink</button>
+               </div>
+               <div style="font-size:.8rem;color:var(--muted);margin-top:.35rem;line-height:1.45">
+                 ${d.roles
+                   ? 'Your role in the Discord updates itself when your plan changes. Nothing else to do.'
+                   : 'Linked. Roles are not switched on yet, so this is just on record for now.'}
+               </div>`
+            : `<button class="btn btn-ghost" id="dcLink">Link Discord</button>
+               <div style="font-size:.8rem;color:var(--muted);margin-top:.35rem;line-height:1.45">
+                 One click, and your role in the Discord is handled automatically from then on.
+                 We only ever see your username — never your messages, and never your password.
+               </div>`}
+          <div class="msg" id="dcMsg"></div>
+        </div>
+      </div>`);
+  }
 
   rows.push(`
     <div class="linkrow" style="border-bottom:none;padding-bottom:.2rem">
@@ -2293,7 +2307,7 @@ async function paintSetup(){
           </div>
         </div>
         <div class="col">
-          <code id="ln${i}" style="display:block">${l.url}</code>
+          <code id="ln${i}">${l.url}</code>
           <div style="font-size:.8rem;color:var(--muted);margin-top:.3rem">
             ${l.panelLive
               ? `Your controls, running right now:
@@ -2360,6 +2374,46 @@ async function paintSetup(){
       const id = dl.dataset.build;
       if(id) { try { localStorage.setItem('donut.launcher', id); } catch(e){} }
     });
+  }
+
+  /* Asks the server where to go rather than carrying the login token in
+     the address bar, where it would end up in history and in the Referer
+     sent to Discord. */
+  const dcLink = document.getElementById('dcLink');
+  if(dcLink){
+    dcLink.onclick = async () => {
+      const m = document.getElementById('dcMsg');
+      dcLink.disabled = true;
+      try {
+        const r = await fetch(API + '/api/discord/start', { method:'POST', headers: authHeader() });
+        const d = await r.json();
+        if(!r.ok || !d.url) throw new Error(d.error || 'could not start');
+        location.href = d.url;
+      } catch(e){
+        m.className = 'msg bad'; m.textContent = e.message;
+        dcLink.disabled = false;
+      }
+    };
+  }
+
+  /* Unlinking. Takes the roles back first, server side, then forgets the
+     account — done the other way round there would be nobody left to
+     take them from. */
+  const dcUnlink = document.getElementById('dcUnlink');
+  if(dcUnlink){
+    dcUnlink.onclick = async () => {
+      const m = document.getElementById('dcMsg');
+      dcUnlink.disabled = true;
+      try {
+        const r = await fetch(API + '/api/discord/unlink', { method:'POST', headers: authHeader() });
+        if(!r.ok) throw new Error('could not unlink');
+        m.className = 'msg'; m.textContent = 'Unlinked.';
+        paintSetup();
+      } catch(e){
+        m.className = 'msg bad'; m.textContent = 'Could not unlink — try again in a moment.';
+        dcUnlink.disabled = false;
+      }
+    };
   }
 
   const ignSave = document.getElementById('ignSave');
@@ -2461,8 +2515,8 @@ async function paintSetup(){
          Open your <b style="color:#a9c6ee">donut-overlays</b> folder and double-click
          <b style="color:#a9c6ee">START-DONUT-OVERLAYS.bat</b> as usual. It checks for a
          newer version as it starts, fetches only what has changed and restarts itself
-         into it — normally a second or two. Your Donut name, your dares and your saved
-         wins are left exactly as they are.
+         into it — normally a second or two. Your Donut name and your settings are
+         left exactly as they are.
        </p>`}
        <p style="margin:.7rem 0 0">
          Leave that black window open while you stream — closing it stops the overlay.
