@@ -23,7 +23,21 @@ const { WebSocketServer } = require('ws');
 const jwt = require('jsonwebtoken');
 const { User } = require('./models');
 
-const GAMES = ['board', 'auction', 'money', 'lastcall', 'wheel'];
+const GAMES = ['board', 'auction', 'money', 'lastcall'];
+
+/* Overlays that were sold once and have since been withdrawn.
+  
+   The Follow Reel is here because it depended on an unofficial way into
+   TikTok that TikTok does not support and changes without notice. An
+   overlay that works on Tuesday and not on Wednesday is worse than no
+   overlay, so it is no longer sold or run.
+  
+   It stays NAMED, though, and that matters: purchase history, refund
+   questions and the admin pages all still refer to it, and a row that
+   reads "wheel" instead of "Follow Reel" makes the money look wrong to
+   whoever is reading it a year from now. Withdrawing a product is not
+   the same as pretending it never existed. */
+const RETIRED = { wheel: 'Follow Reel (withdrawn)' };
 
 /* The four that existed when "all overlays, forever" first went on sale.
    Anyone whose outright purchase covers all of these bought the whole set
@@ -145,6 +159,27 @@ function subGames(user) {
     return out.length ? out.slice(0, 2) : ['board'];
   }
   return GAMES.slice();
+}
+
+/* Overlays this account paid for that have since been withdrawn.
+  
+   Withdrawing a product quietly turns some people's purchase into
+   nothing, and the dangerous part is that it happens invisibly: their
+   account still exists, still signs in, and simply has no overlays in
+   it. Nobody finds out until the customer does.
+  
+   So it is made countable. The admin page reads this and says out loud
+   how many people are affected and who they are, which turns a silent
+   breakage into a decision somebody has to make — refund them, or swap
+   them onto something that still runs. */
+function retiredOwned(user) {
+  return (user && user.perm || []).filter(g => RETIRED[g]);
+}
+
+/* Paid for something, and has nothing left to run. The case that must
+   never go unnoticed. */
+function stranded(user) {
+  return allowedGames(user).length === 0 && retiredOwned(user).length > 0;
 }
 
 function allowedGames(user) {
@@ -392,4 +427,4 @@ async function recheckLive() {
   }
 }
 
-module.exports = { setup, entitled, ownedAllBefore, BUNDLE_CHANGED, allowedGames, permOf, subGames, hasAnything, gamesFor, panelPort, OPTIONS, GAMES, CORE };
+module.exports = { setup, entitled, ownedAllBefore, BUNDLE_CHANGED, RETIRED, retiredOwned, stranded, allowedGames, permOf, subGames, hasAnything, gamesFor, panelPort, OPTIONS, GAMES, CORE };

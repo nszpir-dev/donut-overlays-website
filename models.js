@@ -48,6 +48,19 @@ const userSchema = new mongoose.Schema({
      tells them apart by how old the account is. */
   launcherBuild: { type: String, default: '' },
 
+  /* Their Discord account, once they have linked it.
+  
+     Set only by Discord's own sign-in, never typed in by anybody — that
+     is the whole point. If people could type an id or an email at a bot,
+     anyone could claim somebody else's purchase and collect the role
+     that comes with it.
+  
+     The name is stored alongside the id purely so the admin pages can
+     show something a human recognises; the id is the part that matters
+     and the part everything is keyed on, because Discord names change. */
+  discordId: { type: String, default: '', index: true },
+  discordName: { type: String, default: '' },
+
   // The unguessable id that appears in their OBS / LIVE Studio link.
   // Stays the same for the life of the account so they paste it once.
   overlayToken: { type: String, unique: true, sparse: true, index: true },

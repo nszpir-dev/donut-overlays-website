@@ -15,6 +15,7 @@ const mail = require('./mailer');
 const look = require('./look');
 const visits = require('./visits');
 const updates = require('./updates');
+const discord = require('./discordroles');
 
 const {
   PORT = 8080,
@@ -149,6 +150,9 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
         } else if (spec && spec.once) {
           await notifyPurchase(user, spec, bought);
         }
+        /* Roles follow the money. Awaited but never allowed to throw:
+           a Discord outage must not stop a payment being recorded. */
+        await discord.sync(user, relay).catch(e => console.error('[discord]', e.message));
         break;
       }
       case 'customer.subscription.created':
@@ -217,6 +221,12 @@ async function applySubscriptionToUser(user, sub) {
   const periodEnd = periodEndOf(sub);
   user.currentPeriodEnd = periodEnd ? new Date(periodEnd * 1000) : user.currentPeriodEnd;
   await user.save();
+  /* Every route that changes a subscription ends up here — the webhook,
+     the admin cancel button, the customer portal — so this is the one
+     place the Discord role has to be kept in step. Putting it in each
+     caller instead is how one of them gets forgotten and somebody keeps
+     a subscriber role for months after they stopped paying. */
+  await discord.sync(user, relay).catch(e => console.error('[discord]', e.message));
 }
 
 /* Add or remove overlays on an account, keeping the grant dates in step.
@@ -274,12 +284,17 @@ function humanAge(from) {
 /* What an account owns, each with how long they have had it. */
 function ownedList(user) {
   const since = user.permSince || {};
-  return relay.permOf(user).map(g => ({
-    game: g,
-    name: GAME_NAMES[g] || g,
-    since: since[g] || null,
-    age: humanAge(since[g]),
+  const live = relay.permOf(user).map(g => ({
+    game: g, name: GAME_NAMES[g] || g, since: since[g] || null, age: humanAge(since[g]), retired: false,
   }));
+  /* Withdrawn overlays are listed too, marked. Dropping them silently
+     would make a customer's page disagree with what they paid — and the
+     first anybody would hear about it is a message asking where their
+     overlay went. */
+  const gone = relay.retiredOwned(user).map(g => ({
+    game: g, name: relay.RETIRED[g], since: since[g] || null, age: humanAge(since[g]), retired: true,
+  }));
+  return live.concat(gone);
 }
 
 /* One row per completed payment. Stripe retries a webhook it thinks
@@ -767,12 +782,17 @@ app.post('/api/checkout', auth, async (req, res) => {
 // ---------------------------------------------------------------------
 // Overlays: the permanent links, and the pages themselves.
 // ---------------------------------------------------------------------
-const GAME_FILES = { board: 'board.html', auction: 'auction.html', money: 'money.html', lastcall: 'lastcall.html', wheel: 'wheel.html' };
-const GAME_NAMES = { board: 'Elimination board', auction: 'Live auction', money: 'Money game', lastcall: 'Last Call', wheel: 'Follow Reel' };
+const GAME_FILES = { board: 'board.html', auction: 'auction.html', money: 'money.html', lastcall: 'lastcall.html' };
+/* Withdrawn overlays keep their names here on purpose. A purchase from
+   before the Follow Reel was pulled must still read "Follow Reel" in the
+   history and on the admin pages — money that came in is a fact, and a
+   row that says "wheel" is a row nobody can account for later. */
+const GAME_NAMES = { board: 'Elimination board', auction: 'Live auction', money: 'Money game', lastcall: 'Last Call',
+                     ...relay.RETIRED };
 /* Each game's relay listens on its own port, so the control panel address
    differs per game. Showing one fixed port sent anyone running the auction
    or money game to a dead page. */
-const GAME_PORTS = { board: 8090, auction: 8091, money: 8092, lastcall: 8093, wheel: 8094 };
+const GAME_PORTS = { board: 8090, auction: 8091, money: 8092, lastcall: 8093 };
 
 /* Made once and never changed, so a link pasted into OBS keeps working
    for the life of the account. */
@@ -827,6 +847,12 @@ app.get('/api/links', auth, async (req, res) => {
        page treats as "just show Download" rather than inventing a
        version. */
     launcher: updates.current(),
+    /* Their Discord, and whether linking is even switched on. Null for
+       "not set up on this server", which the page treats as "say
+       nothing" rather than offering a button that cannot work. */
+    discord: discord.canLink()
+      ? { linked: !!req.user.discordId, name: req.user.discordName || '', roles: discord.canRole() }
+      : null,
     /* '' when no launcher on this account has ever reported in and
        nothing has been downloaded. 'older' when it must have been — an
        account with overlays, made before the self-updating build
@@ -881,6 +907,86 @@ app.get('/download/:token/donut-overlays-launcher.zip', async (req, res) => {
       .catch(err => console.error('[download] could not record the build', err.message));
   }
   res.download(file, 'donut-overlays-launcher.zip');
+});
+
+/* ---------------- linking a Discord account ----------------
+   Two routes and nothing else. The customer clicks a button on their
+   account page, Discord asks them to approve, Discord sends them back
+   here, and we write down who they are.
+
+   The `state` is a short-lived signed token carrying the account id. It
+   is what stops somebody calling the callback with their own Discord
+   code and attaching themselves to a stranger's purchase — without it
+   this route would happily link whoever asked to whoever was named. */
+const DISCORD_REDIRECT = () => `${PUBLIC_URL}/auth/discord/callback`;
+
+/* Asked for by the page, not followed as a link.
+  
+   A plain <a href> cannot carry an Authorization header, so the obvious
+   version of this puts the login token in the URL — where it lands in
+   browser history, in the Referer header sent to Discord, and in any
+   logs in between. A token in a query string is a token you have given
+   away. So the page asks for the destination with a normal
+   authenticated request and then goes there itself. */
+app.post('/api/discord/start', auth, (req, res) => {
+  if (!discord.canLink()) return res.status(503).json({ error: 'Discord linking is not set up yet' });
+  /* Ten minutes, and good for this one account only. This is what ties
+     Discord's answer back to whoever started the request. */
+  const state = jwt.sign({ uid: req.user._id.toString(), d: 1 }, JWT_SECRET, { expiresIn: '10m' });
+  res.json({ url: discord.authUrl(DISCORD_REDIRECT(), state) });
+});
+
+app.get('/auth/discord/callback', async (req, res) => {
+  const back = (msg, ok) => res.redirect('/?discord=' + (ok ? 'ok' : 'no') + '&m=' + encodeURIComponent(msg));
+  try {
+    if (req.query.error) return back('You cancelled the Discord sign-in.', false);
+    let payload;
+    try { payload = jwt.verify(String(req.query.state || ''), JWT_SECRET); }
+    catch { return back('That link expired — try again from your account page.', false); }
+    if (!payload || !payload.d) return back('That link is not valid.', false);
+
+    const user = await User.findById(payload.uid);
+    if (!user) return back('That account no longer exists.', false);
+
+    const who = await discord.whoIs(String(req.query.code || ''), DISCORD_REDIRECT());
+    if (who.error) return back(who.error, false);
+
+    /* One Discord account per customer. Without this, two people could
+       link the same Discord and both keep the role when one of them
+       stops paying — and the one who stopped would keep it. */
+    const taken = await User.findOne({ discordId: who.id, _id: { $ne: user._id } });
+    if (taken) return back('That Discord account is already linked to another Donut Overlays account.', false);
+
+    user.discordId = who.id;
+    user.discordName = who.username;
+    await user.save();
+
+    /* Give them whatever they have already earned, immediately. Somebody
+       who bought last week and links today should not have to wait for
+       their next payment to get the role. */
+    const r = await discord.sync(user, relay);
+    const failed = Object.values(r || {}).find(x => x && x.error);
+    return back(failed
+      ? `Linked as ${who.username}, but the role could not be given: ${failed.error}`
+      : `Linked as ${who.username}.`, true);
+  } catch (err) {
+    console.error('[discord] callback', err);
+    return back('Something went wrong linking Discord.', false);
+  }
+});
+
+app.post('/api/discord/unlink', auth, async (req, res) => {
+  const user = req.user;
+  if (user.discordId) {
+    /* Take the roles back BEFORE forgetting who they were, or there is
+       nobody left to take them from. */
+    try { await discord.setRole(user.discordId, discord.CFG.roleSub, false); } catch {}
+    try { await discord.setRole(user.discordId, discord.CFG.roleOwner, false); } catch {}
+  }
+  user.discordId = '';
+  user.discordName = '';
+  await user.save();
+  res.json({ ok: true });
 });
 
 /* ---------------- the update feed ----------------
@@ -1440,11 +1546,15 @@ app.get('/admin', requireAdmin, async (req, res) => {
       <td>${u.ign
             ? `<code>${esc(u.ign)}</code>`
             : '<span class="muted">not set</span>'}</td>
+      <td>${u.discordId
+            ? esc(u.discordName || u.discordId)
+            : '<span class="muted">not linked</span>'}</td>
       <td><span class="pill ${esc(u.status)}">${esc(u.status || 'none')}</span></td>
       <td>${esc(u.plan || '—')}</td>
       <td>${(u.perm || []).length
             ? ownedList(u).map(o =>
-                `${esc(o.name)} <span class="muted">— ${esc(o.age)}</span>`).join('<br>')
+                `<span${o.retired ? ' style="opacity:.55;text-decoration:line-through"' : ''}>${esc(o.name)}</span>`
+                + ` <span class="muted">— ${esc(o.age)}</span>`).join('<br>')
               + `<br><a href="/admin/grant?email=${encodeURIComponent(u.email)}"
                    style="font-size:.8rem">manage</a>`
             : `<a href="/admin/grant?email=${encodeURIComponent(u.email)}"
@@ -1460,7 +1570,30 @@ app.get('/admin', requireAdmin, async (req, res) => {
 
   const noTerms = users.filter(u => !u.terms || !u.terms.acceptedAt).length;
 
+  /* Withdrawing an overlay turns some people's purchase into nothing,
+     and it does it silently — their account still works, it just has no
+     overlays in it. This is the only place that would ever notice, so
+     it says so loudly rather than leaving it to be discovered by the
+     customer. */
+  const stranded = users.filter(u => relay.stranded(u));
+
   res.send(adminLayout('Users & trials', `
+    ${stranded.length ? `
+    <div style="background:#2a1208;border:1px solid #7a3a12;border-left:3px solid #ff8f3f;
+                border-radius:.5rem;padding:.9rem 1.1rem;margin:0 0 1.2rem">
+      <b style="color:#ffb37a">${stranded.length} account${stranded.length === 1 ? '' : 's'}
+      paid for an overlay that has since been withdrawn, and ${stranded.length === 1 ? 'has' : 'have'}
+      nothing left to run.</b>
+      <div style="margin-top:.4rem;line-height:1.6">
+        ${stranded.map(u => `<a href="/admin/grant?email=${encodeURIComponent(u.email)}">${esc(u.email)}</a>
+           <span class="muted">— owned ${esc(relay.retiredOwned(u).map(g => relay.RETIRED[g]).join(', '))}</span>`).join('<br>')}
+      </div>
+      <div class="muted" style="margin-top:.5rem">
+        They can still sign in, but the launcher has nothing to offer them and the download is
+        refused. Give them another overlay, or refund them — clicking an email above opens the
+        page that does the first.
+      </div>
+    </div>` : ''}
     <h3 class="sec">Right now</h3>
     <div class="tiles">
       ${tile('On the site now', `<span id="liveN">${nowOnline.length}</span>`, 'green', 'updates on its own')}
@@ -1506,8 +1639,8 @@ app.get('/admin', requireAdmin, async (req, res) => {
        : 'Everyone has accepted the terms.'}
     </p>
     <table>
-      <thead><tr><th>Email</th><th>Donut name</th><th>Status</th><th>Plan</th><th>Owns forever</th><th>Trial started</th><th>Trial ends</th><th>Renews / ended</th><th>Signed up</th><th>Terms accepted</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="10" class="muted">No accounts yet.</td></tr>'}</tbody>
+      <thead><tr><th>Email</th><th>Donut name</th><th>Discord</th><th>Status</th><th>Plan</th><th>Owns forever</th><th>Trial started</th><th>Trial ends</th><th>Renews / ended</th><th>Signed up</th><th>Terms accepted</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="11" class="muted">No accounts yet.</td></tr>'}</tbody>
     </table>
     <script>
       /* Refresh only the live bits. Reloading the whole page every few
@@ -1634,6 +1767,10 @@ async function applyGrant(email, games, revoke) {
 
   const changed = setPerm(user, picks, revoke);
   await user.save();
+  /* Giving somebody an overlay by hand should earn them the owner role
+     the same as buying one would, and taking it away should take the
+     role back. */
+  await discord.sync(user, relay).catch(e => console.error('[discord]', e.message));
 
   /* Only worth a row if something actually changed — clicking Give twice
      should not leave two identical entries in the history. */
@@ -1665,7 +1802,7 @@ async function applyGrant(email, games, revoke) {
   };
 }
 
-function grantPage(msg, bad, email, owned, owners) {
+function grantPage(msg, bad, email, owned, owners, sub) {
   const has = new Set((owned || []).map(o => o.game));
   const boxes = relay.GAMES.map(g =>
     `<label style="display:flex;align-items:center;gap:.5rem;margin:.4rem 0">
@@ -1697,6 +1834,40 @@ function grantPage(msg, bad, email, owned, owners) {
     </table>`
     : `<p class="muted" style="margin-top:1.6rem">${esc(email)} does not own any overlays outright.</p>`);
 
+  /* The subscription, and what survives cancelling it. Put next to the
+     overlays they own outright on purpose: the whole point is that the
+     two are different, and reading them side by side is what stops
+     somebody being told the wrong thing on a support message. */
+  const subs = !sub ? '' : `
+    <h3 class="sec" style="margin-top:1.8rem">${esc(email)}'s membership</h3>
+    <table style="max-width:40rem">
+      <tbody>
+        <tr><td class="muted" style="width:12rem">Status</td>
+            <td><span class="pill ${esc(sub.status)}">${esc(sub.status)}</span>
+                ${sub.live ? '<span class="muted"> — their overlays work right now</span>'
+                           : '<span class="muted"> — the monthly is not covering anything</span>'}</td></tr>
+        <tr><td class="muted">Plan</td><td>${esc(sub.plan || '—')}</td></tr>
+        <tr><td class="muted">Paid up until</td><td>${sub.ends ? fmtDate(sub.ends) : '—'}</td></tr>
+        <tr><td class="muted">Keeps if it ends</td>
+            <td>${sub.keeps.length
+                  ? esc(sub.keeps.join(', ')) + ' <span class="muted">— bought outright, never taken away</span>'
+                  : '<span class="muted">nothing — every overlay they have comes from the monthly</span>'}</td></tr>
+      </tbody>
+    </table>
+    ${sub.hasStripe ? `
+    <form method="post" action="/admin/grant" style="margin-top:.9rem;display:flex;gap:.6rem;flex-wrap:wrap">
+      <input type="hidden" name="email" value="${esc(email)}">
+      <button name="action" value="cancelend">Cancel at the end of what they paid for</button>
+      <button name="action" value="cancelnow" style="border-color:#5a2626;color:#ff8f8f">Cancel right now</button>
+    </form>
+    <p class="muted" style="margin-top:.5rem;max-width:40rem">
+      The first is the fair one — they have paid for this month, so they keep it until the month
+      is up. Use the second only alongside a refund, where letting them carry on streaming on
+      money that is going back to them is the wrong outcome. Neither touches anything they
+      bought outright.
+    </p>` : `<p class="muted" style="margin-top:.6rem">No Stripe subscription on this account, so
+      there is nothing to cancel. Anything they own came from a one-off purchase or from here.</p>`}`;
+
   return adminLayout('Give an overlay', `
     ${msg ? `<p style="padding:.7rem 1rem;border-radius:.5rem;margin:0 0 1rem;
         background:${bad ? '#3a1414' : '#0f3320'};color:${bad ? '#ff8f8f' : '#5be89a'}">${esc(msg)}</p>` : ''}
@@ -1721,6 +1892,7 @@ function grantPage(msg, bad, email, owned, owners) {
       </div>
     </form>
     ${owns}
+    ${subs}
     ${owners ? ownersTable(owners) : ''}`);
 }
 
@@ -1766,7 +1938,71 @@ async function lookUp(email) {
   if (!clean) return { error: 'enter an email' };
   const user = await User.findOne({ email: clean });
   if (!user) return { error: `no account here with the email ${clean}` };
-  return { owned: ownedList(user) };
+  return { owned: ownedList(user), sub: subState(user) };
+}
+
+/* What the subscription on an account is doing, in terms somebody
+   answering a support message can act on. Deliberately separate from the
+   overlays they own outright, because the two behave completely
+   differently when a subscription ends and confusing them is how a
+   customer gets told the wrong thing. */
+function subState(user) {
+  return {
+    status: user.status || 'none',
+    plan: user.plan || null,
+    ends: user.currentPeriodEnd || null,
+    hasStripe: !!user.stripeSubscriptionId,
+    live: relay.entitled(user),
+    /* What they would still have tomorrow if it stopped tonight. This is
+       the number that answers "will cancelling break their stream". */
+    keeps: relay.permOf(user).map(g => GAME_NAMES[g] || g),
+  };
+}
+
+/* Cancelling somebody's subscription from here rather than asking them
+   to do it themselves.
+  
+   Two kinds, because they are not interchangeable:
+  
+   · at period end — they have paid for this month, so they keep it until
+     the month they bought is over. The fair default, and the one Stripe
+     itself calls cancel_at_period_end.
+   · right now — for a refund or a chargeback, where letting them keep
+     streaming on money that is going back to them is the wrong outcome.
+  
+   Either way, anything they bought OUTRIGHT is untouched. That is not a
+   detail: taking away an overlay somebody paid once for, because a
+   separate monthly payment ended, would be the single worst bug this
+   site could have. */
+async function cancelSub(email, now) {
+  if (!stripe) return { error: 'Stripe is not set up on this server' };
+  const clean = String(email || '').trim().toLowerCase();
+  const user = await User.findOne({ email: clean });
+  if (!user) return { error: `no account here with the email ${clean}` };
+  if (!user.stripeSubscriptionId) return { error: `${clean} has no subscription to cancel` };
+
+  try {
+    const sub = now
+      ? await stripe.subscriptions.cancel(user.stripeSubscriptionId)
+      : await stripe.subscriptions.update(user.stripeSubscriptionId, { cancel_at_period_end: true });
+    /* Written straight away rather than waiting for the webhook. The
+       webhook will say the same thing a second later, but somebody
+       standing at this page needs the answer now, not eventually. */
+    await applySubscriptionToUser(user, sub);
+    const keeps = relay.permOf(user);
+    return {
+      ok: now
+        ? `${clean} is cancelled as of right now.`
+        : `${clean} will not be charged again. It keeps working until ${
+            user.currentPeriodEnd ? fmtDate(user.currentPeriodEnd) : 'the end of the period they paid for'}.`,
+      note: keeps.length
+        ? `They keep ${keeps.map(g => GAME_NAMES[g] || g).join(', ')} — bought outright, not affected.`
+        : 'They own nothing outright, so their overlays stop when this does.',
+    };
+  } catch (err) {
+    console.error('[cancel]', err.message);
+    return { error: 'Stripe would not cancel it: ' + err.message };
+  }
 }
 
 app.get('/admin/grant', requireAdmin, async (req, res) => {
@@ -1791,14 +2027,23 @@ app.post('/admin/grant', requireAdmin, async (req, res) => {
       const owners = await allOwners();
       return res.send(r.error
         ? grantPage(r.error, true, email, null, owners)
-        : grantPage(null, false, email, r.owned, owners));
+        : grantPage(null, false, email, r.owned, owners, r.sub));
+    }
+    if (req.body.action === 'cancelend' || req.body.action === 'cancelnow') {
+      const c = await cancelSub(email, req.body.action === 'cancelnow');
+      const after = await lookUp(email);
+      const owners = await allOwners();
+      return res.send(grantPage(
+        c.error || (c.ok + (c.note ? '  ' + c.note : '')), !!c.error,
+        email, after.owned || null, owners, after.sub));
     }
     const r = await applyGrant(email, req.body.games, req.body.action === 'revoke');
     /* Read the owners list AFTER the change, so the table below reflects
        what you just did rather than what was true a moment ago. */
     const owners = await allOwners();
     if (r.error) return res.send(grantPage(r.error, true, email, null, owners));
-    res.send(grantPage(r.ok, false, email, r.owned, owners));
+    const after = await lookUp(email);
+    res.send(grantPage(r.ok, false, email, r.owned, owners, after.sub));
   } catch (err) {
     console.error('[grant] error', err);
     res.send(grantPage('Something went wrong — check the server logs.', true, email, null, null));
