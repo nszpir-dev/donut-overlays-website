@@ -218,12 +218,18 @@ const relayHasAnything = hasAnything;
  */
 /* One connection per GAME, not per account.
  *
- * It used to be one per account, and the newest always won. That was
- * right when every overlay read the same Minecraft chat and running two
- * at once was a mistake worth stopping. The Follow Reel reads TikTok
- * instead, so running it alongside a board is an ordinary thing to want —
+ * It used to be one per account, and the newest always won — which was
+ * right while every overlay read the same Minecraft chat, because
+ * running two at once really was a mistake worth stopping. It stopped
+ * being right the moment an overlay existed that read something else,
  * and under the old rule the second launcher silently knocked the first
- * one's hosted link offline.
+ * one's hosted link offline with nothing on screen to explain it.
+ *
+ * That overlay has since been withdrawn, and this stays as it is. The
+ * per-account rule was only ever correct by coincidence — it happened to
+ * match what the overlays of the day did — and reverting to it would
+ * buy nothing except the same trap for the next overlay that reads a
+ * different source.
  *
  * Still exactly one launcher per game, though. Two windows both pushing
  * the board would have the overlay flicking between two different rounds,
