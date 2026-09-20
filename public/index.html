@@ -321,10 +321,11 @@ section:last-of-type{padding-bottom:2.4rem}
 .sec-head p{color:var(--muted);margin-top:.9rem;line-height:1.7}
 
 /* ---------- games ---------- */
-/* Five games. Still two across, which keeps each card wide enough to read
-   — the odd one out simply sits on its own at the end rather than being
-   stretched across the row, because a card twice the width of its
-   neighbours reads as a feature rather than a fifth of a set. */
+/* Four games, two across — which now comes out as an even pair of rows.
+   The comment here used to explain how a fifth card sat on its own at
+   the end; there is no fifth any more, and a note describing a layout
+   that no longer happens is worse than no note, because the next person
+   to read it goes looking for the case it describes. */
 .games{display:grid;grid-template-columns:repeat(2,1fr);gap:1.6rem 2rem}
 @media(max-width:760px){.games{grid-template-columns:1fr}}
 .game{display:flex;flex-direction:column;border-top:2px solid var(--line);padding-top:1.1rem}
@@ -332,7 +333,6 @@ section:last-of-type{padding-bottom:2.4rem}
 .game:nth-child(2){border-top-color:var(--gold)}
 .game:nth-child(3){border-top-color:var(--violet)}
 .game:nth-child(4){border-top-color:#35e0ff}
-.game:nth-child(5){border-top-color:var(--pink)}
 .game .shot{height:180px;display:flex;align-items:center;justify-content:flex-start}
 .game .body{padding:.9rem 0 0;display:flex;flex-direction:column;gap:.7rem;flex:1}
 .game h3{font-size:2rem}
@@ -718,8 +718,8 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 <section id="games">
   <div class="wrap">
     <div class="sec-head">
-      <h2>Five games, <em>one setup</em></h2>
-      <p>Four of them read your Minecraft chat directly, so payments land on screen without you typing anything. The fifth reads your TikTok follows.</p>
+      <h2>Four games, <em>one setup</em></h2>
+      <p>All four read your Minecraft chat directly, so payments land on screen without you typing anything. One launcher, one link each, and nothing to type mid-stream.</p>
     </div>
     <div class="games">
       <div class="game">
