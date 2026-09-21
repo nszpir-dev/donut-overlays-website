@@ -98,7 +98,12 @@ function authUrl(redirectUri, state) {
     client_id: CFG.clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: 'identify',
+    /* identify   — who they are, and nothing else about them.
+       guilds.join — lets the bot add them to YOUR server as part of the
+                     same click, so linking and joining are one step
+                     instead of an invite link they may never open.
+       Neither reads their messages, their other servers, or their email. */
+    scope: 'identify guilds.join',
     state,
     prompt: 'none',
   });
@@ -128,7 +133,11 @@ async function whoIs(code, redirectUri) {
     const me = await call('/users/@me', { headers: { Authorization: 'Bearer ' + tok.access_token } });
     if (!me.ok) return { error: 'Discord would not say who that is (' + me.status + ')' };
     const u = await me.json();
-    return { id: u.id, username: u.global_name || u.username || u.id };
+    /* The access token is handed back only so the caller can use it once,
+       straight away, to add them to the server. It is never stored:
+       keeping somebody's Discord token around after the one thing it was
+       asked for would be holding a key nobody needs. */
+    return { id: u.id, username: u.global_name || u.username || u.id, accessToken: tok.access_token };
   } catch (err) {
     return { error: 'could not reach Discord (' + err.message + ')' };
   }
@@ -149,6 +158,36 @@ async function setRole(discordId, roleId, on) {
     if (res.status === 403) return { error: 'the bot cannot manage that role — move the bot\'s role above it' };
     if (res.status === 429) return { error: 'Discord is rate limiting; it will be retried on the next change' };
     return { error: 'Discord said ' + res.status };
+  } catch (err) {
+    return { error: 'could not reach Discord (' + err.message + ')' };
+  }
+}
+
+/**
+ * Put somebody in the server, using the permission they just granted.
+ *
+ * This is what lets the Discord icon on the site do both jobs at once.
+ * Without it, linking tells us who they are but leaves them outside the
+ * server, where a role cannot be given to them at all.
+ *
+ * 201 means they were added, 204 means they were already in — both are
+ * success. Anything else is reported, never thrown: failing to join must
+ * not stop the link itself from being saved.
+ */
+async function joinGuild(discordId, accessToken) {
+  if (!CFG.botToken || !CFG.guildId || !discordId || !accessToken) return { skipped: true };
+  try {
+    const res = await call(`/guilds/${CFG.guildId}/members/${discordId}`, {
+      method: 'PUT',
+      headers: botHeaders(),
+      body: JSON.stringify({ access_token: accessToken }),
+    });
+    if (res.status === 201) return { ok: true, joined: true };
+    if (res.status === 204) return { ok: true, joined: false };
+    if (res.status === 403) {
+      return { error: 'the bot needs the "Create Invite" permission in your server to add people' };
+    }
+    return { error: 'Discord said ' + res.status + ' when adding them to the server' };
   } catch (err) {
     return { error: 'could not reach Discord (' + err.message + ')' };
   }
@@ -212,4 +251,4 @@ async function sync(user, relay) {
   return out;
 }
 
-module.exports = { authUrl, whoIs, setRole, sync, canLink, canRole, CFG };
+module.exports = { authUrl, whoIs, joinGuild, setRole, sync, canLink, canRole, CFG };

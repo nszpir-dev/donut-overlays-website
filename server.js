@@ -649,6 +649,11 @@ app.get('/api/me', auth, (req, res) => {
        the terms have changed since they last agreed. */
     needsTerms: !u.terms || u.terms.version !== TERMS_VERSION,
     termsVersion: TERMS_VERSION,
+    /* For the Discord icon in the header, which works for anybody signed
+       in — not only people with overlays — because joining the server is
+       worth doing before you have bought anything. Null when linking is
+       not switched on, so the icon falls back to a plain invite. */
+    discord: discord.canLink() ? { linked: !!u.discordId, name: u.discordName || '' } : null,
   });
 });
 
@@ -961,14 +966,19 @@ app.get('/auth/discord/callback', async (req, res) => {
     user.discordName = who.username;
     await user.save();
 
-    /* Give them whatever they have already earned, immediately. Somebody
-       who bought last week and links today should not have to wait for
-       their next payment to get the role. */
+    /* Into the server first — a role cannot be given to somebody who is
+       not in it. Then give them whatever they have already earned, so
+       somebody who bought last week and links today does not wait for
+       their next payment to get it. */
+    const joined = await discord.joinGuild(who.id, who.accessToken);
     const r = await discord.sync(user, relay);
     const failed = Object.values(r || {}).find(x => x && x.error);
-    return back(failed
-      ? `Linked as ${who.username}, but the role could not be given: ${failed.error}`
-      : `Linked as ${who.username}.`, true);
+
+    let msg = `Linked as ${who.username}`;
+    if (joined.joined) msg += ' and added to the Discord';
+    if (joined.error) msg += `, but could not add you to the Discord (${joined.error})`;
+    else if (failed) msg += `, but the role could not be given: ${failed.error}`;
+    return back(msg + '.', true);
   } catch (err) {
     console.error('[discord] callback', err);
     return back('Something went wrong linking Discord.', false);
