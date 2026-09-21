@@ -45,9 +45,14 @@ const CFG = {
   clientSecret: process.env.DISCORD_CLIENT_SECRET || '',
   botToken:     process.env.DISCORD_BOT_TOKEN || '',
   guildId:      process.env.DISCORD_GUILD_ID || '',
-  /* One role for "is a paying customer", which is what most servers
-     actually want. Set this and the two below can be left empty. */
+  /* Somebody who is actually paying: a live monthly, or an overlay
+     bought outright. Not somebody on the free trial — they have not
+     paid anything yet, and that is exactly the line this role draws. */
   roleCustomer: process.env.DISCORD_ROLE_CUSTOMER || '',
+  /* Somebody on the free trial, and only while they are. The moment the
+     trial converts to a payment they move from this role to Customer on
+     their own, because Stripe tells us and we re-check. */
+  roleTrial:    process.env.DISCORD_ROLE_TRIAL || '',
   /* And the finer split, for a server that wants to tell a live
      subscriber apart from somebody who bought an overlay outright.
      Optional; most people will never set these. */
@@ -60,7 +65,7 @@ const CFG = {
    bot. Reported separately so the site can say which half is on. */
 const canLink  = () => !!(CFG.clientId && CFG.clientSecret);
 const canRole  = () => !!(CFG.botToken && CFG.guildId
-  && (CFG.roleCustomer || CFG.roleSub || CFG.roleOwner));
+  && (CFG.roleCustomer || CFG.roleTrial || CFG.roleSub || CFG.roleOwner));
 
 /* Every call to Discord goes through here: one timeout, one place that
    knows a 429 is not an error worth shouting about, and one place that
@@ -179,9 +184,24 @@ async function sync(user, relay) {
     if (!roleId) return;
     want.set(roleId, (want.get(roleId) || false) || yes);
   };
-  rule(CFG.roleCustomer, relay.hasAnything(user));
+  /* Paying, trying, or neither — and never both of the first two.
+  
+     past_due counts as paying. It means the card failed and Stripe is
+     retrying, and the overlays keep working through that on purpose; a
+     Discord role that disappeared while the overlay carried on would be
+     the two halves of the product disagreeing about whether somebody is
+     a customer. When the retries run out, both stop together.
+  
+     Somebody on a trial who ALSO bought an overlay outright has paid, so
+     they are a Customer and not a Trial. */
+  const owns   = relay.permOf(user).length > 0;
+  const paying = owns || ['active', 'past_due'].includes(user.status);
+  const trying = !paying && user.status === 'trialing';
+
+  rule(CFG.roleCustomer, paying);
+  rule(CFG.roleTrial,    trying);
   rule(CFG.roleSub,      relay.entitled(user));
-  rule(CFG.roleOwner,    relay.permOf(user).length > 0);
+  rule(CFG.roleOwner,    owns);
 
   const out = {};
   try {

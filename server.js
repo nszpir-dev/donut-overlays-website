@@ -980,7 +980,7 @@ app.post('/api/discord/unlink', auth, async (req, res) => {
   if (user.discordId) {
     /* Take the roles back BEFORE forgetting who they were, or there is
        nobody left to take them from. */
-    for (const roleId of [discord.CFG.roleCustomer, discord.CFG.roleSub, discord.CFG.roleOwner]) {
+    for (const roleId of [discord.CFG.roleCustomer, discord.CFG.roleTrial, discord.CFG.roleSub, discord.CFG.roleOwner]) {
       if (roleId) { try { await discord.setRole(user.discordId, roleId, false); } catch {} }
     }
   }
