@@ -45,6 +45,12 @@ const CFG = {
   clientSecret: process.env.DISCORD_CLIENT_SECRET || '',
   botToken:     process.env.DISCORD_BOT_TOKEN || '',
   guildId:      process.env.DISCORD_GUILD_ID || '',
+  /* One role for "is a paying customer", which is what most servers
+     actually want. Set this and the two below can be left empty. */
+  roleCustomer: process.env.DISCORD_ROLE_CUSTOMER || '',
+  /* And the finer split, for a server that wants to tell a live
+     subscriber apart from somebody who bought an overlay outright.
+     Optional; most people will never set these. */
   roleSub:      process.env.DISCORD_ROLE_SUB || '',
   roleOwner:    process.env.DISCORD_ROLE_OWNER || '',
 };
@@ -53,7 +59,8 @@ const CFG = {
    the Discord name on the admin page and nothing more. Roles need the
    bot. Reported separately so the site can say which half is on. */
 const canLink  = () => !!(CFG.clientId && CFG.clientSecret);
-const canRole  = () => !!(CFG.botToken && CFG.guildId && (CFG.roleSub || CFG.roleOwner));
+const canRole  = () => !!(CFG.botToken && CFG.guildId
+  && (CFG.roleCustomer || CFG.roleSub || CFG.roleOwner));
 
 /* Every call to Discord goes through here: one timeout, one place that
    knows a 429 is not an error worth shouting about, and one place that
@@ -156,14 +163,29 @@ async function setRole(discordId, roleId, on) {
  */
 async function sync(user, relay) {
   if (!canRole() || !user || !user.discordId) return { skipped: true };
+
+  /* Three rules, and any of them can point at the same role id.
+  
+     That last part is why this is a map rather than three calls in a
+     row. Somebody setting up a single "Customer" role by putting the
+     same id in two of the settings is doing an obvious thing, and
+     applying the rules one after another would have the second undo the
+     first: a live subscriber who owns nothing outright would be given
+     the role by one rule and have it taken straight back by the next,
+     ending up without it. Deciding per ROLE rather than per rule makes
+     every combination safe, including the ones nobody thought of. */
+  const want = new Map();
+  const rule = (roleId, yes) => {
+    if (!roleId) return;
+    want.set(roleId, (want.get(roleId) || false) || yes);
+  };
+  rule(CFG.roleCustomer, relay.hasAnything(user));
+  rule(CFG.roleSub,      relay.entitled(user));
+  rule(CFG.roleOwner,    relay.permOf(user).length > 0);
+
   const out = {};
   try {
-    if (CFG.roleSub) {
-      out.sub = await setRole(user.discordId, CFG.roleSub, relay.entitled(user));
-    }
-    if (CFG.roleOwner) {
-      out.owner = await setRole(user.discordId, CFG.roleOwner, relay.permOf(user).length > 0);
-    }
+    for (const [roleId, yes] of want) out[roleId] = await setRole(user.discordId, roleId, yes);
   } catch (err) {
     return { error: err.message };
   }
