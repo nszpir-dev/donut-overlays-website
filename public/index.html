@@ -245,6 +245,15 @@ nav a:hover{color:var(--text)}
   box-shadow:0 .3rem .9rem rgba(88,101,242,.4);
 }
 .icon-btn:hover{background:#6b76f5}
+/* A green dot once their Discord is linked, so the icon says at a glance
+   whether there is still something to do. Positioned on the button so it
+   moves with it on a narrow header. */
+.icon-btn{position:relative}
+.icon-btn.linked::after{
+  content:"";position:absolute;right:-.15rem;bottom:-.15rem;
+  width:.8rem;height:.8rem;border-radius:50%;
+  background:#3ddc84;border:2px solid #0b0f18;
+}
 .icon-btn svg{width:1.7rem;height:1.7rem;fill:#ffffff}
 .cur{position:relative;display:inline-flex;align-items:center}
 .cur::after{                       /* our own arrow, since the native one is ugly */
@@ -1528,7 +1537,7 @@ function paintAccount(){
       </span>
       <button class="btn btn-ghost btn-sm" id="logoutBtn">Log out</button>`;
     document.getElementById('logoutBtn').onclick = () => {
-      me = null; store.del('me'); paintAccount(); paintReviewForm(); loadReviews();
+      me = null; store.del('me'); paintAccount(); paintReviewForm(); loadReviews(); paintDiscordIcon();
     };
     refreshMe();
   } else {
@@ -1572,6 +1581,8 @@ async function refreshMe(){
     setCta(data.status, data.perm);
     /* Kept on `me` so the picker can grey out what they already own. */
     me.perm = data.perm || [];
+    me.discord = data.discord || null;
+    paintDiscordIcon();
     paintSetup();   // turn the example links into their real ones
     if(data.needsTerms) askForTerms();
     const el = document.getElementById('acctState');
@@ -1826,7 +1837,7 @@ document.getElementById('termsAgreeGo').onclick = async () => {
 };
 document.getElementById('termsLogout').onclick = () => {
   document.getElementById('termsSheet').classList.remove('open');
-  me = null; store.del('me'); paintAccount(); paintReviewForm(); loadReviews();
+  me = null; store.del('me'); paintAccount(); paintReviewForm(); loadReviews(); paintDiscordIcon();
 };
 
 /* Arriving from the email link. */
@@ -1840,8 +1851,49 @@ document.getElementById('termsLogout').onclick = () => {
 /* ---------------- discord gate ----------------
    Honour system for now: it remembers that they clicked through.
    Swap for Discord login later if people start dodging it. */
-function joinedDiscord(){ return store.get('joined') === 'yes'; }
-document.getElementById('discordIcon').onclick = () => window.open(DISCORD_INVITE, '_blank');
+/* Somebody who linked through the header icon was added to the server by
+   the bot, so asking "have you joined?" before checkout is asking a
+   question we already know the answer to. The honour-system tick still
+   counts for everybody else. */
+function joinedDiscord(){
+  return store.get('joined') === 'yes' || !!(me && me.discord && me.discord.linked);
+}
+/* The header Discord icon, which does one of two things:
+  
+   · signed in, linking switched on, not yet linked — links their Discord
+     AND adds them to the server in the same click, so they arrive with
+     the right role already on. This is the one place everybody looks for
+     Discord, so it is where the link belongs.
+   · everybody else — opens the server, as it always has.
+  
+   The link state comes from /api/me and is kept on `me.discord`. Until
+   that answer arrives the icon behaves as a plain invite, which is the
+   safe way round: nobody is ever sent into a sign-in that cannot work. */
+function paintDiscordIcon(){
+  const b = document.getElementById('discordIcon');
+  const d = me && me.discord;
+  const linked = !!(d && d.linked);
+  b.classList.toggle('linked', linked);
+  const label = !d ? 'Join the Discord'
+    : linked ? 'Open the Discord' + (d.name ? ' (linked as ' + d.name + ')' : '')
+    : 'Link your Discord and join the server';
+  b.title = label;
+  b.setAttribute('aria-label', label);
+}
+document.getElementById('discordIcon').onclick = async () => {
+  const d = me && me.discord;
+  if(!d || d.linked) return window.open(DISCORD_INVITE, '_blank');
+  try {
+    const r = await fetch(API + '/api/discord/start', { method:'POST', headers: authHeader() });
+    const out = await r.json();
+    if(!r.ok || !out.url) throw new Error(out.error || 'could not start');
+    location.href = out.url;
+  } catch(e){
+    /* Linking is unavailable for some reason — do not strand them on a
+       button that does nothing; fall back to the invite. */
+    window.open(DISCORD_INVITE, '_blank');
+  }
+};
 document.getElementById('discordClose').onclick = () => document.getElementById('discordSheet').classList.remove('open');
 document.getElementById('discordGo').onclick = () => window.open(DISCORD_INVITE, '_blank');
 document.getElementById('discordDone').onclick = () => {
