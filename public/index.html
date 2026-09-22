@@ -330,11 +330,10 @@ section:last-of-type{padding-bottom:2.4rem}
 .sec-head p{color:var(--muted);margin-top:.9rem;line-height:1.7}
 
 /* ---------- games ---------- */
-/* Four games, two across — which now comes out as an even pair of rows.
-   The comment here used to explain how a fifth card sat on its own at
-   the end; there is no fifth any more, and a note describing a layout
-   that no longer happens is worse than no note, because the next person
-   to read it goes looking for the case it describes. */
+/* Five games, two across, and the fifth takes the whole last row rather
+   than sitting in a half-width column with a hole beside it. That also
+   gives the newest game the biggest picture on the page, which is where
+   a new game earns its keep. */
 .games{display:grid;grid-template-columns:repeat(2,1fr);gap:1.6rem 2rem}
 @media(max-width:760px){.games{grid-template-columns:1fr}}
 .game{display:flex;flex-direction:column;border-top:2px solid var(--line);padding-top:1.1rem}
@@ -342,6 +341,24 @@ section:last-of-type{padding-bottom:2.4rem}
 .game:nth-child(2){border-top-color:var(--gold)}
 .game:nth-child(3){border-top-color:var(--violet)}
 .game:nth-child(4){border-top-color:#35e0ff}
+.game:nth-child(5){border-top-color:#4d7cff}
+@media(min-width:761px){
+  .games .game:nth-child(5){grid-column:1 / -1;flex-direction:row;gap:2.2rem;align-items:center}
+  .games .game:nth-child(5) .shot{flex:none;width:44%;height:230px;justify-content:center}
+  .games .game:nth-child(5) .shot .mini{max-width:320px}
+  .games .game:nth-child(5) .body{padding-top:0}
+  .games .game:nth-child(5) .row{flex:none}
+  /* Not flex:1 like the stacked cards: across a full-width row that
+     would stretch two buttons to the width of the page. A fixed, equal
+     pair reads as the same control as on every other card. */
+  .games .game:nth-child(5) .btn{flex:0 0 auto;min-width:10.5rem}
+}
+/* the little "new" flag beside a heading */
+.tag-new{
+  display:inline-block;vertical-align:middle;margin-left:.6rem;
+  font:800 .62rem/1 Karla,sans-serif;letter-spacing:.18em;text-transform:uppercase;
+  color:#061024;background:#4d7cff;border-radius:.25rem;padding:.3rem .45rem;
+}
 .game .shot{height:180px;display:flex;align-items:center;justify-content:flex-start}
 .game .body{padding:.9rem 0 0;display:flex;flex-direction:column;gap:.7rem;flex:1}
 .game h3{font-size:2rem}
@@ -705,7 +722,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
       <p class="trial-note">$5 a month, or buy the overlays outright. Works with TikTok LIVE Studio, Twitch and YouTube.</p>
       <div class="counts">
         <div><b>0.1s</b><span>payment to screen</span></div>
-        <div><b>4</b><span>games to choose from</span></div>
+        <div><b>5</b><span>games to choose from</span></div>
         <div><b>5 min</b><span>to set up</span></div>
       </div>
     </div>
@@ -727,8 +744,8 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 <section id="games">
   <div class="wrap">
     <div class="sec-head">
-      <h2>Four games, <em>one setup</em></h2>
-      <p>All four read your Minecraft chat directly, so payments land on screen without you typing anything. One launcher, one link each, and nothing to type mid-stream.</p>
+      <h2>Five games, <em>one setup</em></h2>
+      <p>All five read your Minecraft chat directly, so payments land on screen without you typing anything. One launcher, one link each, and nothing to type mid-stream.</p>
     </div>
     <div class="games">
       <div class="game">
@@ -772,6 +789,17 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
           <div class="row">
             <button class="btn btn-ghost" data-customize="lastcall">Customise</button>
             <button class="btn btn-ghost" data-links="lastcall">Get links</button>
+          </div>
+        </div>
+      </div>
+      <div class="game">
+        <div class="shot"><div class="mini" id="pv-crown"></div></div>
+        <div class="body">
+          <h3>Hold the Crown<span class="tag-new">New</span></h3>
+          <p>One crown, one price to take it. A clock counts how long each person has worn it across the whole round, and the first to reach your target takes the pot. Time wins it, not the biggest payment — so there is a reason to pay at every moment, not only at the end.</p>
+          <div class="row">
+            <button class="btn btn-ghost" data-customize="crown">Customise</button>
+            <button class="btn btn-ghost" data-links="crown">Get links</button>
           </div>
         </div>
       </div>
@@ -1278,6 +1306,23 @@ function previewHTML(kind, opt){
       ${compact ? '' : `<div class="lbl" style="font-size:${fs(.5)};margin-top:.4rem">Snatched back 4 times</div>`}
     </div>`;
   }
+  if(kind === 'crown'){
+    /* The opposite of Last Call on purpose: the bar FILLS instead of
+       draining, and the number under the head is a time going up rather
+       than money. Somebody scrolling past should be able to tell the two
+       games apart without reading a word. */
+    return `<div class="cardish" style="--pv-accent:${a}">
+      <div class="lbl" style="font-size:${fs(.55)}">Wearing the crown</div>
+      <div class="rowline" style="margin-top:.25rem"><img src="${head(n1,32)}" alt="">
+        <span class="who" style="font-size:${fs(1.3)}">${n1}</span>
+        <span class="who" style="font-size:${fs(1)};margin-left:auto;color:#ffd76a">1:12</span></div>
+      <div class="drainbar"><i style="width:58%;background:linear-gradient(90deg,${a},#ffd76a)"></i></div>
+      <div class="rowline" style="margin-top:.15rem">
+        <span class="lbl" style="font-size:${fs(.5)}">Winner takes</span>
+        <span class="big" style="font-size:${fs(1.6)};margin-left:auto">$42M</span></div>
+      ${compact ? '' : `<div class="lbl" style="font-size:${fs(.5)};margin-top:.4rem">2nd ${n2} 0:54 · 3rd ${NAMES[2] || 'player'} 0:21</div>`}
+    </div>`;
+  }
   return `<div class="cardish" style="--pv-accent:${a}">
     <div class="lbl" style="font-size:${fs(.55)}">Total pot</div>
     <div class="big" style="font-size:${fs(2.4)}">$11M</div>
@@ -1294,11 +1339,13 @@ const opts = {
   /* Matches the colour Last Call actually ships with, so the preview is
      honest before anyone has picked anything. */
   lastcall:{ ...base, accent:'#35e0ff' },
+  /* The royal blue Hold the Crown ships with, for the same reason. */
+  crown:   { ...base, accent:'#4d7cff' },
 };
 /* One list, used by the previews, the loader and the saver. Adding a game
    in three separate places is how the customiser quietly stopped covering
    Last Call in the first place. */
-const LOOK_GAMES = ['board','auction','money','lastcall'];
+const LOOK_GAMES = ['board','auction','money','lastcall','crown'];
 const STOCK_ART = '/chicken.png';
 const paint = k => document.getElementById('pv-' + k).innerHTML = previewHTML(k, opts[k]);
 LOOK_GAMES.forEach(paint);
@@ -1402,7 +1449,8 @@ document.querySelectorAll('[data-customize]').forEach(b => b.onclick = () => {
   editing = b.dataset.customize;
   document.getElementById('sheetTitle').textContent =
     'Customise ' + ({board:'the elimination board', auction:'the auction',
-                     money:'the money game', lastcall:'Last Call'})[editing];
+                     money:'the money game', lastcall:'Last Call',
+                     crown:'Hold the Crown'})[editing];
   sheet.classList.add('open');
   refreshSheet();
 });
@@ -1882,15 +1930,19 @@ function paintDiscordIcon(){
 }
 document.getElementById('discordIcon').onclick = async () => {
   const d = me && me.discord;
-  if(!d || d.linked) return window.open(DISCORD_INVITE, '_blank');
+  /* Logged out, or already linked: just the server. */
+  if(!me || (d && d.linked)) return window.open(DISCORD_INVITE, '_blank');
+  /* Logged in and not linked — always try, even if /api/me did not
+     mention Discord, so a missing setting shows up as a message instead
+     of the icon quietly acting like a plain invite. */
   try {
     const r = await fetch(API + '/api/discord/start', { method:'POST', headers: authHeader() });
-    const out = await r.json();
-    if(!r.ok || !out.url) throw new Error(out.error || 'could not start');
+    let out = {};
+    try { out = await r.json(); } catch {}
+    if(!r.ok || !out.url) throw new Error(out.error || ('the server said ' + r.status));
     location.href = out.url;
   } catch(e){
-    /* Linking is unavailable for some reason — do not strand them on a
-       button that does nothing; fall back to the invite. */
+    alert('Could not link your Discord: ' + e.message + '\n\nOpening the server invite instead.');
     window.open(DISCORD_INVITE, '_blank');
   }
 };
@@ -1928,6 +1980,7 @@ const GAMES = [
   { id:'auction', name:'Donut Auction', blurb:'Live item auctions. Highest bid before the clock runs out takes it.' },
   { id:'money',   name:'Money Game',    blurb:'You seed a pot, biggest single payment before the timer takes it.' },
   { id:'lastcall',name:'Last Call',     blurb:'Everyone builds one pot. Every payment resets a 10 second clock \u2014 whoever paid last when it runs out takes the lot.' },
+  { id:'crown',   name:'Hold the Crown', blurb:'Pay the minimum to take the crown. Longest total time wearing it wins the pot \u2014 timing beats the biggest payment.' },
 ];
 
 /* Draw a list of overlay buttons with `chosen` highlighted. Shared by the
