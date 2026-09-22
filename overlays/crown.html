@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hold the Crown — wear it longest and take the pot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@500;600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+<style>
+/* Hold the Crown is a throne room: deep royal blue, gold on top of it.
+   Last Call is violet and about time running OUT; this one is about
+   time adding UP, so the signature is a bar that FILLS rather than
+   drains, and the card warms toward gold as somebody closes on the
+   win. Nobody should mistake the two on a thumbnail. */
+:root{
+  --ink:#050a18;
+  --ink-2:#0b1330;
+  --edge:#27407a;
+  --gold:#ffd76a;
+  --gold-2:#f0b429;
+  --cream:#eef3ff;
+  --muted:#96a7cf;
+  /* the royal blue is this overlay's identity, so it is also what the
+     customiser on the website recolours. Light and dark shades are
+     separate variables rather than a colour function, because the
+     browser inside OBS is often a few versions behind and color-mix()
+     would silently render nothing there. */
+  --royal:#4d7cff;
+  --royal-1:#8fb0ff;
+  --royal-2:#2a4fd4;
+  --heat:var(--royal);
+  font-size:18px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;width:100%;overflow:hidden}
+body{
+  background:var(--ink);
+  font-family:'Oswald',system-ui,sans-serif;
+  color:var(--cream);-webkit-font-smoothing:antialiased;
+}
+body.transparent{background:transparent}
+body.chroma{background:#00b140}
+
+#stage{
+  position:fixed;top:0;right:0;bottom:0;left:0;
+  display:flex;flex-direction:column;
+  padding:.9rem;gap:0;justify-content:flex-start;
+}
+#board{
+  width:100%;max-width:var(--cardw,19rem);margin:0 auto;
+  display:flex;flex-direction:column;gap:.42rem;
+  background:linear-gradient(180deg,#0e1738,#050a18);
+  border:.16rem solid var(--edge);
+  border-radius:.7rem;
+  padding:.8rem .9rem .95rem;
+  box-shadow:0 .5rem 1.8rem rgba(0,0,0,.8), inset 0 .08rem 0 rgba(255,255,255,.07);
+  max-height:100%;overflow:hidden;
+}
+body.clearbg #board{background:rgba(5,10,24,.6);border-color:rgba(39,64,122,.6)}
+#board.close{border-color:var(--gold);box-shadow:0 .5rem 1.8rem rgba(0,0,0,.8),0 0 1.6rem rgba(255,215,106,.28)}
+
+/* ---------- top line ---------- */
+#topline{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:.76rem;font-weight:700;letter-spacing:.26em;text-transform:uppercase;
+  color:var(--muted);border-bottom:.1rem solid var(--edge);padding-bottom:.32rem;
+}
+#topline .ttl{color:var(--cream);display:flex;align-items:center;gap:.4rem}
+#topline .ttl::before{
+  content:'';width:.42rem;height:.42rem;border-radius:50%;
+  background:var(--heat);box-shadow:0 0 .5rem var(--heat);
+  animation:blip 1.1s ease-in-out infinite;
+}
+@keyframes blip{0%,100%{opacity:1}50%{opacity:.25}}
+@media(prefers-reduced-motion:reduce){#topline .ttl::before{animation:none}}
+#lotVouch{font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:.06em;color:var(--gold)}
+
+/* ---------- who is wearing it ----------
+   The head is the biggest thing on the card on purpose: this game is
+   about a person, not a number, and the head is what a viewer
+   recognises from three feet away. */
+#holderRow{
+  position:relative;display:flex;align-items:center;gap:.7rem;
+  background:linear-gradient(180deg,rgba(20,34,80,.95),rgba(7,12,30,.95));
+  border:.1rem solid var(--edge);border-radius:.5rem;padding:.55rem .65rem;
+}
+#holderRow.empty{opacity:.75}
+#holderRow.won{border-color:var(--gold);background:linear-gradient(180deg,rgba(70,52,18,.95),rgba(26,18,6,.95));
+  box-shadow:0 0 1.4rem rgba(255,215,106,.3)}
+#ringWrap{
+  position:relative;flex:none;width:4.1rem;height:4.1rem;border-radius:.4rem;padding:.18rem;
+  background:var(--heat);
+}
+#holderRow.won #ringWrap{background:var(--gold)}
+/* the little crown sitting on the head */
+#ringWrap::after{
+  content:'♛';position:absolute;top:-.85rem;left:50%;transform:translateX(-50%);
+  font-size:1.15rem;line-height:1;color:var(--gold);
+  text-shadow:0 .1rem .35rem rgba(0,0,0,.9);
+}
+#holderRow.empty #ringWrap::after{opacity:.35}
+#face{
+  width:100%;height:100%;border-radius:.28rem;
+  background:#0b1330 center/cover no-repeat;image-rendering:pixelated;
+}
+#holderInfo{min-width:0;flex:1}
+#holderLabel{font-size:.62rem;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:var(--muted)}
+#holderRow.won #holderLabel{color:var(--gold)}
+#who{
+  /* --fit is set by fitName(), so a 16-character name shrinks instead
+     of turning into "mrchicke…" — the holder's name is the point. */
+  font-family:'Bebas Neue',sans-serif;font-size:calc(2.2rem * var(--fit,1));
+  line-height:1;color:#fff;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  text-shadow:0 .08rem .2rem rgba(0,0,0,.8);
+}
+#paidLine{font-size:.82rem;font-weight:700;color:var(--muted)}
+#needLine{font-family:'Bebas Neue',sans-serif;font-size:1.8rem;line-height:1;color:var(--gold);letter-spacing:.02em}
+
+/* ---------- the clock, and the bar filling under it ----------
+   It counts UP, and the bar fills toward the win. That is the whole
+   difference between this game and Last Call, so it is the thing the
+   card is built around. */
+#clockWrap{text-align:center;margin:.1rem 0 0}
+#bigClock{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:6.6rem;line-height:.82;letter-spacing:.005em;
+  color:var(--cream);font-variant-numeric:tabular-nums;
+  text-shadow:0 .14rem .5rem rgba(0,0,0,.9);
+}
+#board.close #bigClock{color:var(--gold);text-shadow:0 .14rem .5rem rgba(0,0,0,.9),0 0 2.2rem var(--gold)}
+#clockSub{
+  font-size:.66rem;font-weight:700;letter-spacing:.3em;text-transform:uppercase;
+  color:var(--muted);margin-top:.05rem;
+}
+#fill{
+  position:relative;height:.62rem;border-radius:.4rem;overflow:hidden;
+  background:#15224a;border:.08rem solid var(--edge);margin-top:.4rem;
+}
+#fillBar{
+  position:absolute;inset:0;transform-origin:left center;
+  background:linear-gradient(90deg,var(--heat),var(--gold));
+  box-shadow:0 0 .8rem var(--heat);
+  transform:scaleX(var(--w,0));transition:transform .18s linear;
+}
+/* the crown changing hands is the moment worth animating */
+#fill.snap #fillBar{animation:took .45s cubic-bezier(.2,.9,.25,1)}
+@keyframes took{from{filter:brightness(2.4)}to{filter:none}}
+#board.close{animation:none}
+@media(prefers-reduced-motion:reduce){#fill.snap #fillBar{animation:none}}
+
+/* ---------- pot, minimum, steals ---------- */
+#statStrip{
+  display:flex;align-items:center;justify-content:space-between;gap:.55rem;
+  font-size:.66rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);
+}
+#statStrip b{font-family:'Bebas Neue',sans-serif;font-size:1.45rem;letter-spacing:.03em;
+  font-weight:400;display:block;margin-top:-.1rem}
+#potAmount{color:var(--gold)}
+#minAmount,#steals{color:var(--cream)}
+#statStrip .sep{width:.08rem;align-self:stretch;background:var(--edge)}
+
+/* ---------- the top three ----------
+   Not a nice-to-have: it is the scoreboard. Without it the game looks
+   like one person wearing a crown, and there is no visible reason for
+   anybody else to pay. */
+#podium{display:flex;flex-direction:column;gap:.22rem;min-height:0}
+#podiumHead{font-size:.62rem;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+.pr{
+  display:flex;align-items:center;gap:.4rem;
+  background:rgba(39,64,122,.32);border:.08rem solid var(--edge);
+  border-radius:.34rem;padding:.2rem .36rem;position:relative;overflow:hidden;
+}
+/* a bar behind each row showing how far along they are */
+.pr .bar{position:absolute;left:0;top:0;bottom:0;background:rgba(77,124,255,.28);width:0}
+.pr.lead .bar{background:rgba(255,215,106,.26)}
+.pr > *{position:relative}
+.pr .rank{font-family:'Bebas Neue',sans-serif;font-size:1.05rem;color:var(--muted);width:.9rem;text-align:center}
+.pr.lead .rank{color:var(--gold)}
+.pr img{width:1.3rem;height:1.3rem;border-radius:.18rem;image-rendering:pixelated;flex:none}
+.pr .n{font-size:.82rem;font-weight:700;color:var(--cream);flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pr .t{font-family:'Bebas Neue',sans-serif;font-size:1.2rem;letter-spacing:.02em;color:var(--gold);
+  font-variant-numeric:tabular-nums}
+.pr.crowned .n::after{content:' ♛';color:var(--gold)}
+
+#cta{
+  text-align:center;font-size:.95rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:#050a18;background:linear-gradient(180deg,var(--royal-1),var(--royal-2));
+  padding:.4rem;border-radius:.3rem;
+  box-shadow:0 .25rem .7rem rgba(0,0,0,.5);
+}
+#cta.quiet{background:rgba(39,64,122,.4);color:var(--muted);border:.1rem solid var(--edge)}
+#cta.over{background:linear-gradient(180deg,#ffe08a,#f0b429);color:#2a1c00}
+.hidden{display:none !important}
+#brand{
+  position:fixed;bottom:.3rem;left:0;right:0;text-align:center;
+  font-size:.7rem;font-weight:700;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;
+  pointer-events:none;
+}
+
+/* ---------- compact: holder, clock, top three ---------- */
+body.compact #brand{display:none}
+body.compact #board{padding:.55rem .65rem .7rem;gap:.3rem}
+body.compact #topline{font-size:.68rem;padding-bottom:.25rem}
+body.compact #bigClock{font-size:5.4rem}
+body.compact #fill{height:.5rem}
+body.compact #holderRow{padding:.42rem .5rem;gap:.55rem}
+body.compact #ringWrap{width:3.4rem;height:3.4rem}
+body.compact #who{font-size:calc(1.9rem * var(--fit,1))}
+body.compact #needLine{font-size:1.55rem}
+body.compact #statStrip b{font-size:1.25rem}
+body.compact .pr img{width:1.15rem;height:1.15rem}
+
+/* ---------- operator panel (light on purpose) ---------- */
+#op{
+  position:fixed;top:0;right:0;bottom:0;width:min(26rem,420px);max-width:100%;
+  background:#eef3fa;border-left:3px solid #33475f;
+  transform:translateX(101%);transition:transform .22s ease;
+  z-index:50;display:flex;flex-direction:column;font-size:.82rem;color:#0b1526;
+}
+#op.open{transform:none}
+#opTab{
+  position:fixed;top:.6rem;right:.6rem;z-index:51;
+  background:#fff;color:#0b1526;border:3px solid #17a34a;border-radius:.5rem;
+  padding:.6rem 1rem;font:900 .9rem Nunito,sans-serif;cursor:pointer;letter-spacing:.04em;
+  box-shadow:0 .2rem .7rem rgba(0,0,0,.55);
+}
+#opClose{
+  width:100%;background:#ffe3e3;color:#8a1111;border:2px solid #d33;border-radius:.4rem;
+  padding:.6rem;font:900 .85rem Nunito,sans-serif;cursor:pointer;margin-bottom:.8rem;
+}
+#op .body{padding:.9rem 1rem 3rem;overflow-y:auto}
+#op h3{font-size:.8rem;font-weight:900;color:#0b1526;margin:1.1rem 0 .15rem;
+  padding-left:.5rem;border-left:.28rem solid #17a34a}
+#op h3:first-of-type{margin-top:0}
+#op .hint{font-size:.72rem;color:#42546e;margin:0 0 .45rem;line-height:1.35}
+#op label{display:block;font-size:.7rem;font-weight:800;color:#33475f;margin-bottom:.15rem}
+#op input,#op select{
+  width:100%;-webkit-appearance:none;appearance:none;
+  background:#fff;color:#0b1526;caret-color:#0b1526;
+  border:2px solid #7b93b8;border-radius:.4rem;padding:.5rem .55rem;
+  font:800 .85rem Nunito,sans-serif;
+}
+#op input::placeholder{color:#5b6880;font-weight:700}
+#op input:focus,#op select:focus{outline:3px solid #17a34a}
+.row{display:flex;gap:.45rem;margin-bottom:.45rem}
+.row>*{flex:1}
+button.act{
+  background:#dce7f6;color:#0b1526;border:2px solid #5b7699;border-radius:.4rem;
+  padding:.55rem .5rem;font:900 .82rem Nunito,sans-serif;cursor:pointer;
+}
+button.act.pri{background:#cfeeda;border-color:#17a34a}
+button.act.warn{background:#ffdada;border-color:#d33}
+button.act.gold{background:#ffedbf;border-color:#c8930d}
+button.act:active{transform:scale(.97)}
+#log,#shortList,#tally{
+  background:#fff;border:2px solid #7b93b8;border-radius:.4rem;padding:.45rem .5rem;
+  font:800 .75rem/1.6 Nunito,sans-serif;color:#26374d;max-height:13rem;overflow-y:auto;
+}
+#tally{font-size:.95rem;line-height:1.8;margin-bottom:.45rem}
+#tally b{font-size:1.05rem}
+/* one line per payment that bought nothing, with the button that
+   returns it. The command is printed in full so it can be copied
+   straight into Minecraft. */
+.sb{display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid #e3eaf4}
+.sb:last-child{border-bottom:none}
+.sb .who{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sb .amt{color:#0b6b34}
+.sb.back{opacity:.55}
+.sb button{
+  background:#ffedbf;border:2px solid #c8930d;border-radius:.3rem;
+  padding:.25rem .45rem;font:900 .7rem Nunito,sans-serif;cursor:pointer;flex:none;
+}
+.sb .done{font-size:.7rem;font-weight:900;color:#8a1111;flex:none}
+#payout{
+  background:#cfeeda;border:2px solid #17a34a;border-radius:.4rem;
+  padding:.6rem .7rem;margin-bottom:.45rem;color:#0b1526;
+}
+#payout .big{font:900 1.6rem/1.1 Nunito,sans-serif;color:#0b6b34}
+#payout .cmd{
+  display:block;margin-top:.35rem;padding:.35rem .45rem;background:#fff;
+  border:1px solid #7b93b8;border-radius:.3rem;
+  font:800 .95rem ui-monospace,monospace;color:#0b1526;word-break:break-all;
+}
+#payout .none{color:#42546e;font-weight:800}
+.pill-status{display:inline-block;padding:.15rem .45rem;border-radius:.3rem;
+  font-size:.68rem;font-weight:900;vertical-align:middle}
+.ok{background:#cfeeda;color:#0b6b34;border:1px solid #17a34a}
+.bad{background:#ffdada;color:#8a1111;border:1px solid #d33}
+@media (max-width:640px){
+  #op{font-size:1rem}
+  #op input,#op select,button.act{font-size:1rem;padding:.7rem .6rem}
+  #opTab{font-size:1.05rem;padding:.75rem 1.15rem}
+}
+
+/* ---------- end-of-game credit ---------- */
+#credit{
+  flex-direction:column;align-items:center;gap:.06rem;
+  border-radius:.5rem;
+  background:rgba(5,10,24,.85);
+  border:.1rem solid rgba(255,215,106,.55);
+  text-align:center;pointer-events:none;
+}
+#credit .l1{font-weight:800;color:#e4ebf8;letter-spacing:.02em;line-height:1.25}
+#credit .l2{
+  font-weight:900;color:#ffc93c;letter-spacing:.03em;line-height:1.2;
+  text-shadow:0 0 .9rem rgba(255,201,60,.5);
+}
+@keyframes creditIn{from{opacity:0;transform:translateY(.45rem)}to{opacity:1;transform:none}}
+#credit{
+  display:none;margin-top:.15rem;padding:.5rem .7rem .56rem;
+  animation:creditIn .5s ease both;
+  order:99;
+}
+#credit.show{display:flex}
+#credit .l1{font-size:.92rem}
+#credit .l2{font-size:1.38rem}
+body.compact #credit{padding:.42rem .6rem .48rem}
+body.compact #credit .l1{font-size:.86rem}
+body.compact #credit .l2{font-size:1.42rem}
+</style>
+</head>
+<body>
+
+<div id="stage">
+ <div id="board">
+  <div id="topline">
+    <span class="ttl">Hold the Crown</span>
+    <span id="lotVouch">★ 6</span>
+  </div>
+
+  <div id="holderRow" class="empty">
+    <div id="ringWrap">
+      <div id="face"></div>
+    </div>
+    <div id="holderInfo">
+      <div id="holderLabel">Wearing the crown</div>
+      <div id="who">Nobody yet</div>
+      <div id="paidLine"></div>
+      <div id="needLine"></div>
+    </div>
+  </div>
+
+  <div id="clockWrap">
+    <div id="bigClock">0:00</div>
+    <div id="clockSub">on the crown</div>
+  </div>
+  <div id="fill"><div id="fillBar"></div></div>
+
+  <div id="statStrip">
+    <div><span id="potLabel">Winner takes</span><b id="potAmount">$0</b></div>
+    <div class="sep"></div>
+    <div style="text-align:center"><span>To steal</span><b id="minAmount">$0</b></div>
+    <div class="sep"></div>
+    <div style="text-align:right"><span>Steals</span><b id="steals">0</b></div>
+  </div>
+
+  <div id="podium">
+    <div id="podiumHead">Longest on the crown</div>
+    <div id="podiumRows"></div>
+  </div>
+
+  <div id="cta" class="quiet">Waiting for the next round</div>
+  <div id="credit" aria-hidden="true">
+    <div class="l1">Thanks for playing Hold the Crown on</div>
+    <div class="l2">donutoverlays.com</div>
+  </div>
+ </div>
+</div>
+
+<div id="brand">/pay <span id="brandName">mrchicken75</span> to take the crown</div>
+
+<button id="opTab">☰ CONTROLS</button>
+<aside id="op">
+  <div class="body">
+    <button id="opClose">✕ Close controls</button>
+
+    <h3>1 · Run the round <span id="linkPill" class="pill-status bad">not connected</span></h3>
+    <p class="hint">The minimum is a price, not a bid — paying more than it buys exactly the same crown.</p>
+    <div class="row">
+      <div><label>You put in to start</label><input id="fSeed" value="0" placeholder="0 = nothing"></div>
+      <div><label>Minimum to steal</label><input id="fMin" value="1m"></div>
+    </div>
+    <div class="row">
+      <div><label>Time on it to win</label><input id="fTarget" value="120" placeholder="seconds"></div>
+      <div><label>Your cut %</label><input id="fCut" value="0"></div>
+    </div>
+    <div class="row">
+      <button class="act pri" id="bOpen">▶ Start round</button>
+      <button class="act warn" id="bEnd">⏹ End now</button>
+    </div>
+    <div class="row">
+      <button class="act" id="bPause">⏸ Pause</button>
+      <button class="act warn" id="bReset">♻ Clear round</button>
+    </div>
+
+    <h3>2 · Pay the winner</h3>
+    <div id="payout"></div>
+    <div class="row"><button class="act gold" id="bCopyPay">📋 Copy the /pay command</button></div>
+    <div id="tally"></div>
+
+    <h3>3 · Add a payment by hand</h3>
+    <p class="hint">Only needed if a payment did not show up on its own.</p>
+    <div class="row"><input id="fName" placeholder="Minecraft username" autocomplete="off"></div>
+    <div class="row">
+      <input id="fAmt" placeholder="amount — 4m or 4000000">
+      <button class="act pri" id="bBid">Add</button>
+    </div>
+    <div class="row"><button class="act" id="bUndo">↩ Undo last payment</button></div>
+
+    <h3>4 · Payments that bought nothing</h3>
+    <p class="hint">Under the minimum, or paid when no round was running. The money is yours — give it back here if you would rather.</p>
+    <div class="row">
+      <label style="flex:2;display:flex;align-items:center;gap:.4rem;margin:0">
+        <input type="checkbox" id="fShortPot" style="width:auto" checked>
+        <span>Small payments go in the pot</span>
+      </label>
+    </div>
+    <div id="shortList"></div>
+    <div class="row"><button class="act" id="bClearShort">Hide the ones given back</button></div>
+
+    <h3>5 · Look</h3>
+    <div class="row">
+      <div style="flex:2"><label>Vouches ★</label><input id="fVouch" value="6"></div>
+      <div><button class="act" data-vouch="1" style="margin-top:1.05rem">+1</button></div>
+    </div>
+    <div class="row">
+      <div><label>Your Minecraft name</label><input id="fIgn" value="mrchicken75"></div>
+    </div>
+    <div class="row">
+      <div><label>Card width</label>
+        <select id="cWidth">
+          <option value="16">Narrow</option>
+          <option value="19" selected>Standard</option>
+          <option value="24">Wide</option>
+          <option value="100">Full width</option>
+        </select>
+      </div>
+      <div><label>Layout</label>
+        <select id="cLayout">
+          <option value="compact" selected>Compact</option>
+          <option value="full">Everything</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Text size</label>
+        <select id="cSize">
+          <option value="1">Normal</option>
+          <option value="1.15" selected>Big</option>
+          <option value="1.35">Huge</option>
+        </select>
+      </div>
+      <div><label>Card background</label>
+        <select id="cCard">
+          <option value="solid" selected>Solid</option>
+          <option value="clear">See-through</option>
+        </select>
+      </div>
+    </div>
+
+    <h3>6 · What has happened</h3>
+    <div id="log"></div>
+  </div>
+</aside>
+
+<script>
+/* =========================================================
+   Hold the Crown — longest total time on the crown wins
+   /            control panel
+   /display     overlay for LIVE Studio
+   The relay runs the round; this page only draws it. The rules are
+   repeated here so the html still plays on its own, and are kept
+   deliberately side by side with the relay's so a change to one is
+   obvious in the other.
+   ========================================================= */
+const qs = new URLSearchParams(location.search);
+const DISPLAY = /^\/(display|overlay)/i.test(location.pathname) || qs.get('role') === 'display';
+const el = id => document.getElementById(id);
+
+let C = {
+  phase:'idle', seed:0, minPay:1000000, cutPct:0, targetSec:120, shortToPot:true,
+  pot:0, holder:null, held:{}, firstAt:{}, pays:[], shorts:[], givenBack:0, kept:0,
+  steals:0, winner:null, paused:false,
+  vouches:6, uiScale:1.15, layout:'compact', cardW:19
+};
+let ign = 'mrchicken75', ws = null, serverMode = false;
+/* The relay's clock minus ours. Everything that counts time up is
+   measured against the relay's own clock, so a hosted overlay on a PC
+   whose clock is a few seconds out still shows the right number. */
+let skew = 0;
+const now = () => Date.now() + skew;
+
+/* ---------- helpers ---------- */
+function parseAmount(t){
+  if(!t) return 0;
+  t = String(t).toLowerCase().replace(/[\s,$_]/g,'');
+  const m = t.match(/^(\d+(?:\.\d+)?)([kmbt])?$/);
+  if(!m) return 0;
+  return Math.floor(parseFloat(m[1]) * ({k:1e3,m:1e6,b:1e9,t:1e12}[m[2]] || 1));
+}
+const trim = v => (Math.round(v*100)/100).toString();
+function money(n){
+  n = Math.floor(n || 0);
+  if(n >= 1e12) return '$' + trim(n/1e12) + 'T';
+  if(n >= 1e9)  return '$' + trim(n/1e9) + 'B';
+  if(n >= 1e6)  return '$' + trim(n/1e6) + 'M';
+  if(n >= 1e3)  return '$' + trim(n/1e3) + 'K';
+  return '$' + n;
+}
+const clock = ms => {
+  const s = Math.max(0, Math.floor(ms/1000));
+  return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0');
+};
+const headURL = (n, s) => `https://minotar.net/helm/${encodeURIComponent(n)}/${s}.png`;
+const headAlt = (n, s) => `https://mc-heads.net/avatar/${encodeURIComponent(n)}/${s}`;
+const faceCache = new Map();
+const faceSources = [
+  (n, s) => `https://minotar.net/helm/${encodeURIComponent(n)}/${s}.png`,
+  (n, s) => `https://mc-heads.net/avatar/${encodeURIComponent(n)}/${s}`,
+  (n, s) => `https://api.mineatar.io/face/${encodeURIComponent(n)}?scale=8`,
+];
+/* Drawn here, not fetched, so there is always a head in the same frame
+   the name appears. Colour comes from the name, so the same person is
+   always the same colour. */
+function initialTile(name){
+  const hue = [...String(name)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+    <rect width="64" height="64" fill="hsl(${hue},42%,26%)"/>
+    <text x="32" y="44" font-family="sans-serif" font-size="34" font-weight="900"
+      fill="hsl(${hue},70%,78%)" text-anchor="middle">${(String(name)[0]||'?').toUpperCase()}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+function setFace(node, name, size){
+  const key = String(name).toLowerCase() + ':' + size;
+  const hit = faceCache.get(key);
+  if(hit) return void (node.style.backgroundImage = `url("${hit}")`);
+  node.dataset.face = key;
+  node.style.backgroundImage = `url("${initialTile(name)}")`;
+  let done = false;
+  for(const src of faceSources){
+    const url = src(name, size);
+    const img = new Image();
+    img.onload = () => {
+      if(done) return;
+      done = true;
+      faceCache.set(key, url);
+      if(node.dataset.face === key) node.style.backgroundImage = `url("${url}")`;
+    };
+    img.onerror = () => {};
+    img.src = url;
+  }
+}
+/* Fetch a head before it is needed — called when a payment arrives, so
+   by the time they take the crown it is already in the cache and
+   appears in the same frame. */
+function warmFace(name, size){
+  const key = String(name).toLowerCase() + ':' + size;
+  if(faceCache.has(key)) return;
+  setFace(document.createElement('div'), name, size);
+}
+function log(t){
+  const f = el('log'); if(!f) return;
+  const d = document.createElement('div');
+  d.textContent = new Date().toLocaleTimeString([], {hour12:false}) + '  ' + t;
+  f.prepend(d);
+  while(f.children.length > 40) f.lastChild.remove();
+}
+const payout  = () => Math.floor(C.pot * (100 - C.cutPct) / 100);
+const yourCut = () => C.pot - payout() + (C.kept || 0);
+const targetMs = () => Math.max(1000, (C.targetSec || 120) * 1000);
+
+function heldMs(name){
+  let ms = (C.held && C.held[name]) || 0;
+  if(C.holder && C.holder.name === name && C.phase === 'live' && !C.paused){
+    ms += Math.max(0, now() - C.holder.since);
+  }
+  return ms;
+}
+function standings(){
+  const names = new Set(Object.keys(C.held || {}));
+  if(C.holder) names.add(C.holder.name);
+  return [...names]
+    .map(name => ({ name, ms: heldMs(name), firstAt: (C.firstAt||{})[name] || 0 }))
+    .sort((a, b) => b.ms - a.ms || a.firstAt - b.firstAt);
+}
+
+/* ---------- local engine (used when the relay isn't answering) ---------- */
+let localId = 1;
+function bank(){
+  if(!C.holder || C.phase !== 'live' || C.paused) return;
+  C.held[C.holder.name] = (C.held[C.holder.name] || 0) + Math.max(0, now() - C.holder.since);
+  C.holder.since = now();
+}
+function localOpen(o){
+  Object.assign(C, o || {});
+  C.phase = 'live'; C.pot = C.seed || 0;
+  C.holder = null; C.held = {}; C.firstAt = {}; C.pays = []; C.shorts = [];
+  C.givenBack = 0; C.kept = 0; C.steals = 0; C.winner = null; C.paused = false;
+  log(`round open · pot ${money(C.pot)}`); render();
+}
+function localPay(name, amount){
+  name = String(name || '').trim().replace(/[^A-Za-z0-9_]/g,'').slice(0,16);
+  amount = Math.floor(Number(amount) || 0);
+  if(!name || amount <= 0) return;
+  if(C.phase !== 'live'){
+    C.shorts.unshift({id:localId++, name, amount, at:now(), why:'no round running', back:false});
+    C.kept += amount;
+    log(`${name} ${money(amount)} — nothing running, kept for you`); return render();
+  }
+  if(amount < C.minPay){
+    C.shorts.unshift({id:localId++, name, amount, at:now(), why:'under the minimum', back:false});
+    if(C.shortToPot) C.pot += amount; else C.kept += amount;
+    log(`${name} ${money(amount)} — under the ${money(C.minPay)} minimum`); return render();
+  }
+  C.pot += amount;
+  if(C.holder && C.holder.name === name){
+    C.pays.unshift({id:localId++, name, amount, at:now(), took:false, topup:true});
+    log(`${name} ${money(amount)} — already holding it, clock untouched`); return render();
+  }
+  bank();
+  const from = C.holder;
+  C.pays.unshift({id:localId++, name, amount, at:now(), took:true, topup:false});
+  C.holder = {name, amount, since:now(), prev: from ? {name:from.name, amount:from.amount, since:from.since, prev:from.prev} : null};
+  if(!C.firstAt[name]) C.firstAt[name] = now();
+  if(C.held[name] == null) C.held[name] = 0;
+  C.steals++;
+  log(`${name} ${money(amount)} — takes the crown`);
+  snapBar(); render(); localCheck();
+}
+function localCheck(){
+  if(C.phase !== 'live' || C.paused || !C.holder) return;
+  if(heldMs(C.holder.name) < targetMs()) return;
+  bank();
+  const name = C.holder.name;
+  C.phase = 'done'; C.winner = {name, ms: C.held[name] || 0};
+  log(`${name} wins ${money(payout())}`); render();
+}
+function localEnd(){
+  if(C.phase === 'done') return;
+  bank();
+  const top = standings()[0];
+  C.phase = 'done';
+  C.winner = top && top.ms > 0 ? {name: top.name, ms: top.ms} : null;
+  log('round over'); render();
+}
+function localReset(){
+  C = Object.assign({}, C, {phase:'idle', pot:0, holder:null, held:{}, firstAt:{}, pays:[],
+    shorts:[], givenBack:0, kept:0, steals:0, winner:null, paused:false});
+  log('cleared'); render();
+}
+function localPause(){
+  if(C.paused){ C.paused = false; if(C.holder) C.holder.since = now(); }
+  else { bank(); C.paused = true; }
+  render();
+}
+setInterval(() => { if(!serverMode) localCheck(); }, 100);
+
+/* ---------- drawing ---------- */
+var creditTimer = null, creditOn = null;
+function setCredit(on){
+  on = !!on;
+  if(on === creditOn) return;
+  creditOn = on;
+  clearTimeout(creditTimer);
+  var box = el('credit');
+  if(!box) return;
+  if(on) creditTimer = setTimeout(function(){ box.classList.add('show'); }, 1400);
+  else box.classList.remove('show');
+}
+
+function render(){
+  el('potAmount').textContent = money(payout());
+  el('potLabel').textContent = C.phase === 'done' ? 'Winner took' : 'Winner takes';
+  el('minAmount').textContent = money(C.minPay);
+  el('steals').textContent = C.steals || 0;
+  el('lotVouch').textContent = '★ ' + C.vouches;
+  el('brandName').textContent = ign;
+
+  const row = el('holderRow');
+  const shown = C.phase === 'done' && C.winner ? {name: C.winner.name} : C.holder;
+  row.className = C.phase === 'done' && C.winner ? 'won' : (C.holder ? '' : 'empty');
+  setCredit(C.phase === 'done');
+  el('holderLabel').textContent = C.phase === 'done' && C.winner ? 'Winner' : 'Wearing the crown';
+
+  if(shown){
+    el('who').textContent = shown.name;
+    fitName();
+    if(C.phase === 'done' && C.winner){
+      el('paidLine').textContent = 'held it for ' + clock(C.winner.ms);
+      el('needLine').textContent = 'won ' + money(payout());
+    } else {
+      el('paidLine').textContent = 'paid ' + money(C.holder.amount);
+      const left = Math.max(0, targetMs() - heldMs(C.holder.name));
+      el('needLine').textContent = clock(left) + ' more to win';
+    }
+    if(el('face').dataset.n !== shown.name){
+      el('face').dataset.n = shown.name;
+      setFace(el('face'), shown.name, 256);
+      for(const p of (C.pays || []).slice(0, 5)) warmFace(p.name, 256);
+    }
+  } else {
+    el('who').textContent = C.phase === 'live' ? 'Nobody yet' : '—';
+    fitName();
+    el('paidLine').textContent = '';
+    el('needLine').textContent = '';
+    el('face').dataset.n = '';
+    el('face').style.backgroundImage = '';
+  }
+
+  const cta = el('cta');
+  cta.className = 'cta';
+  if(C.phase === 'done'){
+    cta.className = 'over';
+    cta.textContent = C.winner ? `${C.winner.name} won ${money(payout())}` : 'Nobody wore it — no winner';
+  } else if(C.paused){
+    cta.className = 'quiet'; cta.textContent = 'Paused — nobody\'s clock is running';
+  } else if(C.phase === 'live'){
+    cta.textContent = C.holder
+      ? `Pay ${money(C.minPay)} to take it off ${C.holder.name}`
+      : `Pay ${money(C.minPay)} to put the crown on`;
+  } else {
+    cta.className = 'quiet'; cta.textContent = 'Waiting for the next round';
+  }
+
+  paintPodium();
+  if(!DISPLAY) paintPanel();
+}
+
+/* The top three by time, with a bar behind each showing how close they
+   are to the win. Redrawn in place rather than rebuilt every frame, so
+   the heads do not flicker as the times tick up. */
+let podiumKey = '';
+function paintPodium(){
+  const list = standings().slice(0, 3);
+  el('podiumHead').classList.toggle('hidden', list.length === 0);
+  const key = list.map(p => p.name).join('|') + '/' + (C.holder ? C.holder.name : '');
+  const rows = el('podiumRows');
+  if(key !== podiumKey){
+    podiumKey = key;
+    rows.innerHTML = list.map((p, i) => `
+      <div class="pr${i === 0 ? ' lead' : ''}${C.holder && C.holder.name === p.name ? ' crowned' : ''}" data-n="${p.name}">
+        <div class="bar"></div>
+        <span class="rank">${i + 1}</span>
+        <img src="${headURL(p.name,32)}" onerror="this.onerror=null;this.src='${headAlt(p.name,32)}'" alt="">
+        <span class="n">${p.name}</span><span class="t">0:00</span>
+      </div>`).join('');
+  }
+  const kids = rows.children;
+  for(let i = 0; i < list.length && i < kids.length; i++){
+    const p = list[i];
+    kids[i].querySelector('.t').textContent = clock(p.ms);
+    kids[i].querySelector('.bar').style.width = Math.min(100, p.ms / targetMs() * 100).toFixed(1) + '%';
+  }
+}
+
+function paintPanel(){
+  el('tally').innerHTML =
+    `pot: <b>${money(C.pot)}</b><br>` +
+    `winner takes: <b style="color:#0b6b34">${money(payout())}</b> ` +
+    `<span style="color:#42546e">(after your ${C.cutPct}%)</span><br>` +
+    `you keep: <b>${money(yourCut())}</b>` +
+    (C.kept ? ` <span style="color:#42546e">(incl. ${money(C.kept)} that bought nothing)</span>` : '') +
+    (C.givenBack ? `<br><span style="color:#8a1111">given back: ${money(C.givenBack)}</span>` : '') +
+    `<br><span style="color:#42546e">${C.steals || 0} steals · win at ${clock(targetMs())} on the crown</span>`;
+
+  const pay = el('payout');
+  const w = C.phase === 'done' ? C.winner : (standings()[0] || null);
+  if(w){
+    const amt = payout();
+    pay.innerHTML =
+      `pay <b>${w.name}</b>` +
+      (C.phase === 'done' ? '' : ' <span style="color:#42546e">(ahead right now)</span>') + `<br>` +
+      `<span class="big">${money(amt)}</span> ` +
+      `<span style="color:#42546e">= ${amt.toLocaleString()}</span>` +
+      `<span class="cmd">/pay ${w.name} ${amt}</span>`;
+    pay.dataset.cmd = `/pay ${w.name} ${amt}`;
+  } else {
+    pay.innerHTML = '<span class="none">nobody has worn it yet</span>';
+    pay.dataset.cmd = '';
+  }
+
+  const list = el('shortList');
+  const shorts = (C.shorts || []).slice(0, 25);
+  list.innerHTML = shorts.length ? shorts.map(s => `
+    <div class="sb${s.back ? ' back' : ''}">
+      <span class="who">${s.name} <span class="amt">${money(s.amount)}</span>
+        <span style="color:#42546e">· ${s.why}</span></span>
+      ${s.back ? '<span class="done">given back</span>'
+               : `<button data-give="${s.id}" data-cmd="/pay ${s.name} ${s.amount}">Give back</button>`}
+    </div>`).join('') : '<span style="color:#42546e">none</span>';
+  list.querySelectorAll('[data-give]').forEach(b => b.onclick = () => {
+    const id = Number(b.dataset.give);
+    /* The command goes on the clipboard at the same moment, because
+       giving it back means typing it in Minecraft — and the person
+       doing that is mid-stream. */
+    navigator.clipboard && navigator.clipboard.writeText(b.dataset.cmd).catch(() => {});
+    log('give back: ' + b.dataset.cmd + '  (copied)');
+    if(!cmd('c.giveBack', {id})){
+      const s = C.shorts.find(x => x.id === id);
+      if(s && !s.back){
+        s.back = true;
+        if(s.why === 'under the minimum' && C.shortToPot) C.pot -= s.amount; else C.kept -= s.amount;
+        C.givenBack += s.amount;
+        render();
+      }
+    }
+  });
+}
+
+function fitName(){
+  const w = el('who');
+  w.style.setProperty('--fit', 1);
+  const room = w.clientWidth;
+  if(!room) return;
+  let f = 1;
+  for(let i = 0; i < 12 && w.scrollWidth > room + 1 && f > 0.55; i++){
+    f = Math.max(0.55, f * (room / w.scrollWidth) - 0.01);
+    w.style.setProperty('--fit', f);
+  }
+}
+addEventListener('resize', fitName);
+
+/* the clock counts UP toward the target, and the bar fills with it */
+function paintClock(){
+  const big = el('bigClock'), board = el('board');
+  const name = C.phase === 'done' && C.winner ? C.winner.name : (C.holder && C.holder.name);
+  const ms = name ? (C.phase === 'done' && C.winner ? C.winner.ms : heldMs(name)) : 0;
+  const frac = Math.max(0, Math.min(1, ms / targetMs()));
+
+  big.textContent = clock(ms);
+  el('clockSub').textContent =
+    C.phase === 'done' ? 'held it for' :
+    C.paused ? 'paused' :
+    C.phase === 'live' ? (name ? 'on the crown · ' + clock(targetMs()) + ' wins' : 'nobody is on it') :
+    'on the crown';
+  el('fillBar').style.setProperty('--w', frac.toFixed(4));
+
+  /* Close to the win: the card goes gold, so the last stretch is
+     obvious from across the room and chat has a reason to act. */
+  board.classList.toggle('close', C.phase === 'live' && frac >= 0.75);
+
+  /* Times and bars tick up on their own between relay messages. */
+  if(C.phase === 'live' && !C.paused && C.holder){
+    const line = el('needLine');
+    if(line && !(C.phase === 'done')) line.textContent = clock(Math.max(0, targetMs() - ms)) + ' more to win';
+    paintPodium();
+  }
+  requestAnimationFrame(paintClock);
+}
+
+function snapBar(){
+  const d = el('fill');
+  if(!d) return;
+  d.classList.remove('snap');
+  void d.offsetWidth;
+  d.classList.add('snap');
+}
+
+/* ---------- relay ---------- */
+function cmd(name, args){
+  if(serverMode && ws && ws.readyState === 1){
+    ws.send(JSON.stringify({t:'cmd', name, args: args || {}}));
+    return true;
+  }
+  return false;
+}
+function connect(){
+  let url = window.__OVERLAY_WS || (location.protocol === 'file:' ? 'ws://localhost:8095' : location.origin.replace(/^http/,'ws'));
+  try{ ws = new WebSocket(url); }catch(e){ return setLink(false); }
+  ws.onopen = () => setLink(true);
+  ws.onclose = () => { serverMode = false; setLink(false); setTimeout(connect, 2000); };
+  ws.onmessage = ev => {
+    let msg; try{ msg = JSON.parse(ev.data); }catch(e){ return; }
+    if(!msg.m) return;
+    serverMode = true; setLink(true);
+    if(typeof msg.sv === 'number') skew = msg.sv - Date.now();
+    const before = C.holder && C.holder.name + C.holder.since;
+    C = msg.m;
+    if(C.phase === 'live' && before !== (C.holder && C.holder.name + C.holder.since)) snapBar();
+    if(msg.s && msg.s.ign) ign = msg.s.ign;
+    syncFields();
+    document.body.classList.toggle('compact', (C.layout || 'compact') === 'compact');
+    applyWidth(C.cardW || 19);
+    fit();
+    render();
+  };
+}
+function setLink(ok){
+  const p = el('linkPill'); if(!p) return;
+  p.className = 'pill-status ' + (ok ? 'ok' : 'bad');
+  p.textContent = ok ? 'live' : 'not connected';
+}
+function syncFields(){
+  if(DISPLAY) return;
+  const set = (id, v) => { const n = el(id); if(n && document.activeElement !== n) n.value = v; };
+  set('fSeed', C.seed); set('fMin', C.minPay); set('fCut', C.cutPct);
+  set('fTarget', C.targetSec); set('fVouch', C.vouches); set('fIgn', ign);
+  const sp = el('fShortPot'); if(sp && document.activeElement !== sp) sp.checked = C.shortToPot !== false;
+  const sz = el('cSize'); if(sz && C.uiScale) sz.value = String(C.uiScale);
+  const ly = el('cLayout'); if(ly && C.layout) ly.value = C.layout;
+  const cw = el('cWidth'); if(cw && C.cardW) cw.value = String(C.cardW);
+}
+
+/* ---------- controls ---------- */
+function bindPanel(){
+  el('bOpen').onclick = () => {
+    const o = {
+      seed: parseAmount(el('fSeed').value) || 0,
+      minPay: Math.max(1, parseAmount(el('fMin').value) || 1),
+      cutPct: Math.min(100, Math.max(0, parseFloat(el('fCut').value) || 0)),
+      targetSec: Math.max(5, parseInt(el('fTarget').value) || 120),
+    };
+    if(!cmd('c.open', o)) localOpen(o);
+  };
+  el('bEnd').onclick = () => { if(!cmd('c.end')) localEnd(); };
+  el('bPause').onclick = () => { if(!cmd('c.pause')) localPause(); };
+  el('bReset').onclick = e => {
+    if(!e.target._armed){
+      e.target._armed = true;
+      e.target.textContent = '⚠ Tap again to clear';
+      setTimeout(() => { e.target._armed = false; e.target.textContent = '♻ Clear round'; }, 4000);
+      return;
+    }
+    e.target._armed = false; e.target.textContent = '♻ Clear round';
+    if(!cmd('c.reset')) localReset();
+  };
+  el('bBid').onclick = () => {
+    const name = el('fName').value.trim();
+    const amount = parseAmount(el('fAmt').value);
+    if(!name || !amount) return;
+    if(!cmd('c.pay', {name, amount})) localPay(name, amount);
+    el('fName').value = ''; el('fAmt').value = ''; el('fName').focus();
+  };
+  el('fAmt').addEventListener('keydown', e => e.key === 'Enter' && el('bBid').click());
+  el('fName').addEventListener('keydown', e => e.key === 'Enter' && el('fAmt').focus());
+  el('bUndo').onclick = () => { if(!cmd('c.undo')){ C.pays.shift(); render(); } };
+  el('bCopyPay').onclick = e => {
+    const text = el('payout').dataset.cmd;
+    if(!text) return;
+    navigator.clipboard.writeText(text)
+      .then(() => { e.target.textContent = '✓ Copied'; setTimeout(() => e.target.textContent = '📋 Copy the /pay command', 1500); })
+      .catch(() => log('copy failed — type it from the box above'));
+  };
+  el('bClearShort').onclick = () => {
+    if(!cmd('c.clearShort')){ C.shorts = C.shorts.filter(s => !s.back); render(); }
+  };
+  el('fShortPot').onchange = e => {
+    const v = !!e.target.checked;
+    if(!cmd('c.config', {shortToPot: v})){ C.shortToPot = v; render(); }
+  };
+  const setVouch = v => {
+    v = Math.max(0, v);
+    C.vouches = v;
+    el('fVouch').value = v;
+    cmd('c.config', {vouches: v});
+    render();
+  };
+  el('fVouch').oninput = e => setVouch(parseInt(e.target.value) || 0);
+  document.querySelectorAll('[data-vouch]').forEach(b =>
+    b.onclick = () => setVouch((C.vouches || 0) + Number(b.dataset.vouch)));
+  el('fCut').onchange = e => {
+    const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
+    if(!cmd('c.config', {cutPct: v})){ C.cutPct = v; render(); }
+  };
+  /* The minimum can be changed mid-round — the price of the crown from
+     here on. It never changes what anybody has already paid. */
+  el('fMin').onchange = e => {
+    const v = Math.max(1, parseAmount(e.target.value) || 1);
+    if(!cmd('c.config', {minPay: v})){ C.minPay = v; render(); }
+  };
+  el('fTarget').onchange = e => {
+    const v = Math.max(5, parseInt(e.target.value) || 120);
+    if(!cmd('c.config', {targetSec: v})){ C.targetSec = v; render(); }
+  };
+  el('fSeed').onchange = e => {
+    const v = parseAmount(e.target.value) || 0;
+    if(!cmd('c.config', {seed: v})){ C.seed = v; render(); }
+  };
+  el('fIgn').onchange = e => cmd('config', {ign: e.target.value.trim() || 'mrchicken75'});
+}
+
+function applyWidth(v){
+  const w = Number(v) || 19;
+  document.documentElement.style.setProperty('--cardw', w >= 100 ? '100%' : w + 'rem');
+}
+el('cWidth').onchange = e => {
+  C.cardW = Number(e.target.value);
+  cmd('c.config', {cardW: C.cardW});
+  applyWidth(C.cardW); render();
+};
+el('cLayout').onchange = e => {
+  C.layout = e.target.value;
+  cmd('c.config', {layout: C.layout});
+  document.body.classList.toggle('compact', C.layout === 'compact');
+  fit(); render();
+};
+el('cSize').onchange = e => {
+  C.uiScale = parseFloat(e.target.value) || 1;
+  cmd('c.config', {uiScale: C.uiScale});
+  fit(); render();
+};
+el('cCard').onchange = e => document.body.classList.toggle('clearbg', e.target.value === 'clear');
+el('opTab').onclick = () => el('op').classList.toggle('open');
+el('opClose').onclick = () => el('op').classList.remove('open');
+addEventListener('keydown', e => {
+  if(/input|select|textarea/i.test(e.target.tagName)) return;
+  if(e.key.toLowerCase() === 'p') el('op').classList.toggle('open');
+});
+
+function fit(){
+  const w = Math.min(innerWidth, innerHeight * 9/16);
+  const px = Math.min(30, Math.max(10, (w / 32) * (C.uiScale || 1)));
+  document.documentElement.style.fontSize = px + 'px';
+  el('stage').style.maxWidth = innerWidth + 'px';
+  el('stage').style.margin = '0 auto';
+}
+addEventListener('resize', fit);
+
+document.body.classList.toggle('compact', (C.layout || 'compact') === 'compact');
+applyWidth(C.cardW || 19);
+fit();
+if(DISPLAY){
+  document.body.classList.add('transparent');
+  el('opTab').style.display = 'none';
+} else {
+  bindPanel();
+}
+connect();
+render();
+paintClock();
+</script>
+</body>
+</html>
