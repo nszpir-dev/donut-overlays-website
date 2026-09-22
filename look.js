@@ -11,7 +11,7 @@
  * own; and it means the rules can be tested without standing up Express,
  * Mongo and Stripe first.
  */
-const GAMES = ['board', 'auction', 'money', 'lastcall'];
+const GAMES = ['board', 'auction', 'money', 'lastcall', 'crown'];
 
 const SCALES = [1, 1.2, 1.45];
 const isHex = v => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
@@ -76,7 +76,10 @@ var L = ${safeJson(look)}, G = ${safeJson(game)}, root = document.documentElemen
      lastcall -> --calm and its two shades: the clock, the card border,
                  the live dot and the call-to-action button all run off it,
                  while --gold stays gold for the winner so the round
-                 still ends on a colour change. */
+                 still ends on a colour change.
+     crown    -> --royal and its two shades, for the same reason: gold is
+                 reserved for the crown itself and the winner, so
+                 recolouring the theme must not touch it. */
 function rgbOf(hex){
   var n = hex.slice(1);
   return [parseInt(n.slice(0,2),16), parseInt(n.slice(2,4),16), parseInt(n.slice(4,6),16)];
@@ -100,6 +103,11 @@ if (L.accent) {
     root.style.setProperty('--calm', L.accent);
     root.style.setProperty('--calm-1', shade(L.accent, 1.35));
     root.style.setProperty('--calm-2', shade(L.accent, 0.78));
+  } else if (G === 'crown') {
+    root.style.setProperty('--royal', L.accent);
+    root.style.setProperty('--royal-1', shade(L.accent, 1.35));
+    root.style.setProperty('--royal-2', shade(L.accent, 0.78));
+    root.style.setProperty('--heat', L.accent);
   } else {
     root.style.setProperty('--gold', L.accent);
   }

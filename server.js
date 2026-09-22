@@ -388,7 +388,10 @@ async function auth(req, res, next) {
 
 // ---- public config (lets the front end pick up settings without a redeploy) ----
 app.get('/api/config', (req, res) => {
-  res.json({ discordInvite: DISCORD_INVITE, termsVersion: TERMS_VERSION });
+  /* discordLinking says whether the Discord keys are in Render — no
+     secret, just yes/no — so a missing setting can be spotted from
+     outside without logging in. */
+  res.json({ discordInvite: DISCORD_INVITE, termsVersion: TERMS_VERSION, discordLinking: discord.canLink() });
 });
 
 /* ---------------------------------------------------------------------
@@ -787,17 +790,18 @@ app.post('/api/checkout', auth, async (req, res) => {
 // ---------------------------------------------------------------------
 // Overlays: the permanent links, and the pages themselves.
 // ---------------------------------------------------------------------
-const GAME_FILES = { board: 'board.html', auction: 'auction.html', money: 'money.html', lastcall: 'lastcall.html' };
+const GAME_FILES = { board: 'board.html', auction: 'auction.html', money: 'money.html', lastcall: 'lastcall.html',
+                     crown: 'crown.html' };
 /* Withdrawn overlays keep their names here on purpose. A purchase from
    before the Follow Reel was pulled must still read "Follow Reel" in the
    history and on the admin pages — money that came in is a fact, and a
    row that says "wheel" is a row nobody can account for later. */
 const GAME_NAMES = { board: 'Elimination board', auction: 'Live auction', money: 'Money game', lastcall: 'Last Call',
-                     ...relay.RETIRED };
+                     crown: 'Hold the Crown', ...relay.RETIRED };
 /* Each game's relay listens on its own port, so the control panel address
    differs per game. Showing one fixed port sent anyone running the auction
    or money game to a dead page. */
-const GAME_PORTS = { board: 8090, auction: 8091, money: 8092, lastcall: 8093 };
+const GAME_PORTS = { board: 8090, auction: 8091, money: 8092, lastcall: 8093, crown: 8095 };
 
 /* Made once and never changed, so a link pasted into OBS keeps working
    for the life of the account. */

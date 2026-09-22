@@ -23,7 +23,7 @@ const { WebSocketServer } = require('ws');
 const jwt = require('jsonwebtoken');
 const { User } = require('./models');
 
-const GAMES = ['board', 'auction', 'money', 'lastcall'];
+const GAMES = ['board', 'auction', 'money', 'lastcall', 'crown'];
 
 /* Overlays that were sold once and have since been withdrawn.
   
