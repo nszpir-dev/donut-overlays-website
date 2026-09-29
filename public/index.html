@@ -380,6 +380,7 @@ section:last-of-type{padding-bottom:2.4rem}
 .mini .drainbar{height:.3rem;border-radius:.2rem;background:#1d2a3d;overflow:hidden;margin:.35rem 0 .1rem}
 .mini .drainbar i{display:block;height:100%;border-radius:.2rem}
 
+
 /* ---------- steps ---------- */
 .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:2rem}
 @media(max-width:900px){.steps{grid-template-columns:1fr}}
@@ -671,6 +672,207 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 #reviewText{width:100%;min-height:7rem;background:#070d18;border:1px solid var(--line);border-radius:.5rem;
   padding:.7rem .8rem;color:var(--text);font:500 .95rem Karla,sans-serif;resize:vertical}
 #reviewText:focus{outline:2px solid var(--teal)}
+/* =====================================================================
+   Added later: the pieces that make the page feel like a product rather
+   than a spec sheet — boxed steps, premium plan cards, the playable
+   game tabs, the rating summary, the help bot and the install video.
+   Kept together at the end so they are easy to find and easy to undo.
+   ===================================================================== */
+
+/* ---------- the three steps, as cards ---------- */
+.steps .step{
+  background:var(--panel);border:1px solid var(--line);border-top:2px solid var(--line);
+  border-radius:.9rem;padding:1.4rem 1.3rem 1.5rem;
+  backdrop-filter:blur(8px);position:relative;overflow:hidden;
+  transition:transform .22s ease, border-color .22s ease, box-shadow .22s ease;
+}
+.steps .step:nth-child(1){border-top-color:var(--teal)}
+.steps .step:nth-child(2){border-top-color:var(--gold)}
+.steps .step:nth-child(3){border-top-color:var(--violet)}
+/* the number, sitting behind the words */
+.steps .step::before{
+  content:counter(stepn);counter-increment:stepn;
+  position:absolute;right:.7rem;top:.1rem;
+  font-family:'Bebas Neue',sans-serif;font-size:4.2rem;line-height:1;
+  color:#fff;opacity:.05;transition:opacity .22s ease, transform .22s ease;
+}
+.steps{counter-reset:stepn}
+/* the sheen that crosses the card on hover */
+.steps .step::after{
+  content:'';position:absolute;top:0;bottom:0;left:-60%;width:45%;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.07),transparent);
+  transform:skewX(-14deg);transition:left .55s ease;pointer-events:none;
+}
+.steps .step:hover{transform:translateY(-6px);border-color:#3a4c6d;box-shadow:0 1.2rem 2.4rem rgba(0,0,0,.45)}
+.steps .step:hover::after{left:120%}
+.steps .step:hover::before{opacity:.13;transform:translateY(-.1rem)}
+.steps .step h3{margin-bottom:.45rem}
+@media(prefers-reduced-motion:reduce){
+  .steps .step,.steps .step::after,.steps .step::before{transition:none}
+  .steps .step:hover{transform:none}
+}
+
+/* ---------- plans: one colour each, and alive on hover ---------- */
+.plans .plan{
+  position:relative;overflow:hidden;
+  transition:transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+  --tint:var(--teal);
+}
+.plans .plan:nth-child(1){--tint:var(--gold)}
+.plans .plan:nth-child(2){--tint:var(--teal)}
+.plans .plan:nth-child(3){--tint:var(--violet)}
+/* a thin band of the plan's own colour across the top */
+.plans .plan::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,transparent,var(--tint),transparent);
+  opacity:.85;
+}
+/* and the same colour breathing behind the card when you point at it */
+.plans .plan::after{
+  content:'';position:absolute;inset:-40% -20% auto;height:70%;
+  background:radial-gradient(ellipse at 50% 0%, var(--tint), transparent 70%);
+  opacity:0;transition:opacity .3s ease;pointer-events:none;
+}
+.plans .plan:hover{transform:translateY(-8px);border-color:var(--tint);
+  box-shadow:0 1.6rem 3rem rgba(0,0,0,.5)}
+.plans .plan:hover::after{opacity:.14}
+.plans .plan h3{color:var(--tint)}
+.plans .plan .price{transition:transform .22s ease}
+.plans .plan:hover .price{transform:scale(1.04)}
+.plans .plan li::marker{color:var(--tint)}
+/* The badge on the monthly. A diagonal corner ribbon was the first
+   try and the card's own overflow:hidden sliced the end off it — a pill
+   cannot be cropped, and reads at a glance on a phone too. */
+.plan .flag{
+  position:absolute;top:.85rem;right:.85rem;
+  background:linear-gradient(90deg,var(--gold),var(--gold-2));color:#241700;
+  border-radius:1rem;
+  font-weight:800;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;
+  padding:.28rem .6rem;box-shadow:0 .3rem .8rem rgba(0,0,0,.45);
+}
+@media(prefers-reduced-motion:reduce){
+  .plans .plan,.plans .plan .price{transition:none}
+  .plans .plan:hover{transform:none}
+}
+
+/* ---------- the playable tabs ---------- */
+.tabs{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.4rem}
+.tabs button{
+  background:rgba(16,24,42,.7);border:1px solid var(--line);color:var(--text);
+  border-radius:.6rem;padding:.6rem 1rem;font:700 .95rem Karla,sans-serif;cursor:pointer;
+  transition:border-color .18s ease, transform .18s ease, background .18s ease;
+}
+.tabs button:hover{border-color:#3a4c6d;transform:translateY(-2px)}
+.tabs button.on{border-color:var(--tabc,var(--teal));color:#fff;
+  background:linear-gradient(180deg,rgba(25,227,200,.12),transparent)}
+.playwrap{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1.8rem;align-items:start;
+  background:var(--panel);border:1px solid var(--line);border-radius:1rem;padding:1.4rem;
+  backdrop-filter:blur(8px);
+}
+@media(max-width:860px){.playwrap{grid-template-columns:1fr}}
+.playstage{
+  position:relative;border:1px solid var(--line);border-radius:.8rem;overflow:hidden;
+  background:#070d18;min-height:360px;
+}
+.playstage iframe{display:block;width:100%;height:380px;border:0;background:transparent}
+.playstage .tag{
+  position:absolute;top:.6rem;left:.7rem;z-index:2;
+  font-size:.68rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;
+  color:#cfe2ff;background:rgba(6,9,18,.75);border:1px solid var(--line);
+  border-radius:.35rem;padding:.2rem .5rem;
+}
+.playinfo h3{font-size:2.1rem;margin-bottom:.5rem}
+.playinfo p{color:var(--muted);margin-bottom:.9rem}
+.playinfo ul{list-style:none;margin:0 0 1.1rem;padding:0}
+.playinfo li{padding:.32rem 0 .32rem 1.4rem;position:relative;font-size:.95rem}
+.playinfo li::before{content:'';position:absolute;left:0;top:.85rem;width:.5rem;height:.5rem;
+  border-radius:50%;background:var(--tabc,var(--teal))}
+.playinfo .row{display:flex;gap:.6rem;flex-wrap:wrap}
+
+/* ---------- rating summary ---------- */
+.ratebox{
+  display:grid;grid-template-columns:auto 1fr;gap:2rem;align-items:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:1rem;
+  padding:1.3rem 1.5rem;margin-bottom:1.6rem;backdrop-filter:blur(8px);
+}
+@media(max-width:700px){.ratebox{grid-template-columns:1fr;gap:1rem}}
+.ratebox .num{font-family:'Bebas Neue',sans-serif;font-size:4rem;line-height:.9;color:var(--gold)}
+.ratebox .of{color:var(--muted);font-size:.85rem}
+.ratebox .bars{display:flex;flex-direction:column;gap:.3rem}
+.ratebox .bar{display:flex;align-items:center;gap:.6rem;font-size:.8rem;color:var(--muted)}
+.ratebox .bar .track{flex:1;height:.5rem;border-radius:.3rem;background:#16203a;overflow:hidden}
+.ratebox .bar .track i{display:block;height:100%;background:linear-gradient(90deg,var(--gold-2),var(--gold));width:0;
+  transition:width .6s ease}
+.ratebox .says{color:var(--text);font-size:.95rem;margin-top:.5rem;line-height:1.55}
+
+/* ---------- install video ---------- */
+.videobox{
+  position:relative;border:1px solid var(--line);border-radius:1rem;overflow:hidden;
+  background:#070d18;aspect-ratio:16/9;
+}
+.videobox iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+
+/* ---------- the help bot ---------- */
+#botBtn{
+  position:fixed;right:1.1rem;bottom:1.1rem;z-index:60;
+  display:flex;align-items:center;gap:.5rem;
+  background:linear-gradient(180deg,var(--teal),#10b49f);color:#04211d;
+  border:none;border-radius:2rem;padding:.75rem 1.15rem;cursor:pointer;
+  font:800 .95rem Karla,sans-serif;box-shadow:0 .7rem 1.6rem rgba(0,0,0,.5);
+  transition:transform .18s ease, box-shadow .18s ease;
+}
+#botBtn:hover{transform:translateY(-3px);box-shadow:0 1rem 2rem rgba(0,0,0,.6)}
+#botPanel{
+  position:fixed;right:1.1rem;bottom:4.6rem;z-index:61;width:min(23rem,92vw);
+  background:#0a1120;border:1px solid var(--line);border-radius:.9rem;overflow:hidden;
+  box-shadow:0 1.4rem 3rem rgba(0,0,0,.6);display:none;flex-direction:column;max-height:min(30rem,72vh);
+}
+#botPanel.open{display:flex;animation:botIn .22s ease both}
+@keyframes botIn{from{opacity:0;transform:translateY(.6rem)}to{opacity:1;transform:none}}
+#botPanel header{
+  display:flex;align-items:center;justify-content:space-between;gap:.5rem;
+  padding:.7rem .9rem;border-bottom:1px solid var(--line);background:rgba(25,227,200,.08);
+}
+#botPanel header b{font-size:.95rem}
+#botPanel header span{font-size:.72rem;color:var(--muted)}
+#botClose{background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer}
+#botLog{padding:.9rem;overflow-y:auto;display:flex;flex-direction:column;gap:.6rem;flex:1}
+.bmsg{max-width:90%;padding:.55rem .7rem;border-radius:.6rem;font-size:.9rem;line-height:1.5}
+.bmsg.bot{background:#101a2e;border:1px solid var(--line);align-self:flex-start}
+.bmsg.you{background:rgba(25,227,200,.14);border:1px solid rgba(25,227,200,.35);align-self:flex-end}
+.bmsg a{color:var(--teal)}
+#botChips{display:flex;gap:.4rem;flex-wrap:wrap;padding:0 .9rem .6rem}
+#botChips button{
+  background:#101a2e;border:1px solid var(--line);color:var(--text);border-radius:1rem;
+  padding:.3rem .6rem;font:600 .78rem Karla,sans-serif;cursor:pointer;
+}
+#botChips button:hover{border-color:var(--teal)}
+#botForm{display:flex;gap:.5rem;padding:.7rem .9rem;border-top:1px solid var(--line)}
+#botForm input{
+  flex:1;min-width:0;background:#070d18;border:1px solid var(--line);color:var(--text);
+  border-radius:.5rem;padding:.55rem .6rem;font:inherit;font-size:.9rem;
+}
+#botForm button{
+  background:var(--teal);color:#04211d;border:none;border-radius:.5rem;
+  padding:.55rem .85rem;font:800 .85rem Karla,sans-serif;cursor:pointer;
+}
+
+/* ---------- links: one overlay at a time ---------- */
+.linkpick{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;margin:.2rem 0 .4rem}
+.linkpick select{
+  background:#070d18;color:var(--text);border:1px solid var(--line);border-radius:.5rem;
+  padding:0 .7rem;height:var(--ctl);font:inherit;font-weight:700;min-width:12rem;
+}
+.statepill{
+  display:inline-block;font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+  border-radius:.3rem;padding:.2rem .5rem;border:1px solid;
+}
+.statepill.live{color:#9ff5e4;border-color:rgba(25,227,200,.5);background:rgba(25,227,200,.12)}
+.statepill.own{color:#ffe08a;border-color:rgba(255,201,60,.5);background:rgba(255,201,60,.1)}
+.statepill.off{color:#ffb0b0;border-color:rgba(255,77,77,.5);background:rgba(255,77,77,.1)}
+
+
 </style>
 </head>
 <body>
@@ -691,6 +893,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
     <div class="mark"><span class="dot"></span> Donut Overlays</div>
     <nav>
       <a href="#games" class="hide-sm">Overlays</a>
+      <a href="#play" class="hide-sm">Try it</a>
       <a href="#how" class="hide-sm">How it works</a>
       <a href="#reviews" class="hide-sm">Reviews</a>
       <a href="#pricing" class="hide-sm">Pricing</a>
@@ -724,6 +927,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
         <div><b>0.1s</b><span>payment to screen</span></div>
         <div><b>5</b><span>games to choose from</span></div>
         <div><b>5 min</b><span>to set up</span></div>
+        <div id="userStat" style="display:none"><b id="userCount">0</b><span>streamers using it</span></div>
       </div>
     </div>
 
@@ -807,6 +1011,23 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
   </div>
 </section>
 
+<section id="play">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Try them <em>before you buy</em></h2>
+      <p>Not screenshots. Every tab below is the real overlay running in your browser, playing a round with made-up payments. What you see here is exactly what your viewers see, down to the last animation.</p>
+    </div>
+    <div class="tabs" id="playTabs"></div>
+    <div class="playwrap">
+      <div class="playstage">
+        <span class="tag">live demo</span>
+        <iframe id="playFrame" title="Overlay demo" loading="lazy"></iframe>
+      </div>
+      <div class="playinfo" id="playInfo"></div>
+    </div>
+  </div>
+</section>
+
 <section id="how">
   <div class="wrap">
     <div class="sec-head">
@@ -818,6 +1039,18 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
       <div class="step"><h3>Paste your link</h3><p>Every overlay has its own address. Drop it into LIVE Studio, OBS or Streamlabs like any other source.</p></div>
       <div class="step"><h3>Take payments</h3><p>Someone pays you in game and they are on the board before you have finished saying their name.</p></div>
     </div>
+  </div>
+</section>
+
+<section id="install" style="display:none">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Watch it <em>being set up</em></h2>
+      <p>Start to finish, from the download to the first payment landing on screen.</p>
+    </div>
+    <div class="videobox"><iframe id="installVideo" title="How to set up Donut Overlays"
+      allow="accelerometer; clipboard-write; encrypted-media; picture-in-picture"
+      allowfullscreen loading="lazy"></iframe></div>
   </div>
 </section>
 
@@ -843,6 +1076,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
     </div>
     <div class="plans three">
       <div class="plan best">
+        <span class="flag">Most popular</span>
         <h3>Monthly</h3>
         <div class="price" data-usd="5" data-every="/month">$5<span>/month</span></div>
         <div class="approx" data-approx="5"></div>
@@ -903,6 +1137,17 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
     <div class="sec-head">
       <h2>What streamers <em>say</em></h2>
       <p>From people running these games on live every week.</p>
+    </div>
+    <div class="ratebox" id="rateBox" style="display:none">
+      <div style="text-align:center">
+        <div class="num" id="rateNum">—</div>
+        <div class="stars" id="rateStars"></div>
+        <div class="of" id="rateOf"></div>
+      </div>
+      <div>
+        <div class="bars" id="rateBars"></div>
+        <div class="says" id="rateSays"></div>
+      </div>
     </div>
     <div class="reviews" id="reviewList"></div>
     <div class="rev-actions">
@@ -1087,6 +1332,20 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
     </div>
   </div>
 </div>
+
+<button id="botBtn" aria-haspopup="dialog">💬 Ask a question</button>
+<aside id="botPanel" role="dialog" aria-label="Help">
+  <header>
+    <div><b>Donut Overlays help</b><br><span>Automatic answers — no waiting</span></div>
+    <button id="botClose" aria-label="Close">✕</button>
+  </header>
+  <div id="botLog"></div>
+  <div id="botChips"></div>
+  <form id="botForm" autocomplete="off">
+    <input id="botInput" placeholder="Type your question…" aria-label="Your question">
+    <button type="submit">Ask</button>
+  </form>
+</aside>
 
 <script>
 
@@ -1445,15 +1704,21 @@ function refreshSheet(){
     : 'Log in and these settings follow your overlay onto stream.';
   paint(editing);
 }
-document.querySelectorAll('[data-customize]').forEach(b => b.onclick = () => {
-  editing = b.dataset.customize;
+/* Its own function because the game tabs further down open the same
+   sheet, and they are drawn after this runs — binding by selector alone
+   would have covered the cards at the top of the page and nothing
+   else. */
+function openCustomiser(game){
+  editing = game;
   document.getElementById('sheetTitle').textContent =
     'Customise ' + ({board:'the elimination board', auction:'the auction',
                      money:'the money game', lastcall:'Last Call',
                      crown:'Hold the Crown'})[editing];
   sheet.classList.add('open');
   refreshSheet();
-});
+}
+document.querySelectorAll('[data-customize]').forEach(b =>
+  b.onclick = () => openCustomiser(b.dataset.customize));
 swatchWrap.onclick = e => {
   const b = e.target.closest('.sw'); if(!b) return;
   opts[editing].accent = b.dataset.c; refreshSheet(); saveLook();
@@ -2199,6 +2464,7 @@ async function loadReviews(){
   sec.style.display = show ? '' : 'none';
   if(navLink) navLink.style.display = show ? '' : 'none';
 
+  paintRating(list);
   if(!list.length){
     wrap.innerHTML = show
       ? '<p style="color:var(--muted);grid-column:1/-1;margin:0">No reviews yet — be the first.</p>'
@@ -2265,7 +2531,37 @@ async function paintSetup(){
     if(!r.ok) return;
     data = await r.json();
   } catch(e){ return; }
-  if(!data.active) return;   // signed in but no plan — the example stands
+  /* Signed in with nothing running. A brand new account has never had
+     anything, so the example above is the honest thing to show. But
+     somebody whose plan has lapsed needs to SEE that the overlays are
+     off — finding out mid-stream, from a link that will not load, is
+     the worst possible way to learn it. */
+  if(!data.active){
+    if(!data.lapsed) return;
+    document.getElementById('setupTitle').innerHTML = 'Your overlays are <em>switched off</em>';
+    document.getElementById('setupBlurb').textContent =
+      'Your plan is not running, so the overlay links below will not load and the launcher will not start a game. Nothing has been deleted — your settings, your links and your Donut name are all still here and come straight back on.';
+    box.innerHTML = `
+      <div class="linkrow" style="align-items:flex-start">
+        <div class="plat">Status</div>
+        <div class="col">
+          <span class="statepill off">stopped${data.status && data.status !== 'none' ? ' · ' + data.status : ''}</span>
+          <div style="font-size:.88rem;color:var(--muted);margin-top:.5rem;line-height:1.55">
+            While it is off, these stop loading:
+            <b style="color:var(--text)">${(data.stopped || []).map(x => x.name).join(', ')}</b>.
+            Anything you bought outright is unaffected and would be listed here.
+          </div>
+        </div>
+      </div>
+      <div class="linkrow" style="border-bottom:none">
+        <div class="plat">Turn it back on</div>
+        <div class="col" style="font-size:.88rem;color:var(--muted)">
+          Take the monthly again, or buy an overlay outright and keep it for good with nothing recurring.
+        </div>
+        <a class="btn btn-gold" href="#pricing">See the plans</a>
+      </div>`;
+    return;
+  }
 
   document.getElementById('setupTitle').innerHTML = 'Your overlays, <em>ready to go</em>';
   document.getElementById('setupBlurb').textContent =
@@ -2356,37 +2652,64 @@ async function paintSetup(){
      and before the overlay links because it is a one-off thing you do
      once and never think about again — the links below are what people
      come back to this page for. */
+  /* Leads with the reason to join rather than the mechanics of
+     linking. Nobody has ever wanted to "link an account"; they want the
+     giveaways, the help and the people. Linking is still here, one line
+     down, because it is what hands out the roles by itself. */
   if(data.discord){
     const d = data.discord;
     rows.push(`
       <div class="linkrow" style="align-items:flex-start">
         <div class="plat">Discord</div>
         <div class="col">
+          <div style="display:flex;gap:.7rem;align-items:center;flex-wrap:wrap">
+            <a class="btn btn-gold" href="${DISCORD_INVITE}" target="_blank" rel="noopener">Join the Discord</a>
+            <b style="color:var(--gold)">Giveaways run in there</b>
+          </div>
+          <div style="font-size:.85rem;color:var(--muted);margin-top:.45rem;line-height:1.5">
+            Free overlays, in-game money and items get given away to members, and it is the
+            fastest place to get an answer if something goes wrong mid-stream.
+            <b style="color:var(--text)">Strongly recommended.</b>
+          </div>
           ${d.linked
-            ? `<div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
-                 <b style="color:var(--teal)">Linked as ${(d.name || 'your account').replace(/</g,'&lt;')}</b>
+            ? `<div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-top:.6rem">
+                 <span style="font-size:.82rem;color:var(--teal)">✓ Your account is linked as
+                   <b>${(d.name || 'your account').replace(/</g,'&lt;')}</b>${d.roles
+                     ? ', so your role in there follows your plan automatically' : ''}</span>
                  <button id="dcUnlink">Unlink</button>
-               </div>
-               <div style="font-size:.8rem;color:var(--muted);margin-top:.35rem;line-height:1.45">
-                 ${d.roles
-                   ? 'Your role in the Discord updates itself when your plan changes. Nothing else to do.'
-                   : 'Linked. Roles are not switched on yet, so this is just on record for now.'}
                </div>`
-            : `<button class="btn btn-ghost" id="dcLink">Link Discord</button>
-               <div style="font-size:.8rem;color:var(--muted);margin-top:.35rem;line-height:1.45">
-                 One click, and your role in the Discord is handled automatically from then on.
-                 We only ever see your username — never your messages, and never your password.
+            : `<div style="margin-top:.6rem;font-size:.82rem;color:var(--muted)">
+                 Already in there? <a href="#" id="dcLink" style="color:var(--teal);font-weight:700">Link your Discord</a>
+                 and your member role is handled for you from then on. We only ever see your
+                 username — never your messages, and never your password.
                </div>`}
           <div class="msg" id="dcMsg"></div>
         </div>
       </div>`);
   }
 
+  /* One overlay at a time, chosen from a list.
+  
+     Five games meant five near-identical rows of long addresses, and
+     the one somebody actually wanted was never the one they copied.
+     Picking the game first makes the address on screen unambiguous —
+     and the picker can be used again to switch to another, so nothing
+     is hidden, just quiet. */
   rows.push(`
-    <div class="linkrow" style="border-bottom:none;padding-bottom:.2rem">
+    <div class="linkrow" style="align-items:flex-start">
       <div class="plat">2 · Your overlays</div>
-      <div class="col" style="color:var(--muted);font-size:.88rem">
-        Add as a <b>browser source</b> in TikTok LIVE Studio, OBS, Streamlabs — any of them.
+      <div class="col">
+        <div class="linkpick">
+          <select id="lnPick" aria-label="Which overlay">
+            ${data.links.map(l => `<option value="${l.game}">${l.name}</option>`).join('')}
+          </select>
+          <span class="statepill live" id="lnState"></span>
+        </div>
+        <div style="color:var(--muted);font-size:.85rem;margin-bottom:.7rem">
+          Add as a <b>browser source</b> in TikTok LIVE Studio, OBS, Streamlabs — any of them.
+          Change the game above to see another link; they never change, so one paste each does it.
+        </div>
+        <div id="lnOne"></div>
       </div>
     </div>`);
 
@@ -2400,32 +2723,6 @@ async function paintSetup(){
      row: somebody about to cancel needs to know which of these keeps
      working afterwards and which does not. */
   const owned = data.perm || [];
-  data.links.forEach((l, i) => {
-    const mine = owned.includes(l.game);
-    rows.push(`
-      <div class="linkrow">
-        <div class="plat" style="padding-left:1.2rem;font-weight:700;color:var(--teal)">
-          ${l.name}
-          <div style="font-weight:400;font-size:.74rem;letter-spacing:.06em;margin-top:.15rem;
-                      color:${mine ? 'var(--gold)' : 'var(--muted)'}">
-            ${mine ? 'yours forever' : 'with your monthly'}
-          </div>
-        </div>
-        <div class="col">
-          <code id="ln${i}">${l.url}</code>
-          <div style="font-size:.8rem;color:var(--muted);margin-top:.3rem">
-            ${l.panelLive
-              ? `Your controls, running right now:
-                 <b style="color:var(--teal)">${l.panel}</b>`
-              : `Your controls once the launcher is open:
-                 <b style="color:#a9c6ee">${l.panel}</b>
-                 <span style="color:#63748c">— the launcher opens this for you, and shows
-                 the exact address if it has to use a different port</span>`}
-          </div>
-        </div>
-        <button data-copy="ln${i}">Copy</button>
-      </div>`);
-  });
 
   /* What they have not got yet, so buying the rest is one click away
      rather than a scroll back up to the pricing table. */
@@ -2473,6 +2770,39 @@ async function paintSetup(){
      on the same click, and that record is what the page trusts — this
      only covers the seconds in between, and the case where the download
      route could not write. Failing is fine. */
+  /* The picker. Whichever game was chosen last is remembered per
+     browser, because somebody who runs one game every stream should not
+     have to choose it again every time they open this page. */
+  const pick = document.getElementById('lnPick');
+  if(pick && data.links.length){
+    let last = '';
+    try { last = localStorage.getItem('donut.link') || ''; } catch(e){}
+    if(data.links.some(l => l.game === last)) pick.value = last;
+    const draw = () => {
+      const l = data.links.find(x => x.game === pick.value) || data.links[0];
+      const mine = owned.includes(l.game);
+      try { localStorage.setItem('donut.link', l.game); } catch(e){}
+      const state = document.getElementById('lnState');
+      state.className = 'statepill ' + (mine ? 'own' : 'live');
+      /* Says out loud which ones survive a cancellation, on the row
+         itself, because that is the moment somebody is deciding. */
+      state.textContent = mine ? 'yours forever' : 'stops if you cancel';
+      document.getElementById('lnOne').innerHTML = `
+        <code id="lnUrl">${l.url}</code>
+        <div style="font-size:.8rem;color:var(--muted);margin-top:.45rem;line-height:1.5">
+          ${l.panelLive
+            ? `Your controls, running right now: <b style="color:var(--teal)">${l.panel}</b>`
+            : `Your controls once the launcher is open: <b style="color:#a9c6ee">${l.panel}</b>
+               <span style="color:#63748c">— the launcher opens this for you, and shows the
+               exact address if it has to use a different port</span>`}
+        </div>
+        <div style="margin-top:.6rem"><button data-copy="lnUrl">Copy this link</button></div>`;
+      bindCopy();
+    };
+    pick.onchange = draw;
+    draw();
+  }
+
   const dl = box.querySelector('.dlbtn');
   if(dl){
     dl.addEventListener('click', () => {
@@ -2486,7 +2816,8 @@ async function paintSetup(){
      sent to Discord. */
   const dcLink = document.getElementById('dcLink');
   if(dcLink){
-    dcLink.onclick = async () => {
+    dcLink.onclick = async (ev) => {
+      if(ev && ev.preventDefault) ev.preventDefault();
       const m = document.getElementById('dcMsg');
       dcLink.disabled = true;
       try {
@@ -2638,7 +2969,21 @@ async function paintSetup(){
 /* pull the real Discord invite from the server config so it can be
    changed later without touching this file */
 fetch(API + '/api/config').then(r => r.json()).then(cfg => {
-  if(cfg && cfg.discordInvite) DISCORD_INVITE = cfg.discordInvite;
+  if(!cfg) return;
+  if(cfg.discordInvite) DISCORD_INVITE = cfg.discordInvite;
+  /* The number of streamers using it, counted by the server. Shown only
+     when the server says so and only when there is something to show —
+     a "0 streamers" line is worse than no line. */
+  if(typeof cfg.users === 'number' && cfg.users > 0){
+    document.getElementById('userCount').textContent = cfg.users.toLocaleString();
+    document.getElementById('userStat').style.display = '';
+  }
+  /* The install video, once one exists. The section stays out of the
+     page entirely until then. */
+  if(cfg.installVideo){
+    document.getElementById('installVideo').src = cfg.installVideo;
+    document.getElementById('install').style.display = '';
+  }
 }).catch(() => {});
 
 /* ---------------- copy buttons ---------------- */
@@ -2658,10 +3003,234 @@ function bindCopy(){
   });
 }
 bindCopy();
+
+
+/* =====================================================================
+   TRY THEM BEFORE YOU BUY
+   ---------------------------------------------------------------------
+   Each tab drops the REAL overlay into an iframe from /demo/<game>,
+   where the server hands it a dead WebSocket and a script that plays a
+   round of invented payments. No screenshots to keep up to date, and
+   nothing to go stale when a game changes: the page is showing the
+   thing itself.
+   ===================================================================== */
+const PLAY = [
+  { id:'board', name:'Elimination board', colour:'#2ee66b',
+    blurb:'Everyone who pays gets a square on the board. It locks, then entries are knocked out one at a time until a single person is left holding the pot.',
+    bullets:['Entry price, and bigger payments buy more squares',
+             'Locks itself after the time you set',
+             'Viewers can pay a rising price to unlock it again',
+             'Your cut comes off the pot automatically'] },
+  { id:'auction', name:'Live auction', colour:'#f0b429',
+    blurb:'Put an item up with a clock on it. The highest single payment when the clock stops takes it, and bids never stack.',
+    bullets:['Item search that autocompletes, so spelling never matters',
+             'A delay window that keeps taking bids while your stream runs behind',
+             'Minimum bid and vouches you can change mid-round',
+             'The winner, their head and their bid, big on screen'] },
+  { id:'money', name:'Money game', colour:'#2ee66b',
+    blurb:'You seed a pot and viewers pay into it. The biggest single payment when the clock stops takes the lot.',
+    bullets:['You choose the seed and your cut',
+             'Losing payments stay in the pot',
+             'Payments never stack — beating the leader means a fresh, bigger one',
+             'Late payments cannot win, and are listed so you can refund them'] },
+  { id:'lastcall', name:'Last Call', colour:'#35e0ff',
+    blurb:'Everyone pays into one pot, and every payment puts the clock back to full. Whoever paid last when it finally runs out takes everything.',
+    bullets:['Opening clock and reset length both yours to set',
+             'Taking it off the holder means beating what they paid',
+             'A payment can only ever buy time, never shorten the clock',
+             'The exact figure needed to take it is printed for chat'] },
+  { id:'crown', name:'Hold the Crown', colour:'#4d7cff',
+    blurb:'A flat price takes the crown off whoever is wearing it. Time on the crown adds up across the whole round, and the first to your target total wins the pot.',
+    bullets:['Flat minimum — paying more buys nothing extra',
+             'Time stacks: taking it back continues your old total',
+             'You set the total time that wins',
+             'Payments under the minimum are yours, with a give-back button'] },
+];
+(function playTabs(){
+  const tabs = document.getElementById('playTabs');
+  const info = document.getElementById('playInfo');
+  const frame = document.getElementById('playFrame');
+  if(!tabs || !info || !frame) return;
+  let at = PLAY[PLAY.length - 1].id;      /* newest game first — it is the one worth showing off */
+
+  tabs.innerHTML = PLAY.map(g =>
+    `<button data-play="${g.id}" style="--tabc:${g.colour}">${g.name}</button>`).join('');
+
+  function show(id){
+    const g = PLAY.find(x => x.id === id) || PLAY[0];
+    at = g.id;
+    tabs.querySelectorAll('button').forEach(b =>
+      b.classList.toggle('on', b.dataset.play === g.id));
+    document.querySelector('.playwrap').style.setProperty('--tabc', g.colour);
+    info.innerHTML =
+      `<h3 style="color:${g.colour}">${g.name}</h3>
+       <p>${g.blurb}</p>
+       <ul>${g.bullets.map(b => `<li>${b}</li>`).join('')}</ul>
+       <div class="row">
+         <button class="btn btn-ghost" data-customize="${g.id}">Customise it</button>
+         <a class="btn btn-gold" href="#pricing">Get it</a>
+       </div>`;
+    /* The customise buttons are drawn fresh each time a tab changes, so
+       they are wired here rather than at load. */
+    info.querySelectorAll('[data-customize]').forEach(b => b.onclick = () => openCustomiser(b.dataset.customize));
+    /* Only reload the frame when the game actually changed — reloading
+       restarts the demo round, which looks like a glitch.
+    
+       And only over http at all: opened straight off the disk there is
+       no server to answer /demo, and pointing the frame at a file that
+       cannot exist just leaves a dead box on the page. */
+    if(!/^https?:$/.test(location.protocol)) return;
+    const src = '/demo/' + g.id;
+    if(!frame.src.endsWith(src)) frame.src = src;
+  }
+  tabs.onclick = e => {
+    const b = e.target.closest('[data-play]');
+    if(b) show(b.dataset.play);
+  };
+  show(at);
+})();
+
+/* =====================================================================
+   WHAT PEOPLE RATE IT
+   ---------------------------------------------------------------------
+   Worked out from the reviews that are actually on the server. Nothing
+   here is typed in by hand — if there are three reviews it says three.
+   ===================================================================== */
+function paintRating(list){
+  const box = document.getElementById('rateBox');
+  if(!box) return;
+  if(!list.length){ box.style.display = 'none'; return; }
+  const stars = list.map(v => Math.min(5, Math.max(1, Number(v.stars) || 5)));
+  const avg = stars.reduce((a, b) => a + b, 0) / stars.length;
+  box.style.display = '';
+  document.getElementById('rateNum').textContent = avg.toFixed(1);
+  document.getElementById('rateStars').innerHTML = starRow(Math.round(avg));
+  document.getElementById('rateOf').textContent =
+    `from ${list.length} ${list.length === 1 ? 'review' : 'reviews'}`;
+  document.getElementById('rateBars').innerHTML = [5,4,3,2,1].map(n => {
+    const c = stars.filter(x => x === n).length;
+    const pct = Math.round(c / stars.length * 100);
+    return `<div class="bar"><span>${n}★</span>
+      <span class="track"><i style="width:${pct}%"></i></span>
+      <span style="width:2.2rem;text-align:right">${c}</span></div>`;
+  }).join('');
+  /* A sentence about what people actually wrote, built by counting the
+     things they mention. It only claims what the reviews say, and it
+     says nothing at all when there is not enough to go on. */
+  const text = list.map(v => String(v.text || '').toLowerCase()).join(' ');
+  const themes = [
+    [/fast|instant|quick|speed|delay/, 'how fast payments show up'],
+    [/easy|simple|clean|straight ?forward|setup|set up/, 'how little setup there is'],
+    [/made|earn|profit|\bm\b|million|billion/, 'what they made using it'],
+    [/help|support|answer|fix/, 'getting help when they needed it'],
+    [/work|worked|working|reliable/, 'it just working on stream'],
+  ].filter(([re]) => re.test(text)).map(([, label]) => label);
+  document.getElementById('rateSays').textContent = themes.length
+    ? 'Most often mentioned: ' + themes.slice(0, 3).join(', ') + '.'
+    : '';
+}
+
+/* =====================================================================
+   THE HELP BOT
+   ---------------------------------------------------------------------
+   Written answers, matched on words. It is not an AI and does not
+   pretend to be one — it says so at the top of the panel — which means
+   it can never invent a refund policy or a price that does not exist.
+   Anything it does not know hands over to the Discord.
+   ===================================================================== */
+const BOT = [
+  { k:['price','cost','how much','pricing','expensive','cheap'],
+    a:'Two ways to pay: <b>$5 a month</b> for every game including ones added later, with seven days free — or buy outright, <b>$12</b> for one game or <b>$25</b> for any three, yours forever with nothing recurring.' },
+  { k:['trial','free','7 day','seven day'],
+    a:'The monthly starts with <b>seven days free</b> and nothing is charged until they are up. Cancel inside the week and you pay nothing at all.' },
+  { k:['cancel','refund','money back','stop paying'],
+    a:'You can cancel any time from your account page, and your overlays keep working until the end of the period you already paid for. Charged after you cancelled? That gets refunded — the details are on the <a href="/terms">terms page</a>.' },
+  { k:['what happens','cancel','stop working','lose','end of'],
+    a:'You keep your overlays until the end of the period you already paid for, and after that the links stop loading. Anything you bought outright keeps working forever, with no subscription at all.' },
+  { k:['tiktok','live studio','obs','streamlabs','twitch','youtube','browser source'],
+    a:'Every overlay is a normal web address, so it goes into TikTok LIVE Studio, OBS, Streamlabs or anything else as a <b>browser source</b>. In LIVE Studio, turn on "Always keep active" so it loads before it is shown.' },
+  { k:['install','download','launcher','set up','setup','start'],
+    a:'Download the launcher from your account page, unzip it, and double-click START-DONUT-OVERLAYS. It signs in with your account, finds your Minecraft log on its own, and updates itself from then on.' },
+  { k:['node','npm','error','not working','broken','smart app','blocked'],
+    a:'Two common ones: Windows may block the .bat until you right-click the zip → Properties → Unblock, and you need Node.js installed — the launcher offers to install it for you. If it is something else, post it in the Discord and it usually gets fixed the same day.' },
+  { k:['payment','chat','log','detect','read','pay message','not showing'],
+    a:'It reads the chat log your own Minecraft client writes, so no plugin and nothing on the server. If payments are not showing, check your Donut name on the account page matches exactly — Bedrock names start with a full stop.' },
+  { k:['port','localhost','control panel','panel'],
+    a:'Each game has its own control panel on your PC: board 8090, auction 8091, money 8092, Last Call 8093, Hold the Crown 8095. The launcher opens the right one for you and prints the address.' },
+  { k:['two','2 games','same time','at once','both'],
+    a:'One game at a time per account. They all read the same chat, so two running together would fight over the same payments.' },
+  { k:['bedrock','java','version','1.21','client','lunar','badlion'],
+    a:'Any client that writes a chat log works — Lunar, Badlion, CurseForge, Modrinth, Prism, Feather and the vanilla launcher are all found automatically. Bedrock players just need their name entered with a full stop in front.' },
+  { k:['gambling','rules','ban','allowed','legal'],
+    a:'Nothing here is decided by chance — every game is decided by what people paid and when. How you run your own rounds is up to you, and the terms cover it.' },
+  { k:['discord','help','support','contact','talk'],
+    a:'The Discord is the fastest way to reach a human, and giveaways get posted there too.' },
+  { k:['new game','crown','hold the crown','games','how many'],
+    a:'Five games right now: the elimination board, live auction, money game, Last Call and Hold the Crown. The monthly includes every new one the day it launches.' },
+  { k:['customise','customize','colour','color','size','background'],
+    a:'Every overlay has a Customise button on this page — accent colour, text size, and a background image on the elimination board. It changes your hosted overlay straight away, no restart.' },
+];
+(function helpBot(){
+  const btn = document.getElementById('botBtn');
+  const panel = document.getElementById('botPanel');
+  const log = document.getElementById('botLog');
+  const chips = document.getElementById('botChips');
+  const form = document.getElementById('botForm');
+  const input = document.getElementById('botInput');
+  if(!btn || !panel) return;
+
+  const say = (who, html) => {
+    const d = document.createElement('div');
+    d.className = 'bmsg ' + who;
+    d.innerHTML = html;
+    log.append(d);
+    log.scrollTop = log.scrollHeight;
+  };
+  function answer(q){
+    const t = ' ' + q.toLowerCase().replace(/[^a-z0-9 ]/g, ' ') + ' ';
+    let best = null, bestScore = 0;
+    for(const item of BOT){
+      let score = 0;
+      for(const k of item.k) if(t.includes(k)) score += k.length;
+      if(score > bestScore){ bestScore = score; best = item; }
+    }
+    if(best) return best.a;
+    return `I do not have an answer written for that one, and I would rather say so than guess.
+      <a href="${DISCORD_INVITE}" target="_blank" rel="noopener">Ask in the Discord</a> — you will normally get a reply quickly.`;
+  }
+  const STARTERS = ['How much is it?', 'What happens if I cancel?', 'Does it work with TikTok LIVE Studio?', 'How do I install it?'];
+  chips.innerHTML = STARTERS.map(q => `<button type="button">${q}</button>`).join('');
+  chips.onclick = e => { const b = e.target.closest('button'); if(b) ask(b.textContent); };
+
+  function ask(q){
+    say('you', q.replace(/[<>]/g, ''));
+    setTimeout(() => say('bot', answer(q)), 220);
+  }
+  let opened = false;
+  btn.onclick = () => {
+    panel.classList.toggle('open');
+    if(panel.classList.contains('open') && !opened){
+      opened = true;
+      say('bot', 'Hello. I answer the common questions about pricing, setup and cancelling — instantly, but only from a written list. Anything I do not know, I will point you at the Discord.');
+    }
+    if(panel.classList.contains('open')) input.focus();
+  };
+  document.getElementById('botClose').onclick = () => panel.classList.remove('open');
+  form.onsubmit = e => {
+    e.preventDefault();
+    const q = input.value.trim();
+    if(!q) return;
+    input.value = '';
+    ask(q);
+  };
+  addEventListener('keydown', e => { if(e.key === 'Escape') panel.classList.remove('open'); });
+})();
+
 document.querySelectorAll('[data-links]').forEach(b => b.onclick = () =>
   document.querySelector('.links').scrollIntoView({behavior:'smooth', block:'center'}));
 
 </script>
+
 <script src="/px.js" defer></script>
 </body>
 </html>
