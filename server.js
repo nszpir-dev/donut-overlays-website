@@ -16,6 +16,7 @@ const look = require('./look');
 const visits = require('./visits');
 const updates = require('./updates');
 const discord = require('./discordroles');
+const demos = require('./demos');
 
 const {
   PORT = 8080,
@@ -32,9 +33,20 @@ const {
   PUBLIC_URL = 'http://localhost:8080',
   DISCORD_INVITE = '',
   DISCORD_NOTIFY_WEBHOOK_URL = '',
+  /* A YouTube link for the "how to install it" section. Empty means the
+     section is not drawn at all, which is the right default: an empty
+     video box on a sales page reads as a broken site. */
+  INSTALL_VIDEO_URL = '',
+  /* Whether to print how many streamers are using it. The number itself
+     is counted from the database and cannot be typed in — a figure
+     somebody chooses by hand is a claim about sales, and the first time
+     it is caught out it costs more than it ever earned. Set it to off
+     (or leave it off) while the real number is small. */
+  SHOW_USER_COUNT = '',
   ADMIN_USER = 'admin',
   ADMIN_PASSWORD,
 } = process.env;
+const COUNT_ON = /^(1|on|yes|true)$/i.test(String(SHOW_USER_COUNT).trim());
 
 // ---- sanity checks (fail loud at boot rather than acting broken later) ----
 const required = { MONGODB_URI, JWT_SECRET, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, ADMIN_PASSWORD };
@@ -391,7 +403,14 @@ app.get('/api/config', (req, res) => {
   /* discordLinking says whether the Discord keys are in Render — no
      secret, just yes/no — so a missing setting can be spotted from
      outside without logging in. */
-  res.json({ discordInvite: DISCORD_INVITE, termsVersion: TERMS_VERSION, discordLinking: discord.canLink() });
+  res.json({
+    discordInvite: DISCORD_INVITE, termsVersion: TERMS_VERSION,
+    discordLinking: discord.canLink(),
+    installVideo: videoEmbed(INSTALL_VIDEO_URL),
+    /* null rather than 0 when it is switched off, so the page can tell
+       "not shown" apart from "nobody yet". */
+    users: COUNT_ON ? userCount.value : null,
+  });
 });
 
 /* ---------------------------------------------------------------------
@@ -816,7 +835,18 @@ app.get('/api/links', auth, async (req, res) => {
   const user = req.user;
   const games = relay.allowedGames(user);
   if (!games.length) {
-    return res.json({ active: false, games: [], links: [], panel: null });
+    /* Nothing runs for this account. Rather than an empty page, say so
+       plainly and name what has stopped: somebody whose card failed, or
+       who cancelled and forgot, should be able to see in one glance that
+       the overlays are off and why, instead of wondering whether the
+       site is broken mid-stream. */
+    return res.json({
+      active: false, games: [], links: [], panel: null,
+      status: user.status || 'none',
+      /* true when this is a lapse rather than a brand new account */
+      lapsed: !!user.stripeSubscriptionId || (user.perm || []).length > 0,
+      stopped: relay.GAMES.map(g => ({ game: g, name: GAME_NAMES[g] })),
+    });
   }
   const token = await ensureOverlayToken(user);
   res.json({
@@ -1194,6 +1224,61 @@ app.post('/api/portal', auth, async (req, res) => {
 });
 
 // ---- reviews ----
+/* ---------------------------------------------------------------------
+   How many streamers are using it.
+
+   Counted, never typed: everybody with a live plan (trials included,
+   since they are using the overlays right now) plus everybody who owns
+   one outright. Cached for five minutes because it is on the front page
+   and the answer does not change by the second.
+
+   The count is deliberately the only number the page can show. There is
+   no setting anywhere that lets a bigger figure be printed, because that
+   figure would be a lie told to every visitor. */
+const userCount = { value: 0, at: 0 };
+async function refreshUserCount() {
+  if (!COUNT_ON) return;
+  if (Date.now() - userCount.at < 5 * 60 * 1000) return;
+  userCount.at = Date.now();
+  try {
+    userCount.value = await User.countDocuments({
+      $or: [
+        { status: { $in: ['trialing', 'active', 'past_due'] } },
+        { perm: { $exists: true, $not: { $size: 0 } } },
+      ],
+    });
+  } catch (err) {
+    console.error('[count] failed', err.message);
+  }
+}
+if (COUNT_ON) { refreshUserCount(); setInterval(refreshUserCount, 5 * 60 * 1000).unref(); }
+
+/* Turn whatever form of YouTube link was pasted into the embed address.
+   Anything that is not a YouTube video id is dropped rather than put in
+   an iframe, because that iframe would happily load anything at all. */
+function videoEmbed(url) {
+  const m = String(url || '').match(/(?:youtu\.be\/|v=|embed\/|shorts\/)([A-Za-z0-9_-]{6,20})/);
+  return m ? `https://www.youtube-nocookie.com/embed/${m[1]}` : '';
+}
+
+app.get('/demo/:game', (req, res) => {
+  const game = String(req.params.game || '');
+  const name = GAME_FILES[game];
+  if (!name) return res.status(404).send('no such overlay');
+  const file = path.join(__dirname, 'overlays', name);
+  if (!fs.existsSync(file)) return res.status(404).send('that overlay is not on the server yet');
+  let html = fs.readFileSync(file, 'utf8');
+  /* In the HEAD, so the fake WebSocket is in place before the overlay's
+     own script runs and tries to open a real one. */
+  html = html.includes('</head>') ? html.replace('</head>', demos.script(game) + '</head>')
+                                  : demos.script(game) + html;
+  res.set('Cache-Control', 'public, max-age=300');
+  /* Embeddable by us and nobody else. */
+  res.set('X-Frame-Options', 'SAMEORIGIN');
+  res.set('Content-Security-Policy', "frame-ancestors 'self'");
+  res.type('html').send(html);
+});
+
 app.get('/api/reviews', async (req, res) => {
   const reviews = await Review.find({ approved: true }).sort({ createdAt: -1 }).limit(20).lean();
   res.json({ reviews: reviews.map(r => ({ ign: r.ign, stars: r.stars, text: r.text })) });
