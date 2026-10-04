@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Session stats — how much you are up this stream</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@500;600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+<style>
+/* Deliberately the quietest thing on the stream. It sits beside a game
+   that is already shouting, so: one number, one line under it, and a
+   graph only if asked for. Green up, red down, nothing else moving. */
+:root{
+  --ink:#070c16;
+  --edge:#223049;
+  --cream:#eaf1ff;
+  --muted:#8fa3c4;
+  --up:#2ee66b;
+  --down:#ff5d5d;
+  --gold:#ffc93c;
+  font-size:18px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;width:100%;overflow:hidden}
+body{background:var(--ink);font-family:'Oswald',system-ui,sans-serif;color:var(--cream);-webkit-font-smoothing:antialiased}
+body.transparent{background:transparent}
+
+#stage{position:fixed;inset:0;display:flex;padding:.7rem;align-items:flex-start;justify-content:center}
+#card{
+  width:100%;max-width:var(--cardw,13rem);
+  background:linear-gradient(180deg,rgba(14,22,38,.96),rgba(7,12,22,.96));
+  border:.14rem solid var(--edge);border-radius:.6rem;
+  padding:.55rem .65rem .6rem;
+  box-shadow:0 .4rem 1.4rem rgba(0,0,0,.75), inset 0 .07rem 0 rgba(255,255,255,.06);
+}
+body.clearbg #card{background:rgba(7,12,22,.55)}
+#card.up{border-color:rgba(46,230,107,.55)}
+#card.down{border-color:rgba(255,93,93,.5)}
+
+#top{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:.6rem;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);
+}
+#top .ttl{display:flex;align-items:center;gap:.33rem;color:var(--cream)}
+#top .ttl::before{
+  content:'';width:.36rem;height:.36rem;border-radius:50%;background:var(--up);
+  box-shadow:0 0 .4rem var(--up);animation:blip 1.4s ease-in-out infinite;
+}
+#card.down #top .ttl::before{background:var(--down);box-shadow:0 0 .4rem var(--down)}
+#card.idle #top .ttl::before{background:var(--muted);box-shadow:none;animation:none}
+@keyframes blip{0%,100%{opacity:1}50%{opacity:.3}}
+@media(prefers-reduced-motion:reduce){#top .ttl::before{animation:none}}
+
+#net{
+  font-family:'Bebas Neue',sans-serif;line-height:.9;font-size:3.1rem;
+  letter-spacing:.01em;margin-top:.12rem;color:var(--cream);
+  font-variant-numeric:tabular-nums;text-shadow:0 .1rem .4rem rgba(0,0,0,.8);
+}
+#card.up #net{color:var(--up)}
+#card.down #net{color:var(--down)}
+#range{font-size:.72rem;font-weight:600;color:var(--muted);margin-top:-.05rem}
+#range b{color:var(--cream);font-weight:700}
+
+/* the line. Drawn as an svg path so it stays sharp at any source size */
+#graph{display:block;width:100%;height:2.6rem;margin-top:.35rem}
+#graph .fill{opacity:.18}
+#last{
+  margin-top:.35rem;font-size:.72rem;font-weight:600;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+#last b{font-weight:800}
+#last .plus{color:var(--up)}
+#last .minus{color:var(--down)}
+.hidden{display:none !important}
+
+/* ---------- operator panel ---------- */
+#opTab{
+  position:fixed;top:.6rem;right:.6rem;z-index:51;
+  background:#fff;color:#0b1526;border:3px solid #17a34a;border-radius:.5rem;
+  padding:.6rem 1rem;font:900 .9rem Nunito,sans-serif;cursor:pointer;
+  box-shadow:0 .2rem .7rem rgba(0,0,0,.55);
+}
+#op{
+  position:fixed;top:0;right:0;bottom:0;width:min(26rem,420px);max-width:100%;
+  background:#eef3fa;border-left:3px solid #33475f;transform:translateX(101%);
+  transition:transform .22s ease;z-index:50;display:flex;flex-direction:column;
+  font-size:.82rem;color:#0b1526;
+}
+#op.open{transform:none}
+#op .body{padding:.9rem 1rem 3rem;overflow-y:auto}
+#opClose{width:100%;background:#ffe3e3;color:#8a1111;border:2px solid #d33;border-radius:.4rem;
+  padding:.6rem;font:900 .85rem Nunito,sans-serif;cursor:pointer;margin-bottom:.8rem}
+#op h3{font-size:.8rem;font-weight:900;margin:1.1rem 0 .15rem;padding-left:.5rem;border-left:.28rem solid #17a34a}
+#op h3:first-of-type{margin-top:0}
+#op .hint{font-size:.72rem;color:#42546e;margin:0 0 .45rem;line-height:1.4}
+#op label{display:block;font-size:.7rem;font-weight:800;color:#33475f;margin-bottom:.15rem}
+#op input,#op select{width:100%;-webkit-appearance:none;appearance:none;background:#fff;color:#0b1526;
+  border:2px solid #7b93b8;border-radius:.4rem;padding:.5rem .55rem;font:800 .85rem Nunito,sans-serif}
+#op input:focus,#op select:focus{outline:3px solid #17a34a}
+.row{display:flex;gap:.45rem;margin-bottom:.45rem}
+.row>*{flex:1}
+button.act{background:#dce7f6;color:#0b1526;border:2px solid #5b7699;border-radius:.4rem;
+  padding:.55rem .5rem;font:900 .82rem Nunito,sans-serif;cursor:pointer}
+button.act.pri{background:#cfeeda;border-color:#17a34a}
+button.act.warn{background:#ffdada;border-color:#d33}
+button.act.gold{background:#ffedbf;border-color:#c8930d}
+#tally,#unread,#log{background:#fff;border:2px solid #7b93b8;border-radius:.4rem;padding:.5rem .55rem;
+  font:800 .78rem/1.65 Nunito,sans-serif;color:#26374d;max-height:12rem;overflow-y:auto}
+#tally{font-size:.95rem;line-height:1.8;margin-bottom:.45rem}
+#unread{color:#8a1111;margin-bottom:.45rem;font-family:ui-monospace,monospace;font-size:.72rem}
+.pill-status{display:inline-block;padding:.15rem .45rem;border-radius:.3rem;font-size:.68rem;font-weight:900}
+.ok{background:#cfeeda;color:#0b6b34;border:1px solid #17a34a}
+.bad{background:#ffdada;color:#8a1111;border:1px solid #d33}
+@media (max-width:640px){
+  #op{font-size:1rem}
+  #op input,#op select,button.act{font-size:1rem;padding:.7rem .6rem}
+  #opTab{font-size:1.05rem;padding:.75rem 1.15rem}
+}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="card" class="idle">
+    <div id="top">
+      <span class="ttl">Session</span>
+      <span id="clock">0:00</span>
+    </div>
+    <div id="net">$0</div>
+    <div id="range"></div>
+    <svg id="graph" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+      <path class="fill" fill="currentColor" d=""></path>
+      <path class="line" fill="none" stroke="currentColor" stroke-width="1.6"
+            stroke-linejoin="round" stroke-linecap="round" d=""></path>
+    </svg>
+    <div id="last"></div>
+  </div>
+</div>
+
+<button id="opTab">☰ CONTROLS</button>
+<aside id="op">
+  <div class="body">
+    <button id="opClose">✕ Close controls</button>
+
+    <h3>1 · Start the session <span id="linkPill" class="pill-status bad">not connected</span></h3>
+    <p class="hint">Type <b>/bal</b> in game, put that number in here, and press start. From then on it follows every payment in and out on its own.</p>
+    <div class="row">
+      <div style="flex:2"><label>Starting balance</label><input id="fStart" placeholder="1.2b or 1200000000"></div>
+      <div><button class="act pri" id="bStart" style="margin-top:1.05rem">▶ Start</button></div>
+    </div>
+    <div class="row">
+      <button class="act warn" id="bStop">⏹ Stop</button>
+      <button class="act" id="bRestart">♻ Start again from now</button>
+    </div>
+
+    <h3>2 · Keep it honest</h3>
+    <p class="hint">Type <b>/bal</b> in game whenever you like — the tracker reads it and corrects itself, so anything it could not follow (trades, deaths, a shop message we have not seen) is put right rather than quietly wrong.</p>
+    <div class="row">
+      <input id="fBal" placeholder="or set the balance here">
+      <button class="act" id="bBal">Set balance</button>
+    </div>
+    <div class="row">
+      <input id="fAdj" placeholder="amount — 5m">
+      <button class="act" id="bAdd">+ Add</button>
+      <button class="act" id="bTake">− Take</button>
+    </div>
+    <div id="tally"></div>
+
+    <h3>3 · Lines it could not read</h3>
+    <p class="hint">Money-ish chat about you that no pattern matched. Send these to us and they get added — then they count on their own.</p>
+    <div id="unread"></div>
+    <div class="row">
+      <button class="act gold" id="bCopy">📋 Copy them</button>
+      <button class="act" id="bClear">Clear</button>
+    </div>
+
+    <h3>4 · Look</h3>
+    <div class="row">
+      <div><label>Show</label>
+        <select id="cMode">
+          <option value="graph">Number and graph</option>
+          <option value="plain">Just the number</option>
+        </select>
+      </div>
+      <div><label>Last payment line</label>
+        <select id="cLast">
+          <option value="yes">Show it</option>
+          <option value="no">Hide it</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Card width</label>
+        <select id="cWidth">
+          <option value="11">Tiny</option>
+          <option value="13" selected>Small</option>
+          <option value="16">Medium</option>
+          <option value="20">Large</option>
+        </select>
+      </div>
+      <div><label>Text size</label>
+        <select id="cSize">
+          <option value="1">Normal</option>
+          <option value="1.15" selected>Big</option>
+          <option value="1.35">Huge</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Card background</label>
+        <select id="cCard">
+          <option value="solid" selected>Solid</option>
+          <option value="clear">See-through</option>
+        </select>
+      </div>
+      <div><label>Your Minecraft name</label><input id="fIgn" value="mrchicken75"></div>
+    </div>
+
+    <h3>5 · What has happened</h3>
+    <div id="log"></div>
+  </div>
+</aside>
+
+<script>
+/* =========================================================
+   Session stats — the page only draws; the relay does the counting.
+   Opened on its own it still works, with payments added by hand.
+   ========================================================= */
+const qs = new URLSearchParams(location.search);
+const DISPLAY = /^\/(display|overlay)/i.test(location.pathname) || qs.get('role') === 'display';
+const el = id => document.getElementById(id);
+
+let S = { phase:'off', startBal:0, bal:0, inTotal:0, outTotal:0, otherTotal:0,
+          events:[], samples:[], startedAt:0, mode:'graph', showLast:true,
+          uiScale:1.15, cardW:13, unread:[] };
+let ign = 'mrchicken75', ws = null, serverMode = false, skew = 0;
+const now = () => Date.now() + skew;
+
+function parseAmount(t){
+  if(!t) return 0;
+  t = String(t).toLowerCase().replace(/[\s,$_]/g,'');
+  const m = t.match(/^(\d+(?:\.\d+)?)([kmbt])?$/);
+  if(!m) return 0;
+  return Math.floor(parseFloat(m[1]) * ({k:1e3,m:1e6,b:1e9,t:1e12}[m[2]] || 1));
+}
+const trim = v => (Math.round(v*100)/100).toString();
+function money(n){
+  const neg = n < 0; n = Math.abs(Math.floor(n || 0));
+  const s = n >= 1e12 ? trim(n/1e12) + 'T'
+          : n >= 1e9  ? trim(n/1e9) + 'B'
+          : n >= 1e6  ? trim(n/1e6) + 'M'
+          : n >= 1e3  ? trim(n/1e3) + 'K'
+          : String(n);
+  return (neg ? '−$' : '$') + s;
+}
+const signed = n => (n > 0 ? '+' : '') + money(n);
+const net = () => S.bal - S.startBal;
+function clock(ms){
+  const s = Math.max(0, Math.floor(ms/1000));
+  const h = Math.floor(s/3600), m = Math.floor(s/60) % 60;
+  return h ? `${h}:${String(m).padStart(2,'0')}` : `${m}:${String(s%60).padStart(2,'0')}`;
+}
+function log(t){
+  const f = el('log'); if(!f) return;
+  const d = document.createElement('div');
+  d.textContent = new Date().toLocaleTimeString([], {hour12:false}) + '  ' + t;
+  f.prepend(d);
+  while(f.children.length > 40) f.lastChild.remove();
+}
+
+/* ---------- local engine, for running this page on its own ---------- */
+function localStart(startBal){
+  S.phase = 'live'; S.startBal = startBal; S.bal = startBal;
+  S.inTotal = 0; S.outTotal = 0; S.otherTotal = 0;
+  S.events = []; S.samples = [{ at: now(), bal: startBal }]; S.startedAt = now();
+  render();
+}
+function localMove(dir, amount, name){
+  if(S.phase !== 'live' || !(amount > 0)) return;
+  if(dir === 'in'){ S.bal += amount; S.inTotal += amount; }
+  else { S.bal -= amount; S.outTotal += amount; }
+  S.events.unshift({ dir, name: name || '', amount, why: 'by hand', at: now() });
+  S.samples.push({ at: now(), bal: S.bal });
+  render();
+}
+
+/* ---------- drawing ---------- */
+function linePath(pts, w, h){
+  if(pts.length < 2) return { line:'', fill:'' };
+  const lo = Math.min(...pts), hi = Math.max(...pts);
+  const span = hi - lo || 1;
+  const step = w / (pts.length - 1);
+  const xy = pts.map((v, i) => [i * step, h - ((v - lo) / span) * (h - 3) - 1.5]);
+  const line = xy.map(([x, y], i) => (i ? 'L' : 'M') + x.toFixed(2) + ' ' + y.toFixed(2)).join(' ');
+  const fill = line + ` L${w} ${h} L0 ${h} Z`;
+  return { line, fill };
+}
+function render(){
+  const card = el('card');
+  const n = net();
+  const live = S.phase === 'live';
+  card.className = (live ? (n > 0 ? 'up' : n < 0 ? 'down' : '') : 'idle');
+  el('net').textContent = live ? signed(n) : '$0';
+  el('range').innerHTML = live
+    ? `${money(S.startBal)} → <b>${money(S.bal)}</b>`
+    : 'not started';
+  el('clock').textContent = live && S.startedAt ? clock(now() - S.startedAt) : '0:00';
+
+  /* the line */
+  const g = el('graph');
+  const wantGraph = (S.mode || 'graph') === 'graph' && live && (S.samples || []).length > 1;
+  g.classList.toggle('hidden', !wantGraph);
+  if(wantGraph){
+    const pts = S.samples.map(s => s.bal);
+    const { line, fill } = linePath(pts, 100, 30);
+    g.querySelector('.line').setAttribute('d', line);
+    g.querySelector('.fill').setAttribute('d', fill);
+    g.style.color = n >= 0 ? 'var(--up)' : 'var(--down)';
+  }
+
+  /* the last thing that happened */
+  const lastBox = el('last');
+  const e = (S.events || [])[0];
+  lastBox.classList.toggle('hidden', !S.showLast || !e || !live);
+  if(e && S.showLast && live){
+    const cls = e.dir === 'out' ? 'minus' : 'plus';
+    const sign = e.dir === 'out' ? '−' : '+';
+    const who = e.name ? ' ' + e.name : (e.why ? ' ' + e.why : '');
+    lastBox.innerHTML = `<b class="${cls}">${sign}${money(e.amount).replace('−','')}</b><span style="opacity:.8">${who}</span>`;
+  }
+
+  if(!DISPLAY) paintPanel();
+}
+function paintPanel(){
+  el('tally').innerHTML =
+    `in: <b style="color:#0b6b34">${money(S.inTotal)}</b> · ` +
+    `out: <b style="color:#8a1111">${money(S.outTotal)}</b><br>` +
+    `now: <b>${money(S.bal)}</b> <span style="color:#42546e">(started ${money(S.startBal)})</span><br>` +
+    `this stream: <b style="color:${net() >= 0 ? '#0b6b34' : '#8a1111'}">${signed(net())}</b>` +
+    (S.otherTotal ? `<br><span style="color:#42546e">something else: ${signed(S.otherTotal)} — found by /bal</span>` : '');
+  const u = el('unread');
+  u.textContent = (S.unread || []).length ? S.unread.join('\n') : 'nothing — every money line so far has been read';
+  const set = (id, v) => { const n2 = el(id); if(n2 && document.activeElement !== n2) n2.value = v; };
+  set('fIgn', ign);
+  const m = el('cMode'); if(m) m.value = S.mode || 'graph';
+  const l = el('cLast'); if(l) l.value = S.showLast === false ? 'no' : 'yes';
+  const w = el('cWidth'); if(w) w.value = String(S.cardW || 13);
+  const z = el('cSize'); if(z) z.value = String(S.uiScale || 1.15);
+}
+
+/* ---------- relay ---------- */
+function cmd(name, args){
+  if(serverMode && ws && ws.readyState === 1){
+    ws.send(JSON.stringify({ t:'cmd', name, args: args || {} }));
+    return true;
+  }
+  return false;
+}
+function connect(){
+  const url = window.__OVERLAY_WS || (location.protocol === 'file:' ? 'ws://localhost:8096' : location.origin.replace(/^http/,'ws'));
+  try { ws = new WebSocket(url); } catch(e){ return setLink(false); }
+  ws.onopen = () => setLink(true);
+  ws.onclose = () => { serverMode = false; setLink(false); setTimeout(connect, 2000); };
+  ws.onmessage = ev => {
+    let msg; try { msg = JSON.parse(ev.data); } catch(e){ return; }
+    if(!msg.m) return;
+    serverMode = true; setLink(true);
+    if(typeof msg.sv === 'number') skew = msg.sv - Date.now();
+    S = msg.m;
+    if(msg.s && msg.s.ign) ign = msg.s.ign;
+    applyLook();
+    render();
+  };
+}
+function setLink(ok){
+  const p = el('linkPill'); if(!p) return;
+  p.className = 'pill-status ' + (ok ? 'ok' : 'bad');
+  p.textContent = ok ? 'live' : 'not connected';
+}
+function applyLook(){
+  document.documentElement.style.setProperty('--cardw', (S.cardW || 13) + 'rem');
+  fit();
+}
+
+/* ---------- controls ---------- */
+function bindPanel(){
+  el('bStart').onclick = () => {
+    const v = parseAmount(el('fStart').value);
+    if(!cmd('s.start', { startBal: v })) localStart(v);
+    log('session started at ' + money(v));
+  };
+  el('bStop').onclick = () => { if(!cmd('s.stop')){ S.phase = 'off'; render(); } };
+  el('bRestart').onclick = () => {
+    const v = S.bal || parseAmount(el('fStart').value);
+    if(!cmd('s.start', { startBal: v })) localStart(v);
+    log('started again from ' + money(v));
+  };
+  el('bBal').onclick = () => {
+    const v = parseAmount(el('fBal').value);
+    if(!v) return;
+    if(!cmd('s.setBal', { amount: v })){ S.bal = v; render(); }
+    el('fBal').value = '';
+  };
+  el('bAdd').onclick = () => {
+    const v = parseAmount(el('fAdj').value);
+    if(!v) return;
+    if(!cmd('s.add', { amount: v })) localMove('in', v, 'by hand');
+    el('fAdj').value = '';
+  };
+  el('bTake').onclick = () => {
+    const v = parseAmount(el('fAdj').value);
+    if(!v) return;
+    if(!cmd('s.take', { amount: v })) localMove('out', v, 'by hand');
+    el('fAdj').value = '';
+  };
+  el('bCopy').onclick = e => {
+    const text = (S.unread || []).join('\n');
+    if(!text) return;
+    navigator.clipboard.writeText(text)
+      .then(() => { e.target.textContent = '✓ Copied'; setTimeout(() => e.target.textContent = '📋 Copy them', 1500); })
+      .catch(() => log('copy failed — select them by hand'));
+  };
+  el('bClear').onclick = () => { if(!cmd('s.clearUnread')){ S.unread = []; render(); } };
+  el('cMode').onchange = e => { S.mode = e.target.value; cmd('s.config', { mode: S.mode }); render(); };
+  el('cLast').onchange = e => { S.showLast = e.target.value === 'yes'; cmd('s.config', { showLast: S.showLast }); render(); };
+  el('cWidth').onchange = e => { S.cardW = Number(e.target.value); cmd('s.config', { cardW: S.cardW }); applyLook(); render(); };
+  el('cSize').onchange = e => { S.uiScale = parseFloat(e.target.value) || 1; cmd('s.config', { uiScale: S.uiScale }); applyLook(); render(); };
+  el('cCard').onchange = e => document.body.classList.toggle('clearbg', e.target.value === 'clear');
+  el('fIgn').onchange = e => cmd('config', { ign: e.target.value.trim() || 'mrchicken75' });
+  el('fStart').addEventListener('keydown', e => e.key === 'Enter' && el('bStart').click());
+  el('fAdj').addEventListener('keydown', e => e.key === 'Enter' && el('bAdd').click());
+}
+el('opTab').onclick = () => el('op').classList.toggle('open');
+el('opClose').onclick = () => el('op').classList.remove('open');
+
+function fit(){
+  const w = Math.min(innerWidth, innerHeight * 9/16);
+  const px = Math.min(30, Math.max(10, (w / 26) * (S.uiScale || 1)));
+  document.documentElement.style.fontSize = px + 'px';
+}
+addEventListener('resize', fit);
+
+/* the clock ticks even when nothing else changes */
+setInterval(() => { if(S.phase === 'live') el('clock').textContent = clock(now() - S.startedAt); }, 1000);
+
+applyLook();
+if(DISPLAY){
+  document.body.classList.add('transparent');
+  el('opTab').style.display = 'none';
+} else {
+  bindPanel();
+}
+connect();
+render();
+</script>
+</body>
+</html>
