@@ -865,6 +865,8 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
   backdrop-filter:blur(8px);
 }
 @media(max-width:860px){.extra{grid-template-columns:1fr}}
+/* They live in their own sections now, so the only stacking left is
+   inside one — kept in case a section ever holds two. */
 .extra + .extra{margin-top:1.6rem}
 .extra .stage{
   position:relative;border:1px solid var(--line);border-radius:.8rem;overflow:hidden;background:#070d18;
@@ -896,9 +898,15 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
   border-radius:.4rem;padding:.35rem .6rem;margin-bottom:.8rem;
 }
 .modes{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.9rem}
-.modes span{
+.modes button{
   font:700 .82rem Karla,sans-serif;color:var(--text);background:rgba(16,24,42,.7);
-  border:1px solid var(--line);border-radius:.5rem;padding:.35rem .6rem;
+  border:1px solid var(--line);border-radius:.5rem;padding:.4rem .7rem;cursor:pointer;
+  transition:border-color .18s ease, transform .18s ease, background .18s ease;
+}
+.modes button:hover{border-color:#3a4c6d;transform:translateY(-2px)}
+.modes button.on{
+  border-color:var(--gold);color:#fff;
+  background:linear-gradient(180deg,rgba(255,201,60,.16),transparent);
 }
 
 /* ---------- links: one overlay at a time ---------- */
@@ -937,7 +945,8 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
     <nav>
       <a href="#games" class="hide-sm">Overlays</a>
       <a href="#play" class="hide-sm">Try it</a>
-      <a href="#extras" class="hide-sm">Free extras</a>
+      <a href="#stats" class="hide-sm">Stats</a>
+      <a href="#giveaways" class="hide-sm">Giveaways</a>
       <a href="#how" class="hide-sm">How it works</a>
       <a href="#reviews" class="hide-sm">Reviews</a>
       <a href="#pricing" class="hide-sm">Pricing</a>
@@ -1072,11 +1081,11 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
   </div>
 </section>
 
-<section id="extras">
+<section id="stats">
   <div class="wrap">
     <div class="sec-head">
-      <h2>Two more, <em>free with any plan</em></h2>
-      <p>These are not games and they do not take a turn — they run alongside whichever game you are playing, on their own links. Anyone with a plan gets both, including during the free week.</p>
+      <h2>Know how the stream <em>actually went</em></h2>
+      <p>Not a game and it does not take a turn — it runs alongside whichever game you are playing, on its own link, and it is free with any plan including the free week.</p>
     </div>
 
     <div class="extra" id="statsExtra" style="--tint:#2ee66b">
@@ -1101,6 +1110,16 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
       </div>
     </div>
 
+  </div>
+</section>
+
+<section id="giveaways">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Give things away, <em>properly</em></h2>
+      <p>Free to enter, decided on screen, and free with any plan. Runs alongside a game the same way the tracker does.</p>
+    </div>
+
     <div class="extra" id="giveExtra" style="--tint:#ffc93c">
       <div class="stage">
         <span class="tag">live demo</span>
@@ -1109,11 +1128,16 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
       <div>
         <span class="freeflag">Free with any plan</span>
         <h3 style="color:#ffc93c">Giveaways</h3>
-        <p>Free to enter, always. Viewers type their Minecraft name with a <b>!</b> in front and they are in the draw — then a race decides it on screen.</p>
+        <p>Free to enter, always. Viewers type their Minecraft name with a <b>!</b> in front in your Twitch, YouTube or TikTok chat, and they are in the draw — then a race decides it on screen.</p>
         <div class="cmdline">!yourname</div>
-        <div class="modes"><span>🐔 Chicken race</span><span>🚤 Boat race</span><span>🔢 Guess the number</span></div>
+        <div class="modes" id="giveModes">
+          <button type="button" data-mode="chicken" class="on">🐔 Chicken race</button>
+          <button type="button" data-mode="boat">🚤 Boat race</button>
+          <button type="button" data-mode="number">🔢 Guess the number</button>
+        </div>
+        <p style="color:var(--muted);font-size:.85rem;margin:-.4rem 0 .9rem">Click one to watch it run.</p>
         <ul>
-          <li>Entries read from Minecraft chat, plus Twitch, YouTube and TikTok if you want them</li>
+          <li>Reads your Twitch, YouTube and TikTok chat — connect one, or all three</li>
           <li>You set the prize, how long entries stay open and which game decides it</li>
           <li>The winner is drawn from every single entry — the race is just the telling</li>
           <li>Remove anyone who should not be in there before you draw</li>
@@ -3218,11 +3242,24 @@ const PLAY = [
    ===================================================================== */
 (function extraDemos(){
   if(!/^https?:$/.test(location.protocol)) return;
-  const pairs = [['statsFrame', '/demo/stats'], ['giveFrame', '/demo/giveaway']];
-  for(const [id, src] of pairs){
-    const f = document.getElementById(id);
-    if(f) f.src = src;
-  }
+  const stats = document.getElementById('statsFrame');
+  if(stats) stats.src = '/demo/stats';
+
+  /* The three giveaway games are chips you can click, and clicking one
+     reloads the demo in that mode — which is the only honest way to
+     show three different games in one frame. */
+  const frame = document.getElementById('giveFrame');
+  const modes = document.getElementById('giveModes');
+  if(!frame || !modes) return;
+  const show = m => {
+    modes.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+    frame.src = '/demo/giveaway?mode=' + m;
+  };
+  modes.addEventListener('click', e => {
+    const b = e.target.closest('[data-mode]');
+    if(b) show(b.dataset.mode);
+  });
+  show('chicken');
 })();
 
 /* =====================================================================
