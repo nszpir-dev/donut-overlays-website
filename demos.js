@@ -13,13 +13,16 @@
    entire point — what a visitor watches on the front page is the thing
    they are buying, down to the last animation. */
 const DEMO_NAMES = ['9void', 'xqovr', 'DrDonutt', 'VyperJames', 'Sc0tty', 'mighty4l', 'nj_lucca', 'Crawdiddle'];
-function demoScript(game) {
+function demoScript(game, mode) {
   const names = JSON.stringify(DEMO_NAMES);
+  /* Which giveaway the demo should play. Anything unexpected falls back
+     to the chicken race rather than showing nothing. */
+  const want = ['chicken', 'boat', 'number'].includes(String(mode)) ? String(mode) : 'chicken';
   return `<script>(function(){
   /* Nothing here may talk to the server: a hundred demo frames opening
      real sockets would be a self-inflicted denial of service. */
   window.WebSocket = function(){ this.readyState = 0; this.send = function(){}; this.close = function(){}; };
-  var NAMES = ${names}, G = ${JSON.stringify(game)}, i = 0;
+  var NAMES = ${names}, G = ${JSON.stringify(game)}, MODE = ${JSON.stringify(want)}, i = 0;
   var pick = function(){ return NAMES[(i++) % NAMES.length]; };
   function ready(fn){
     if(document.readyState === 'complete') setTimeout(fn, 400);
@@ -88,25 +91,47 @@ function demoScript(game) {
       }
       if(G === 'giveaway'){
         /* No local engine on this one — the relay normally decides
-           everything — so the demo writes the same state the relay would
-           send and lets the page draw it. Fifteen beats: fill up with
-           entries, race, sit on the winner, start again. */
+           everything — so the demo writes the same state the relay
+           would send and lets the page draw it.
+        
+           The crowd is the point here: a real giveaway has hundreds in
+           it, and a demo showing eight would be selling the wrong
+           picture. */
         if(typeof window.GSET !== 'function') return;
         var d = window.__demo || (window.__demo = { entries: [] });
-        var t = Date.now(), step = n % 15;
-        var wheres = ['minecraft', 'twitch', 'youtube', 'tiktok'];
+        var t = Date.now(), step = n % 16;
+        var wheres = ['twitch', 'youtube', 'tiktok'];
+        var made = function(k){
+          var out = [];
+          for(var j = 0; j < k; j++){
+            var base = NAMES[j % NAMES.length];
+            out.push({ name: j < NAMES.length ? base : base + (10 + (j % 89)),
+                       platform: wheres[j % 3], at: t,
+                       guess: MODE === 'number' ? 1 + ((j * 7) % 99) : null });
+          }
+          return out;
+        };
         if(step === 0){
-          d.entries = [];
-          return window.GSET({ phase:'open', mode:'chicken', prize:'50M', endsAt: t + 30000,
-                               entries: [], winner: null });
+          d.entries = made(14);
+          return window.GSET({ phase:'open', mode: MODE, prize: MODE === 'number' ? '100M' : '50M',
+                               low: 1, high: 100, secret: 0, revealSecret: false,
+                               endsAt: t + 32000, entries: d.entries, total: d.entries.length, winner: null });
         }
         if(step < 9){
-          d.entries.push({ name: pick(), platform: wheres[step % 4], at: t, guess: null });
-          return window.GSET({ phase:'open', endsAt: t + (30000 - step * 2500), entries: d.entries.slice() });
+          d.entries = made(14 + step * 26);           /* 40, 66, 92 … a real crowd */
+          return window.GSET({ phase:'open', endsAt: t + (32000 - step * 3200),
+                               entries: d.entries.slice(-200), total: d.entries.length });
         }
         if(step === 9){
-          return window.GSET({ phase:'racing', endsAt: 0, entries: d.entries.slice(),
-                               winner: { name: d.entries[2].name, platform: 'twitch', guess: null } });
+          var w = d.entries[Math.floor(d.entries.length / 3)];
+          if(MODE === 'number'){
+            return window.GSET({ phase:'done', revealSecret: true, secret: w.guess, endsAt: 0,
+                                 entries: d.entries.slice(-200), total: d.entries.length,
+                                 winner: { name: w.name, platform: w.platform, guess: w.guess } });
+          }
+          return window.GSET({ phase:'racing', endsAt: 0, entries: d.entries.slice(-200),
+                               total: d.entries.length,
+                               winner: { name: w.name, platform: w.platform, guess: null } });
         }
         return;    /* the race plays itself out, then the winner sits there */
       }

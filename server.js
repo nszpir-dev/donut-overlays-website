@@ -1289,8 +1289,10 @@ app.get('/demo/:game', (req, res) => {
   let html = fs.readFileSync(file, 'utf8');
   /* In the HEAD, so the fake WebSocket is in place before the overlay's
      own script runs and tries to open a real one. */
-  html = html.includes('</head>') ? html.replace('</head>', demos.script(game) + '</head>')
-                                  : demos.script(game) + html;
+  /* ?mode= lets the giveaway section on the front page show whichever
+     of its three games somebody clicked. Validated inside demos.js. */
+  const tag = demos.script(game, req.query.mode);
+  html = html.includes('</head>') ? html.replace('</head>', tag + '</head>') : tag + html;
   res.set('Cache-Control', 'public, max-age=300');
   /* Embeddable by us and nobody else. */
   res.set('X-Frame-Options', 'SAMEORIGIN');
