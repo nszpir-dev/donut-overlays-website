@@ -858,6 +858,49 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
   padding:.55rem .85rem;font:800 .85rem Karla,sans-serif;cursor:pointer;
 }
 
+/* ---------- the free extras: stats and giveaways ---------- */
+.extra{
+  display:grid;grid-template-columns:minmax(0,22rem) minmax(0,1fr);gap:2rem;align-items:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:1rem;padding:1.5rem;
+  backdrop-filter:blur(8px);
+}
+@media(max-width:860px){.extra{grid-template-columns:1fr}}
+.extra + .extra{margin-top:1.6rem}
+.extra .stage{
+  position:relative;border:1px solid var(--line);border-radius:.8rem;overflow:hidden;background:#070d18;
+}
+.extra .stage iframe{display:block;width:100%;height:300px;border:0;background:transparent}
+/* the giveaway card is a taller thing than the tracker — a race needs
+   room, and a frame that crops the winner is worse than no demo */
+#giveFrame{height:380px}
+/* Bottom left, not top left: at the top it sat across the card's own
+   title in the demo behind it. */
+.extra .stage .tag{
+  position:absolute;bottom:.55rem;left:.6rem;z-index:2;font-size:.64rem;font-weight:800;
+  letter-spacing:.18em;text-transform:uppercase;color:#cfe2ff;background:rgba(6,9,18,.75);
+  border:1px solid var(--line);border-radius:.3rem;padding:.18rem .45rem;
+}
+.extra h3{font-size:2.1rem;margin-bottom:.5rem}
+.extra p{color:var(--muted);margin-bottom:.8rem}
+.extra ul{list-style:none;margin:0 0 1rem;padding:0}
+.extra li{padding:.3rem 0 .3rem 1.4rem;position:relative;font-size:.95rem}
+.extra li::before{content:'';position:absolute;left:0;top:.82rem;width:.5rem;height:.5rem;border-radius:50%;
+  background:var(--tint,var(--teal))}
+.freeflag{
+  display:inline-block;margin-bottom:.7rem;font:800 .66rem Karla,sans-serif;letter-spacing:.18em;
+  text-transform:uppercase;color:#061024;background:var(--go,#2ee66b);border-radius:.25rem;padding:.26rem .5rem;
+}
+.cmdline{
+  display:inline-block;font:800 1.05rem ui-monospace,monospace;color:#bdf3d2;
+  background:rgba(46,230,107,.12);border:1px solid rgba(46,230,107,.45);
+  border-radius:.4rem;padding:.35rem .6rem;margin-bottom:.8rem;
+}
+.modes{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.9rem}
+.modes span{
+  font:700 .82rem Karla,sans-serif;color:var(--text);background:rgba(16,24,42,.7);
+  border:1px solid var(--line);border-radius:.5rem;padding:.35rem .6rem;
+}
+
 /* ---------- links: one overlay at a time ---------- */
 .linkpick{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;margin:.2rem 0 .4rem}
 .linkpick select{
@@ -894,6 +937,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
     <nav>
       <a href="#games" class="hide-sm">Overlays</a>
       <a href="#play" class="hide-sm">Try it</a>
+      <a href="#extras" class="hide-sm">Free extras</a>
       <a href="#how" class="hide-sm">How it works</a>
       <a href="#reviews" class="hide-sm">Reviews</a>
       <a href="#pricing" class="hide-sm">Pricing</a>
@@ -1028,6 +1072,61 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
   </div>
 </section>
 
+<section id="extras">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Two more, <em>free with any plan</em></h2>
+      <p>These are not games and they do not take a turn — they run alongside whichever game you are playing, on their own links. Anyone with a plan gets both, including during the free week.</p>
+    </div>
+
+    <div class="extra" id="statsExtra" style="--tint:#2ee66b">
+      <div class="stage">
+        <span class="tag">live demo</span>
+        <iframe id="statsFrame" title="Session stats demo" loading="lazy"></iframe>
+      </div>
+      <div>
+        <span class="freeflag">Free with any plan</span>
+        <h3 style="color:#2ee66b">Session stats</h3>
+        <p>Type in what you started the stream with, and the number on screen is how much you are up or down right now. Small enough to sit in a corner next to a game.</p>
+        <ul>
+          <li>Counts every payment in and every payment out on its own</li>
+          <li>Type <b>/bal</b> in game any time and it corrects itself — nothing drifts</li>
+          <li>A small graph of the whole stream, or just the number if you prefer</li>
+          <li>Runs in the background and never touches whatever game is playing</li>
+        </ul>
+        <div class="row" style="display:flex;gap:.6rem;flex-wrap:wrap">
+          <button class="btn btn-ghost" data-customize="stats">Customise it</button>
+          <a class="btn btn-gold" href="#pricing">Get it free</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="extra" id="giveExtra" style="--tint:#ffc93c">
+      <div class="stage">
+        <span class="tag">live demo</span>
+        <iframe id="giveFrame" title="Giveaway demo" loading="lazy"></iframe>
+      </div>
+      <div>
+        <span class="freeflag">Free with any plan</span>
+        <h3 style="color:#ffc93c">Giveaways</h3>
+        <p>Free to enter, always. Viewers type their Minecraft name with a <b>!</b> in front and they are in the draw — then a race decides it on screen.</p>
+        <div class="cmdline">!yourname</div>
+        <div class="modes"><span>🐔 Chicken race</span><span>🚤 Boat race</span><span>🔢 Guess the number</span></div>
+        <ul>
+          <li>Entries read from Minecraft chat, plus Twitch, YouTube and TikTok if you want them</li>
+          <li>You set the prize, how long entries stay open and which game decides it</li>
+          <li>The winner is drawn from every single entry — the race is just the telling</li>
+          <li>Remove anyone who should not be in there before you draw</li>
+        </ul>
+        <div class="row" style="display:flex;gap:.6rem;flex-wrap:wrap">
+          <button class="btn btn-ghost" data-customize="giveaway">Customise it</button>
+          <a class="btn btn-gold" href="#pricing">Get it free</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="how">
   <div class="wrap">
     <div class="sec-head">
@@ -1082,6 +1181,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
         <div class="approx" data-approx="5"></div>
         <ul>
           <li>Every game while it runs</li>
+          <li>Session stats and giveaways, free</li>
           <li>Every new game the day it launches</li>
           <li>Seven days free — nothing charged</li>
           <li>Cancel whenever, from the site</li>
@@ -1095,6 +1195,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
         <div class="approx" data-approx="12"></div>
         <ul>
           <li>Pick any one game — yours forever</li>
+          <li>Session stats and giveaways, free</li>
           <li>One payment, nothing recurring</li>
           <li>Keeps working with no subscription</li>
           <li class="no">Games we add later are not included</li>
@@ -1108,6 +1209,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
         <div class="approx" data-approx="25"></div>
         <ul>
           <li>Pick any three games — yours forever</li>
+          <li>Session stats and giveaways, free</li>
           <li>One payment, nothing recurring</li>
           <li>Works out cheaper than buying three on their own</li>
           <li class="no">Games we add later are not included</li>
@@ -1600,11 +1702,20 @@ const opts = {
   lastcall:{ ...base, accent:'#35e0ff' },
   /* The royal blue Hold the Crown ships with, for the same reason. */
   crown:   { ...base, accent:'#4d7cff' },
+  /* The extras have no card preview — the demos further down ARE the
+     overlay — but they are customisable, so they need somewhere to keep
+     the picked colour. */
+  stats:   { ...base, accent:'#2ee66b' },
+  giveaway:{ ...base, accent:'#ffc93c' },
 };
 /* One list, used by the previews, the loader and the saver. Adding a game
    in three separate places is how the customiser quietly stopped covering
    Last Call in the first place. */
 const LOOK_GAMES = ['board','auction','money','lastcall','crown'];
+/* The extras are customisable too, but they have no card preview on this
+   page — their demos below are the real thing, so there is nothing to
+   paint here. */
+const LOOK_EXTRAS = ['stats','giveaway'];
 const STOCK_ART = '/chicken.png';
 const paint = k => document.getElementById('pv-' + k).innerHTML = previewHTML(k, opts[k]);
 LOOK_GAMES.forEach(paint);
@@ -1632,7 +1743,7 @@ async function loadLook(){
     const r = await fetch(API + '/api/look', { headers: authHeader() });
     if(!r.ok) return;
     const { look } = await r.json();
-    LOOK_GAMES.forEach(g => {
+    [...LOOK_GAMES, ...LOOK_EXTRAS].forEach(g => {
       const saved = (look && look[g]) || {};
       if(saved.accent) opts[g].accent = saved.accent;
       if(saved.scale)  opts[g].scale  = saved.scale;
@@ -1659,7 +1770,7 @@ function saveLook(){
   lookTimer = setTimeout(async () => {
     try {
       const look = {};
-      LOOK_GAMES.forEach(g => { look[g] = { accent: opts[g].accent, scale: opts[g].scale }; });
+      [...LOOK_GAMES, ...LOOK_EXTRAS].forEach(g => { look[g] = { accent: opts[g].accent, scale: opts[g].scale }; });
       /* Only the elimination board has a picture behind it. */
       look.board.bgImage = opts.board.bgImage || '';
       look.board.bgOpacity = opts.board.bgOpacity;
@@ -1713,7 +1824,8 @@ function openCustomiser(game){
   document.getElementById('sheetTitle').textContent =
     'Customise ' + ({board:'the elimination board', auction:'the auction',
                      money:'the money game', lastcall:'Last Call',
-                     crown:'Hold the Crown'})[editing];
+                     crown:'Hold the Crown', stats:'the session stats',
+                     giveaway:'the giveaways'})[editing];
   sheet.classList.add('open');
   refreshSheet();
 }
@@ -2688,6 +2800,11 @@ async function paintSetup(){
       </div>`);
   }
 
+  /* The games, then the two extras that come free with any plan. One
+     list, because from the streamer's side they are all just overlays
+     with links — what differs is the badge beside the address. */
+  const allLinks = (data.links || []).concat(data.extras || []);
+
   /* One overlay at a time, chosen from a list.
   
      Five games meant five near-identical rows of long addresses, and
@@ -2701,7 +2818,7 @@ async function paintSetup(){
       <div class="col">
         <div class="linkpick">
           <select id="lnPick" aria-label="Which overlay">
-            ${data.links.map(l => `<option value="${l.game}">${l.name}</option>`).join('')}
+            ${allLinks.map(l => `<option value="${l.game}">${l.name}${l.free ? ' — free' : ''}</option>`).join('')}
           </select>
           <span class="statepill live" id="lnState"></span>
         </div>
@@ -2774,19 +2891,21 @@ async function paintSetup(){
      browser, because somebody who runs one game every stream should not
      have to choose it again every time they open this page. */
   const pick = document.getElementById('lnPick');
-  if(pick && data.links.length){
+  if(pick && allLinks.length){
     let last = '';
     try { last = localStorage.getItem('donut.link') || ''; } catch(e){}
-    if(data.links.some(l => l.game === last)) pick.value = last;
+    if(allLinks.some(l => l.game === last)) pick.value = last;
     const draw = () => {
-      const l = data.links.find(x => x.game === pick.value) || data.links[0];
+      const l = allLinks.find(x => x.game === pick.value) || allLinks[0];
       const mine = owned.includes(l.game);
       try { localStorage.setItem('donut.link', l.game); } catch(e){}
       const state = document.getElementById('lnState');
-      state.className = 'statepill ' + (mine ? 'own' : 'live');
+      state.className = 'statepill ' + (l.free ? 'live' : (mine ? 'own' : 'live'));
       /* Says out loud which ones survive a cancellation, on the row
          itself, because that is the moment somebody is deciding. */
-      state.textContent = mine ? 'yours forever' : 'stops if you cancel';
+      state.textContent = l.free ? 'free with your plan'
+                        : mine ? 'yours forever'
+                        : 'stops if you cancel';
       document.getElementById('lnOne').innerHTML = `
         <code id="lnUrl">${l.url}</code>
         <div style="font-size:.8rem;color:var(--muted);margin-top:.45rem;line-height:1.5">
@@ -3088,6 +3207,22 @@ const PLAY = [
     if(b) show(b.dataset.play);
   };
   show(at);
+})();
+
+/* =====================================================================
+   THE FREE EXTRAS
+   ---------------------------------------------------------------------
+   Same trick as the game tabs: the real overlay in an iframe, playing
+   itself. Only over http — opened off the disk there is no server to
+   answer /demo and a dead frame is worse than none.
+   ===================================================================== */
+(function extraDemos(){
+  if(!/^https?:$/.test(location.protocol)) return;
+  const pairs = [['statsFrame', '/demo/stats'], ['giveFrame', '/demo/giveaway']];
+  for(const [id, src] of pairs){
+    const f = document.getElementById(id);
+    if(f) f.src = src;
+  }
 })();
 
 /* =====================================================================
