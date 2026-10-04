@@ -90,12 +90,18 @@ body.clearbg #card{background:rgba(10,15,29,.6)}
   border:1px solid var(--edge);color:var(--muted);text-transform:uppercase;
 }
 .where span.on{color:#0a0f1d;border-color:transparent}
-.where span.mc.on{background:#8bd450}
 .where span.tw.on{background:#a970ff;color:#fff}
 .where span.yt.on{background:#ff4d4d;color:#fff}
 .where span.tt.on{background:#25f4ee}
 
 /* ---------- entrants ---------- */
+/* Said loudly, because a giveaway with no chat connected looks exactly
+   like a giveaway nobody wants to enter. */
+#nochat{
+  text-align:center;font-size:.82rem;font-weight:800;letter-spacing:.04em;
+  color:#ffd0d0;background:rgba(255,93,93,.14);border:.1rem solid rgba(255,93,93,.5);
+  border-radius:.4rem;padding:.35rem .5rem;
+}
 #faces{display:flex;flex-wrap:wrap;gap:.25rem;max-height:5.4rem;overflow:hidden}
 .face{
   display:flex;align-items:center;gap:.25rem;background:rgba(43,60,94,.4);
@@ -107,28 +113,78 @@ body.clearbg #card{background:rgba(10,15,29,.6)}
 .face span{font-size:.7rem;font-weight:700;max-width:6rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .face b{font-family:'Bebas Neue',sans-serif;font-size:.95rem;color:var(--gold)}
 
-/* ---------- the race ---------- */
-#track{display:none;flex-direction:column;gap:.22rem;padding:.3rem 0 .1rem;position:relative}
+/* ---------- the race ----------
+   One field, never lanes. Lanes line the names up in a column down the
+   left and cap how many fit on a card; scattering them means a hundred
+   birds and a hundred names can share the same height, and it looks
+   like a stampede instead of a spreadsheet.
+
+   It is still only choreography: the winner was drawn before any of
+   this appeared on screen. */
+#track{display:none;flex-direction:column;gap:.25rem;padding:.25rem 0 .1rem;position:relative}
 #card.racing #track,#card.won #track{display:flex}
 #card.racing #faces,#card.won #faces{display:none}
 #card.racing #how,#card.won #how{display:none}
-.lane{
-  position:relative;height:1.75rem;border-radius:.3rem;overflow:hidden;
-  background:linear-gradient(90deg,rgba(43,60,94,.35),rgba(43,60,94,.12));
+#card.racing #nochat,#card.won #nochat{display:none}
+
+#pack{
+  position:relative;height:var(--packh,10rem);border-radius:.35rem;overflow:hidden;
+  background:linear-gradient(90deg,rgba(43,60,94,.3),rgba(43,60,94,.1));
   border:.07rem solid var(--edge);
 }
-body.water .lane{background:linear-gradient(90deg,rgba(53,200,255,.22),rgba(53,200,255,.06))}
-.lane .finish{position:absolute;top:0;bottom:0;right:.2rem;width:.28rem;
-  background:repeating-linear-gradient(180deg,#fff 0 .22rem,#111 .22rem .44rem);opacity:.75}
-.runner{
-  position:absolute;top:50%;left:0;transform:translate(0,-50%);
-  display:flex;align-items:center;gap:.25rem;white-space:nowrap;
-  transition:left .12s linear;
+body.water #pack{background:linear-gradient(180deg,rgba(53,200,255,.2),rgba(53,200,255,.05))}
+#pack::before{
+  content:'';position:absolute;inset:0;opacity:.3;
+  background:repeating-linear-gradient(180deg,transparent 0 .8rem,rgba(255,255,255,.04) .8rem .84rem);
 }
-.runner .pic{font-size:1.15rem;line-height:1}
-.runner img{width:1.1rem;height:1.1rem;border-radius:.15rem;image-rendering:pixelated}
-.runner .n{font-size:.72rem;font-weight:800;color:var(--cream);text-shadow:0 .08rem .25rem #000}
-.lane.win{border-color:var(--gold);background:linear-gradient(90deg,rgba(255,201,60,.3),rgba(255,201,60,.06))}
+#pack .finish{position:absolute;top:0;bottom:0;right:.3rem;width:.3rem;
+  background:repeating-linear-gradient(180deg,#fff 0 .22rem,#111 .22rem .44rem);opacity:.8;z-index:400}
+
+.runner{
+  position:absolute;left:0;top:0;display:flex;align-items:center;gap:.15rem;white-space:nowrap;
+  will-change:transform;
+}
+.runner .spr{width:1.5rem;height:1.3rem;flex:none;display:block}
+/* The name travels with the bird rather than sitting in a column. Small,
+   outlined, and leaning slightly so a pile of them stays readable. */
+.runner .n{
+  font-size:.58rem;font-weight:800;letter-spacing:.01em;color:#fff;
+  text-shadow:0 0 .18rem #000, 0 .06rem .12rem #000, 0 0 .06rem #000;
+  max-width:4.4rem;overflow:hidden;text-overflow:ellipsis;
+}
+/* Every third name rides above its bird and every third below, rather
+   than all of them trailing at the same height. With a hundred on
+   screen that one change is the difference between a crowd you can
+   read names out of and a grey smear. */
+.runner.up .n{transform:translateY(-.78rem)}
+.runner.dn .n{transform:translateY(.72rem)}
+.runner.win{z-index:390}
+.runner.win .spr{width:2.1rem;height:1.85rem;filter:drop-shadow(0 0 .35rem rgba(255,201,60,.95))}
+.runner.win .n{
+  font-size:.72rem;font-weight:900;color:#2a1c00;background:var(--gold);
+  border-radius:.2rem;padding:0 .26rem;text-shadow:none;max-width:none;
+}
+/* a hundred identical birds is a smear; a hundred slightly different
+   ones reads as a crowd */
+.runner.t1 .spr{filter:hue-rotate(18deg)}
+.runner.t2 .spr{filter:hue-rotate(-16deg) saturate(1.2)}
+.runner.t3 .spr{filter:brightness(.92)}
+.runner.t4 .spr{filter:brightness(1.08) hue-rotate(8deg)}
+
+/* the birds themselves */
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7%)}}
+@keyframes legA{0%,100%{transform:rotate(14deg)}50%{transform:rotate(-16deg)}}
+@keyframes legB{0%,100%{transform:rotate(-16deg)}50%{transform:rotate(14deg)}}
+@keyframes flap{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(10deg)}}
+@keyframes rock{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+.spr .body{animation:bob .26s ease-in-out infinite;transform-origin:50% 60%}
+.spr .wing{animation:flap .26s ease-in-out infinite;transform-origin:62% 48%}
+.spr .l1{animation:legA .26s linear infinite;transform-origin:40% 78%}
+.spr .l2{animation:legB .26s linear infinite;transform-origin:56% 78%}
+.spr .boat{animation:rock .9s ease-in-out infinite;transform-origin:50% 80%}
+@media(prefers-reduced-motion:reduce){
+  .spr .body,.spr .wing,.spr .l1,.spr .l2,.spr .boat{animation:none}
+}
 #more{font-size:.68rem;color:var(--muted);text-align:center}
 
 /* ---------- guesses, for the number game ---------- */
@@ -210,6 +266,37 @@ button.act.gold{background:#ffedbf;border-color:#c8930d}
 </head>
 <body>
 
+<!-- Drawn once, used by every racer. One definition and a hundred
+     <use> tags is the difference between a card that animates and a
+     card that stutters on a streaming PC. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="spr-chicken" viewBox="0 0 30 26">
+    <g class="l1" stroke="#ffb020" stroke-width="1.5" stroke-linecap="round"><path d="M12 19v4"/><path d="M12 23h-2.2"/></g>
+    <g class="l2" stroke="#ffb020" stroke-width="1.5" stroke-linecap="round"><path d="M16.5 19v4"/><path d="M16.5 23h-2.2"/></g>
+    <g class="body">
+      <ellipse cx="13.5" cy="13" rx="8.4" ry="6.6" fill="#fdfdff"/>
+      <path d="M6.6 13.4 1.6 9.2l1 4.6-2 3.4 5.4-1.2z" fill="#eef2fb"/>
+      <ellipse cx="6.4" cy="11.4" rx="2.6" ry="3.2" fill="#f0f3fb"/>
+      <circle cx="20.4" cy="8.2" r="4.3" fill="#fdfdff"/>
+      <path d="M19.1 3.9c.7-1.6 2.2-1.1 2.1.3.9-1.2 2.3-.5 1.8.8-.4 1-1.6 1.4-2.6 1.2z" fill="#ff4d4d"/>
+      <path d="M24.2 8.6l4 1.3-4 1.3z" fill="#ffb020"/>
+      <path d="M22.1 11.6c1 .3 1.1 1.7.1 2-.7.2-1.3-.3-1.3-1" fill="#ff4d4d"/>
+      <circle cx="21.6" cy="7.4" r=".85" fill="#13182400"/>
+      <circle cx="21.6" cy="7.4" r=".8" fill="#1a1f2b"/>
+      <ellipse class="wing" cx="13.8" cy="12.4" rx="4.4" ry="3.1" fill="#d7e0f2"/>
+    </g>
+  </symbol>
+  <symbol id="spr-boat" viewBox="0 0 30 26">
+    <g class="boat">
+      <path d="M14 4.5l7.5 10H14z" fill="#ffffff"/>
+      <path d="M12.6 4.2v10.6" stroke="#cbd7ee" stroke-width="1.1"/>
+      <path d="M4 15h22l-3.2 5.4a2 2 0 0 1-1.7 1H8.9a2 2 0 0 1-1.7-1z" fill="#c9742f"/>
+      <path d="M4 15h22l-.9 1.5H4.9z" fill="#e0913f"/>
+    </g>
+    <path d="M2 23c2-1.4 4-1.4 6 0s4 1.4 6 0 4-1.4 6 0 4 1.4 6 0" fill="none" stroke="#35c8ff" stroke-width="1.3" opacity=".8"/>
+  </symbol>
+</defs></svg>
+
 <div id="stage">
   <div id="card" class="idle">
     <div id="top">
@@ -231,13 +318,13 @@ button.act.gold{background:#ffedbf;border-color:#c8930d}
     <div id="counts">
       <div><span>In the draw</span><b id="inCount">0</b></div>
       <div class="where" id="where">
-        <span class="mc on">Minecraft</span>
         <span class="tw">Twitch</span>
         <span class="yt">YouTube</span>
         <span class="tt">TikTok</span>
       </div>
     </div>
 
+    <div id="nochat" class="hidden">No chat connected — nobody can enter yet</div>
     <div id="faces"></div>
     <div id="guesses"></div>
     <div id="track"></div>
@@ -303,7 +390,7 @@ button.act.gold{background:#ffedbf;border-color:#c8930d}
     </div>
 
     <h3>3 · Where entries come from</h3>
-    <p class="hint">Minecraft chat always works and needs nothing set up. The rest are optional — fill in whichever platforms you stream on.</p>
+    <p class="hint"><b>Entries come from these chats only.</b> Connect at least one, or nobody can enter — the overlay will say so in red until one is reading. Twitch needs nothing but your channel name.</p>
     <div class="row">
       <div style="flex:2"><label>Twitch channel <span id="twPill" class="pill-status bad">off</span></label>
         <input id="fTwitch" placeholder="your twitch name"></div>
@@ -331,6 +418,7 @@ button.act.gold{background:#ffedbf;border-color:#c8930d}
     </div>
 
     <h3>4 · Look</h3>
+    <p class="hint">Everyone races together in one scattered field with their name on, however many turn up. The band grows with the crowd and stops growing at around a hundred and forty birds, which is as many as a streaming PC can move smoothly.</p>
     <div class="row">
       <div><label>Card width</label>
         <select id="cWidth">
@@ -348,13 +436,6 @@ button.act.gold{background:#ffedbf;border-color:#c8930d}
       </div>
     </div>
     <div class="row">
-      <div><label>Racers shown</label>
-        <select id="cLanes">
-          <option value="5">5</option>
-          <option value="8" selected>8</option>
-          <option value="12">12</option>
-        </select>
-      </div>
       <div><label>Card background</label>
         <select id="cCard">
           <option value="solid" selected>Solid</option>
@@ -385,6 +466,8 @@ const el = id => document.getElementById(id);
 let G = { phase:'idle', mode:'chicken', prize:'50M', openSec:120, endsAt:0, entries:[], maxEntries:500,
           winner:null, low:1, high:100, secret:0, revealSecret:false, lanes:8, uiScale:1.15, cardW:26 };
 let ign = 'mrchicken75', ws = null, serverMode = false, skew = 0, linkState = null, installing = false;
+/* null until the relay has told us; false means no chat is connected */
+let anyChat = null;
 const now = () => Date.now() + skew;
 
 const headURL = (n, s) => `https://minotar.net/helm/${encodeURIComponent(String(n).replace(/^[.*]/,''))}/${s}.png`;
@@ -449,25 +532,38 @@ function render(){
     live ? 'To enter, type this in chat' : 'Entries are closed';
 
   el('clock').textContent = live ? clock(Math.max(0, G.endsAt - now())) : (G.phase === 'done' ? 'done' : '—');
-  el('inCount').textContent = G.entries.length;
+  /* `total` is the real figure; `entries` may have been trimmed on the
+     way here. Fall back for a page running on its own. */
+  const total = typeof G.total === 'number' ? G.total : G.entries.length;
+  el('inCount').textContent = total;
 
   /* which chats are being read */
   const st = (linkState && linkState.state) || {};
   const flag = (sel, on) => el('where').querySelector(sel).classList.toggle('on', !!on);
-  flag('.mc', true);
   flag('.tw', st.twitch && st.twitch.on);
   flag('.yt', st.youtube && st.youtube.on);
   flag('.tt', st.tiktok && st.tiktok.on);
+  /* and the warning when none of them is */
+  el('nochat').classList.toggle('hidden', anyChat !== false || G.phase === 'done' || G.phase === 'racing');
 
   /* entrants */
+  /* With hundreds in, the list stops being the point — the number is.
+     Show the most recent handful so chat can see their own name land,
+     then say how many more there are. */
   if(G.mode === 'number'){
-    el('guesses').innerHTML = G.entries.slice(-24).reverse().map(e => `
+    const show = G.entries.slice(-24).reverse();
+    el('guesses').innerHTML = show.map(e => `
       <div class="guess"><img src="${headURL(e.name,32)}" onerror="this.onerror=null;this.src='${headAlt(e.name,32)}'" alt="">
         <span class="n">${e.name}</span><span class="g">${e.guess == null ? '—' : e.guess}</span></div>`).join('');
+    if(G.phase !== 'racing' && G.phase !== 'done')
+      el('more').textContent = total > show.length ? `+${total - show.length} more guessing` : '';
   } else {
-    el('faces').innerHTML = G.entries.slice(-26).reverse().map(e => `
+    const show = G.entries.slice(-26).reverse();
+    el('faces').innerHTML = show.map(e => `
       <div class="face"><img src="${headURL(e.name,32)}" onerror="this.onerror=null;this.src='${headAlt(e.name,32)}'" alt="">
         <span>${e.name}</span></div>`).join('');
+    if(G.phase !== 'racing' && G.phase !== 'done')
+      el('more').textContent = total > show.length ? `+${total - show.length} more in the draw` : '';
   }
 
   /* winner */
@@ -487,66 +583,108 @@ function render(){
   if(!DISPLAY) paintPanel();
 }
 
-/* The race. The winner is already decided, so this is choreography: the
-   winning lane is given the shortest journey, the rest finish behind it
-   in a spread that looks like a race rather than a procession. */
+/* The race. The winner is already decided, so none of this changes
+   anything — it chooses how to TELL it.
+
+   Small fields get a lane each with names on. Big ones get a pack, and
+   a cap on how many are drawn: beyond about a hundred and twenty
+   sprites a streaming PC starts dropping frames, and a dropped frame
+   during the one moment everybody is watching is not worth the extra
+   birds nobody could pick out anyway. The count on screen always says
+   how many are really in. */
+const MAX_SPRITES = 140;
+function sprite(){ return `<svg class="spr"><use href="#spr-${G.mode === 'boat' ? 'boat' : 'chicken'}"/></svg>`; }
+
 function startRace(){
   if(raceTimer) return;
+  /* The real number in the draw, not the length of the list we were
+     sent — past two hundred those are different, and the figure on
+     screen has to be the true one. */
+  const total = typeof G.total === 'number' ? G.total : G.entries.length;
   const winner = G.winner && G.winner.name;
   const others = G.entries.map(e => e.name).filter(n => n !== winner);
-  const room = Math.max(2, Math.min(12, Number(G.lanes) || 8)) - 1;
-  /* A spread of the others rather than the first few, so a big giveaway
-     does not always show the same handful of early names. */
+
+  /* Who gets drawn. The winner always; the rest spread evenly through
+     the list rather than taken from the front, so the same early
+     entrants are not the only ones ever shown. Beyond about a hundred
+     and forty birds a streaming PC starts dropping frames, and a
+     dropped frame during the finish is not worth birds nobody could
+     pick out — the counter underneath says how many are really in. */
+  const room = MAX_SPRITES - 1;
   const shown = [];
-  const stepEvery = Math.max(1, Math.floor(others.length / room) || 1);
-  for(let i = 0; i < others.length && shown.length < room; i += stepEvery) shown.push(others[i]);
+  if(others.length <= room) shown.push(...others);
+  else {
+    const step = others.length / room;
+    for(let i = 0; i < room; i++) shown.push(others[Math.floor(i * step)]);
+  }
   const field = [winner, ...shown].filter(Boolean);
 
-  lanes = field.map((name, i) => ({
-    name,
-    win: name === winner,
-    /* seconds to the line: the winner lands first, the rest a little
-       after, each with its own wobble so they trade places on the way */
-    takes: name === winner ? 5.6 : 5.9 + (i * 0.22) + Math.random() * 1.6,
-    wobble: 0.5 + Math.random() * 1.4,
-    phase: Math.random() * Math.PI * 2,
-  }));
-  el('track').innerHTML = lanes.map((l, i) => `
-    <div class="lane" data-i="${i}">
-      <span class="finish"></span>
-      <span class="runner" id="run${i}">
-        <span class="n">${l.name}</span>
-        <img src="${headURL(l.name,32)}" onerror="this.onerror=null;this.src='${headAlt(l.name,32)}'" alt="">
-        <span class="pic">${SPRITE[G.mode] || '🐔'}</span>
-      </span>
-    </div>`).join('');
-  const hidden = Math.max(0, G.entries.length - lanes.length);
-  el('more').textContent = hidden ? `+${hidden} more in the draw` : '';
+  /* Scattered, not ranked. Each bird gets its own spot in the band and
+     its own start, so nothing lines up into a column. The spread is
+     wider than the band and then wrapped, which stops the first few
+     drawn from all landing along the top edge. */
+  lanes = field.map((name, i) => {
+    const win = name === winner;
+    return {
+      name, win,
+      takes: win ? 5.6 : 5.9 + Math.random() * 2.6,
+      wobble: 0.5 + Math.random() * 1.4,
+      phase: Math.random() * Math.PI * 2,
+      /* A wide spread at the off: with everyone on the same line a
+         hundred birds set off as one clump and stay that way. */
+      head: win ? 0.03 : Math.random() * 0.24,
+      curve: 0.85 + Math.random() * 0.35,
+      /* 4% to 92% of the band, jittered rather than on a grid */
+      y: win ? 8 + Math.random() * 20 : 4 + Math.random() * 88,
+      tint: i % 5,
+    };
+  });
+
+  /* The band grows with the crowd, up to a point. Forty birds in a
+     ten-rem box is a traffic jam; a hundred and forty need the room. */
+  const packH = Math.max(7, Math.min(14, 6 + lanes.length * 0.062));
+  const track = el('track');
+  track.innerHTML = `<div id="pack" style="--packh:${packH.toFixed(2)}rem">
+    <span class="finish"></span>${
+    lanes.map((l, i) => `
+      <span class="runner${l.win ? ' win' : ''} t${l.tint}${l.win ? '' : (i % 3 === 1 ? ' up' : i % 3 === 2 ? ' dn' : '')}" id="run${i}"
+            style="top:${l.y.toFixed(1)}%;margin-top:-.65rem;z-index:${Math.round(l.y)}">
+        ${sprite()}<span class="n">${l.name}</span>
+      </span>`).join('')}</div>`;
+
+  el('more').textContent = total > lanes.length
+    ? `${total} racing · showing ${lanes.length}`
+    : `${total} racing`;
   raceFrom = now();
+
+  /* Measured once rather than per frame: reading a width inside the
+     animation loop forces the browser to re-do layout on every single
+     frame, with well over a hundred things moving. */
+  const holder = document.getElementById('pack');
+  let span = Math.max(40, (holder ? holder.clientWidth : 300) - 58);
+  const remeasure = () => {
+    const h = document.getElementById('pack');
+    if(h) span = Math.max(40, h.clientWidth - 58);
+  };
+  addEventListener('resize', remeasure, { once: true });
 
   const tick = () => {
     const t = (now() - raceFrom) / 1000;
     let done = true;
-    lanes.forEach((l, i) => {
-      const base = Math.min(1, t / l.takes);
-      /* a little surge and sag on the way, flattened out near the line
-         so nobody appears to overtake the winner at the last moment */
-      const sway = Math.sin(t * 1.6 + l.phase) * 0.035 * l.wobble * (1 - base);
+    for(let i = 0; i < lanes.length; i++){
+      const l = lanes[i];
+      const run0 = Math.min(1, Math.pow(Math.max(0, t) / l.takes, l.curve));
+      const base = l.head + (1 - l.head) * run0;
+      const sway = Math.sin(t * 1.6 + l.phase) * 0.035 * l.wobble * (1 - run0);
       const p = Math.max(0, Math.min(1, base + sway));
       const run = el('run' + i);
-      /* 74% rather than the whole lane: the name trails behind the
-         sprite, and a runner pushed right to the edge takes its own name
-         off the card — which on the winning lane is the one name that
-         matters. */
-      if(run) run.style.left = (p * 74) + '%';
+      /* transform, not left: one moves the picture, the other makes the
+         browser lay the whole card out again. */
+      if(run) run.style.transform = 'translateX(' + (p * span).toFixed(1) + 'px)';
       if(p < 1) done = false;
-      if(l.win && p >= 1) el('track').querySelector(`.lane[data-i="${i}"]`).classList.add('win');
-    });
-    if(t > 7.5 || done){
+    }
+    if(t > 8.5 || done){
       raceTimer = null;
-      /* Tell the relay so the winner card and the result appear
-         together. If this page is not the one driving, the relay has
-         the answer anyway. */
       cmd('g.finish');
       if(!serverMode){ G.phase = 'done'; render(); }
       return;
@@ -613,6 +751,7 @@ function connect(){
     G = msg.m;
     linkState = msg.links || linkState;
     installing = !!msg.installing;
+    if(typeof msg.anyChat === 'boolean') anyChat = msg.anyChat;
     if(wasPhase !== 'racing' && G.phase === 'racing'){ if(raceTimer){ cancelAnimationFrame(raceTimer); raceTimer = null; } }
     applyLook();
     render();
@@ -666,7 +805,6 @@ function bindPanel(){
   el('bInstall').onclick = () => { cmd('g.install'); log('installing TikTok support…'); };
   el('cWidth').onchange = e => { G.cardW = Number(e.target.value); cmd('g.config', { cardW: G.cardW }); applyLook(); };
   el('cSize').onchange = e => { G.uiScale = parseFloat(e.target.value) || 1; cmd('g.config', { uiScale: G.uiScale }); applyLook(); };
-  el('cLanes').onchange = e => { G.lanes = Number(e.target.value); cmd('g.config', { lanes: G.lanes }); };
   el('cCard').onchange = e => document.body.classList.toggle('clearbg', e.target.value === 'clear');
   el('fIgn').onchange = e => cmd('config', { ign: e.target.value.trim() || 'mrchicken75' });
 }
@@ -691,6 +829,10 @@ if(DISPLAY){
 /* Used only by the demo on the website, which has no relay behind it.
    Harmless anywhere else: it draws state, it cannot send a command. */
 window.GSET = o => { G = Object.assign({}, G, o || {}); render(); };
+/* The panel's own command channel, exposed so the overlay can be driven
+   from a test the same way a click would drive it. Only ever reachable
+   from this machine — the relay refuses commands from anywhere else. */
+window.cmd = cmd;
 
 connect();
 render();
