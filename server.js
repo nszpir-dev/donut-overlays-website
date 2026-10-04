@@ -810,17 +810,21 @@ app.post('/api/checkout', auth, async (req, res) => {
 // Overlays: the permanent links, and the pages themselves.
 // ---------------------------------------------------------------------
 const GAME_FILES = { board: 'board.html', auction: 'auction.html', money: 'money.html', lastcall: 'lastcall.html',
-                     crown: 'crown.html' };
+                     crown: 'crown.html',
+                     /* the extras — free with any plan, see relay.EXTRAS */
+                     stats: 'stats.html', giveaway: 'giveaway.html' };
 /* Withdrawn overlays keep their names here on purpose. A purchase from
    before the Follow Reel was pulled must still read "Follow Reel" in the
    history and on the admin pages — money that came in is a fact, and a
    row that says "wheel" is a row nobody can account for later. */
 const GAME_NAMES = { board: 'Elimination board', auction: 'Live auction', money: 'Money game', lastcall: 'Last Call',
-                     crown: 'Hold the Crown', ...relay.RETIRED };
+                     crown: 'Hold the Crown',
+                     stats: 'Session stats', giveaway: 'Giveaways', ...relay.RETIRED };
 /* Each game's relay listens on its own port, so the control panel address
    differs per game. Showing one fixed port sent anyone running the auction
    or money game to a dead page. */
-const GAME_PORTS = { board: 8090, auction: 8091, money: 8092, lastcall: 8093, crown: 8095 };
+const GAME_PORTS = { board: 8090, auction: 8091, money: 8092, lastcall: 8093, crown: 8095,
+                     stats: 8096, giveaway: 8097 };
 
 /* Made once and never changed, so a link pasted into OBS keeps working
    for the life of the account. */
@@ -878,6 +882,21 @@ app.get('/api/links', auth, async (req, res) => {
         url: `${PUBLIC_URL}/o/${token}/${g}?role=display&bg=transparent`,
         panel: `http://localhost:${live || GAME_PORTS[g]}/`,
         panelLive: !!live,
+      };
+    }),
+    /* The extras. Same shape as a game link so the page needs no special
+       case, with free:true so it can say why they are there. They are
+       listed after the games on purpose: these are the things somebody
+       gets, not the things they chose. */
+    extras: relay.extrasFor(user).map(g => {
+      const live = relay.panelPort(user._id, g);
+      return {
+        game: g,
+        name: GAME_NAMES[g],
+        url: `${PUBLIC_URL}/o/${token}/${g}?role=display&bg=transparent`,
+        panel: `http://localhost:${live || GAME_PORTS[g]}/`,
+        panelLive: !!live,
+        free: true,
       };
     }),
     download: `${PUBLIC_URL}/download/${token}/donut-overlays-launcher.zip`,
@@ -1145,7 +1164,7 @@ app.post('/api/choose-overlay', auth, async (req, res) => {
    customer's machine that can serve it instead. */
 app.get('/o/:token/:game', async (req, res) => {
   const { token, game } = req.params;
-  if (!relay.GAMES.includes(game)) return res.status(404).send(notice('That overlay does not exist.'));
+  if (!GAME_FILES[game]) return res.status(404).send(notice('That overlay does not exist.'));
 
   const user = await User.findOne({ overlayToken: token });
   if (!user) return res.status(404).send(notice('This overlay link is not recognised.'));
@@ -1156,7 +1175,7 @@ app.get('/o/:token/:game', async (req, res) => {
       'Buy an overlay at ' + PUBLIC_URL + ' and this link will start working immediately — it never changes.'
     ));
   }
-  if (!relay.allowedGames(user).includes(game)) {
+  if (!relay.canOpen(user, game)) {
     return res.status(403).send(notice(
       'Your plan does not include this overlay.',
       'You have not bought this one. Buy it outright, or take the monthly which covers every overlay, on the website.'

@@ -25,6 +25,16 @@ const { User } = require('./models');
 
 const GAMES = ['board', 'auction', 'money', 'lastcall', 'crown'];
 
+/* The extras: not games, not sold, and free with any plan at all.
+  
+   The session tracker and the giveaways do not take a turn and do not
+   compete with a game — they run alongside one. Keeping them OUT of
+   GAMES is what makes that true everywhere at once: they can never be
+   picked in a bundle, never counted as one of the three somebody bought,
+   and never appear in a checkout. Anyone with anything running gets
+   them, which is also the single best reason to start the trial. */
+const EXTRAS = ['stats', 'giveaway'];
+
 /* Overlays that were sold once and have since been withdrawn.
   
    The Follow Reel is here because it depended on an unofficial way into
@@ -182,6 +192,19 @@ function stranded(user) {
   return allowedGames(user).length === 0 && retiredOwned(user).length > 0;
 }
 
+/* The extras somebody can open: all of them, as long as they have any
+   overlay at all — a live monthly, a trial, or one bought outright. */
+function extrasFor(user) {
+  return allowedGames(user).length ? EXTRAS.slice() : [];
+}
+
+/* Everything this account may open, games and extras together. The one
+   function the hub and the overlay route should ask, so a new extra
+   never has to be remembered in five places. */
+function canOpen(user, game) {
+  return allowedGames(user).includes(game) || extrasFor(user).includes(game);
+}
+
 function allowedGames(user) {
   if (!user) return [];
   const out = permOf(user);
@@ -291,7 +314,7 @@ function setup(server, { jwtSecret }) {
       const game = url.searchParams.get('g') || 'board';
       if (!t) return socket.destroy();
       const user = await User.findOne({ overlayToken: t });
-      if (!user || !allowedGames(user).includes(game)) return socket.destroy();
+      if (!user || !canOpen(user, game)) return socket.destroy();
 
       wss.handleUpgrade(req, socket, head, ws => {
         attachViewer(ws, user, game);
@@ -354,7 +377,7 @@ function attachUplink(ws, user) {
           .catch(err => console.error('[relay] could not record the build', err.message));
       }
     }
-    if (!allowedGames(user).includes(m.game)) return;
+    if (!canOpen(user, m.game)) return;
 
     /* Claim this game on the first push. Whoever pushed it last owns it,
        so a launcher that crashed and was restarted takes its own game
@@ -433,4 +456,6 @@ async function recheckLive() {
   }
 }
 
-module.exports = { setup, entitled, ownedAllBefore, BUNDLE_CHANGED, RETIRED, retiredOwned, stranded, allowedGames, permOf, subGames, hasAnything, gamesFor, panelPort, OPTIONS, GAMES, CORE };
+module.exports = { setup, entitled, ownedAllBefore, BUNDLE_CHANGED, RETIRED, retiredOwned, stranded,
+                   allowedGames, extrasFor, canOpen, permOf, subGames, hasAnything, gamesFor, panelPort,
+                   OPTIONS, GAMES, CORE, EXTRAS };

@@ -29,6 +29,18 @@ function demoScript(game) {
   ready(function(){
     document.body.classList.add('transparent');
     var tab = document.getElementById('opTab'); if(tab) tab.style.display = 'none';
+    /* These overlays size themselves from the window, which is right on
+       a stream and wrong inside a small frame on a sales page — it comes
+       out as a postage stamp in the corner. The demo sets a readable
+       size and keeps it, because the page re-runs its own sizing on
+       every resize. */
+    var FIXED = { stats: 20, giveaway: 13 }[G];
+    if(FIXED){
+      var hold = function(){ document.documentElement.style.fontSize = FIXED + 'px'; };
+      hold();
+      setInterval(hold, 500);
+      addEventListener('resize', hold);
+    }
     var step = 0;
     function beat(){
       try { play(step++); } catch(e){ /* a demo must never throw on the sales page */ }
@@ -63,6 +75,40 @@ function demoScript(game) {
         if(typeof M === 'object' && M.phase !== 'live') return localOpen(5000000, 0, 20, 12);
         localPay(pick(), (typeof M === 'object' && M.leader ? M.leader.amount : 0) + amt);
         return;
+      }
+      if(G === 'stats'){
+        /* The tracker has its own little engine for running on its own,
+           so the demo just feeds it a stream that goes up more than it
+           goes down — which is what a good night looks like. */
+        if(!have('localStart','localMove')) return;
+        if(n === 0) return localStart(1200000000);
+        var up = [5, 12, 3, 25, 8, 2, 15][n % 7] * 1000000;
+        if(n % 4 === 3) return localMove('out', Math.round(up / 2), 'shop');
+        return localMove('in', up, pick());
+      }
+      if(G === 'giveaway'){
+        /* No local engine on this one — the relay normally decides
+           everything — so the demo writes the same state the relay would
+           send and lets the page draw it. Fifteen beats: fill up with
+           entries, race, sit on the winner, start again. */
+        if(typeof window.GSET !== 'function') return;
+        var d = window.__demo || (window.__demo = { entries: [] });
+        var t = Date.now(), step = n % 15;
+        var wheres = ['minecraft', 'twitch', 'youtube', 'tiktok'];
+        if(step === 0){
+          d.entries = [];
+          return window.GSET({ phase:'open', mode:'chicken', prize:'50M', endsAt: t + 30000,
+                               entries: [], winner: null });
+        }
+        if(step < 9){
+          d.entries.push({ name: pick(), platform: wheres[step % 4], at: t, guess: null });
+          return window.GSET({ phase:'open', endsAt: t + (30000 - step * 2500), entries: d.entries.slice() });
+        }
+        if(step === 9){
+          return window.GSET({ phase:'racing', endsAt: 0, entries: d.entries.slice(),
+                               winner: { name: d.entries[2].name, platform: 'twitch', guess: null } });
+        }
+        return;    /* the race plays itself out, then the winner sits there */
       }
       if(G === 'crown'){
         if(!have('localOpen','localPay')) return;

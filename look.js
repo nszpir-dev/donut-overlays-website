@@ -11,7 +11,7 @@
  * own; and it means the rules can be tested without standing up Express,
  * Mongo and Stripe first.
  */
-const GAMES = ['board', 'auction', 'money', 'lastcall', 'crown'];
+const GAMES = ['board', 'auction', 'money', 'lastcall', 'crown', 'stats', 'giveaway'];
 
 const SCALES = [1, 1.2, 1.45];
 const isHex = v => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
@@ -103,6 +103,15 @@ if (L.accent) {
     root.style.setProperty('--calm', L.accent);
     root.style.setProperty('--calm-1', shade(L.accent, 1.35));
     root.style.setProperty('--calm-2', shade(L.accent, 0.78));
+  } else if (G === 'stats') {
+    /* The tracker's colour is the "up" green, because that is the one
+       people look at. Down stays red whatever is picked: a loss painted
+       in the same colour as a win is a figure nobody can read at a
+       glance. */
+    root.style.setProperty('--up', L.accent);
+  } else if (G === 'giveaway') {
+    root.style.setProperty('--gold', L.accent);
+    root.style.setProperty('--gold-2', shade(L.accent, 0.78));
   } else if (G === 'crown') {
     root.style.setProperty('--royal', L.accent);
     root.style.setProperty('--royal-1', shade(L.accent, 1.35));
