@@ -450,6 +450,11 @@ if(DISPLAY){
   el('opTab').style.display = 'none';
 } else {
   bindPanel();
+  /* The panel opens by itself now, so land on the one thing that has to
+     be filled in — the balance you are starting from — instead of
+     making somebody find it. */
+  el('op').classList.add('open');
+  setTimeout(() => { try { el('fStart').focus(); } catch(e){} }, 150);
 }
 connect();
 render();

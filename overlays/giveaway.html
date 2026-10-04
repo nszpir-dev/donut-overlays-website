@@ -825,6 +825,9 @@ if(DISPLAY){
   el('opTab').style.display = 'none';
 } else {
   bindPanel();
+  /* Opened on its own, so show the controls rather than an empty card
+     with a tab in the corner. */
+  el('op').classList.add('open');
 }
 /* Used only by the demo on the website, which has no relay behind it.
    Harmless anywhere else: it draws state, it cannot send a command. */
